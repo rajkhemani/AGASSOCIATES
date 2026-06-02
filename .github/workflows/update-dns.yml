@@ -1,0 +1,36 @@
+name: Update DNS for GitHub Pages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update-dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Zone ID
+        id: zone
+        run: |
+          ZONE=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=advadiityagade.com" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" | jq -r '.result[0].id')
+          echo "zone_id=$ZONE" >> $GITHUB_OUTPUT
+
+      - name: Get DNS Record ID
+        id: record
+        run: |
+          RECORD=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ steps.zone.outputs.zone_id }}/dns_records?name=advadiityagade.com&type=CNAME" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" | jq -r '.result[0].id')
+          echo "record_id=$RECORD" >> $GITHUB_OUTPUT
+
+      - name: Update DNS Record
+        run: |
+          curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/${{ steps.zone.outputs.zone_id }}/dns_records/${{ steps.record.outputs.record_id }}" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "type": "CNAME",
+              "name": "advadiityagade.com",
+              "content": "rajkhemani.github.io",
+              "proxied": false
+            }' | jq .
