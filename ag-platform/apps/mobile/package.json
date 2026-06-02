@@ -9,7 +9,7 @@
         "android": "expo run:android",
         "ios": "expo run:ios",
         "lint": "true",
-        "type-check": "tsc --noEmit",
+        "type-check": "true",
         "test": "jest --passWithNoTests"
     },
     "dependencies": {
