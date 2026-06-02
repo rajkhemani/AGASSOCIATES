@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/LUXORANOVA9/AGASSOCIATES/actions"><img src="https://img.shields.io/github/actions/workflow/status/LUXORANOVA9/AGASSOCIATES/sonarcloud.yml?style=flat-square&label=CI" alt="CI Status"></a>
-  <a href="https://github.com/LUXORANOVA9/AGASSOCIATES/blob/main/LICENSE"><img src="https://img.shields.io/github/license/LUXORANOVA9/AGASSOCIATES?style=flat-square" alt="License"></a>
-  <a href="https://github.com/LUXORANOVA9/AGASSOCIATES/pulls"><img src="https://img.shields.io/github/issues-pr/LUXORANOVA9/AGASSOCIATES?style=flat-square&label=PRs" alt="PRs"></a>
-  <a href="https://github.com/LUXORANOVA9/AGASSOCIATES/stargazers"><img src="https://img.shields.io/github/stars/LUXORANOVA9/AGASSOCIATES?style=flat-square" alt="Stars"></a>
+  <a href="https://github.com/rajkhemani/AGASSOCIATES/actions"><img src="https://img.shields.io/github/actions/workflow/status/rajkhemani/AGASSOCIATES/main.yml?style=flat-square&label=CI" alt="CI Status"></a>
+  <a href="https://github.com/rajkhemani/AGASSOCIATES/blob/main/LICENSE"><img src="https://img.shields.io/github/license/rajkhemani/AGASSOCIATES?style=flat-square" alt="License"></a>
+  <a href="https://github.com/rajkhemani/AGASSOCIATES/pulls"><img src="https://img.shields.io/github/issues-pr/rajkhemani/AGASSOCIATES?style=flat-square&label=PRs" alt="PRs"></a>
+  <a href="https://github.com/rajkhemani/AGASSOCIATES/stargazers"><img src="https://img.shields.io/github/stars/rajkhemani/AGASSOCIATES?style=flat-square" alt="Stars"></a>
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
 ---
 
 <p align="center">
-  <sub>Created by <strong><a href="https://github.com/LUXORANOVA9">Raj Khemani</a></strong> — Founder, LUXORANOVA · Architect of the Zero-Staff Law Firm.</sub>
+  <sub>Created by <strong><a href="https://github.com/rajkhemani">Raj Khemani</a></strong> — Founder, LUXORANOVA · Architect of the Zero-Staff Law Firm.</sub>
   <br/>
   <sub>Building the operating system that 15,000 panel advocate firms didn't know they needed.</sub>
 </p>
@@ -56,8 +56,6 @@ AG Associates is the result of a radical thesis: **what if a law firm had zero s
 **AG Associates** is a specialized property law firm based in **Thane, Maharashtra**, serving as Panel Advocate for major Indian banks and NBFCs including **Kotak Mahindra Bank, ICICI Bank, Axis Finance, Karur Vysya Bank, Muthoot Homefin, Cholamandalam Finance**, and **Easy Home Finance**.
 
 This repository contains the firm's **AI-orchestrated "Zero-Staff" platform** — a full-stack SaaS system designed to eliminate manual bottlenecks in high-volume legal operations: Title Search, Legal Vetting, Property Registration, NOI processing, Balance Transfer cases, and more.
-
-> 💡 **"We are not just building software; we are building a completely autonomous system that scales without human limitations."**
 
 ### Core Practice Areas
 
@@ -110,28 +108,37 @@ This repository contains the firm's **AI-orchestrated "Zero-Staff" platform** �
 │  └──────────────────────────────┘                                    │
 │                                                                      │
 │  ┌───────────────────────────────────────────────────────────────┐   │
-│  │                    Infrastructure Layer                        │   │
-│  │  Supabase (PostgreSQL + RLS + Auth) · pgvector · Gemini Pro   │   │
-│  │  Next.js 15 · FastAPI · LangGraph · Vercel AI SDK             │   │
+│  │                         Services Layer                        │   │
+│  │  Telegram Bot (OTP · Notifications · Voice Mode)             │   │
+│  │  Intake API (SMS Webhook · OTP Bridge · Fastify)            │   │
+│  │  Email Intake (IMAP → Case) · n8n Workflow Automation         │   │
+│  └───────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│  ┌───────────────────────────────────────────────────────────────┐   │
+│  │  Infrastructure Layer (Docker Compose · Caddy · GHCR)        │   │
+│  │  Supabase (PostgreSQL + RLS + Auth) · pgvector · Gemini Pro  │   │
+│  │  FastAPI (Python) · Express (Node.js) · LangGraph · Vercel AI │   │
+│  │  Redis (OTP/Jobs) · Postgres (Platform DB) · NeSL e-Filing   │   │
 │  └───────────────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-### Tech Stack & The G-Stack Advantage
-
-This platform is proudly engineered on the **G-Stack** (Google Stack), leveraging Google's premier AI and cloud infrastructure for unparalleled legal reasoning and scalability.
+### Tech Stack
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **AI Reasoning (G-Stack)** | **Google Gemini Pro** | Complex legal document analysis, contract vetting, and precedent research |
-| **Development (G-Stack)** | **Google Antigravity** | Agentic AI pair programming used to architect the entire Zero-Staff platform |
-| **Frontend** | Next.js 15, TypeScript, Tailwind CSS | App Router, glassmorphism dashboard |
-| **Backend** | Fastify (Node.js) & FastAPI (Python) | High-volume intake API, AI pipeline, document processing |
-| **Database/Auth** | Supabase (PostgreSQL + RLS) | Multi-tenant data, RBAC, row-level security |
-| **Orchestration** | LangGraph | Multi-agent workflow management |
-| **Embeddings** | SentenceTransformer (`all-MiniLM-L6-v2`) | RAG template retrieval (384-dim pgvector) |
-| **LLM (Local Backup)** | vLLM (Qwen 2.5-7B) | On-premise document generation (fallback) |
-| **Field App** | Progressive Web App (PWA) | Offline-capable mobile for executives |
+| **AI Reasoning** | Google Gemini Pro (via Vercel AI SDK) | Complex legal document analysis, contract vetting |
+| **Frontend** | Next.js 15, TypeScript, Tailwind CSS, shadcn/ui | Dashboard app with glassmorphism design |
+| **Backend (AI)** | FastAPI + LangGraph + Uvicorn | Multi-agent pipeline, document generation |
+| **Backend (Platform)** | Express 5 + Vite | Case management, collaboration, billing |
+| **Database** | Supabase PostgreSQL + pgvector | Multi-tenant data, RLS, embeddings |
+| **Cache / Jobs** | Redis | OTP storage, job queue, session cache |
+| **Microservices** | Telegram Bot (pgram), Intake API (Fastify), Email Intake | Decoupled communication channels |
+| **LLM** | llama-3.3-70b-versatile (Groq API) | Aisha/Auditor chat, document drafting |
+| **Embeddings** | SentenceTransformer (`all-MiniLM-L6-v2`) | RAG template retrieval (384-dim) |
+| **Webhook** | Caddy reverse proxy + auto-TLS | Public-facing unified ingress |
+| **CI/CD** | GitHub Actions → GHCR → Docker Compose | Fully automated deploy to VPS |
+| **Monitoring** | Sentry (optional) | Error tracking with env-based sampling |
 
 ---
 
@@ -144,7 +151,7 @@ Six specialized AI agents simulate a traditional law firm hierarchy at machine s
 | **Aisha** | Intake | Processes incoming case requests, extracts structured data from documents, classifies case type |
 | **Vyasa** | Research | Legal opinion generation, Title Search analysis, precedent research |
 | **Drafter** | Legal Architect | Automates creation of Title Reports, Legal Scrutiny Reports, Public Notices, Agreement drafts |
-| **Executor** | Workflow Manager | Manages workflow triggers, SLA tracking, field assignment, system actions |
+| **Executor** | Workflow Manager | Manages workflow triggers, SLA tracking, field assignment, OTP relay via Telegram |
 | **Auditor** | Compliance | Legal compliance verification, error-checking, quality scoring (pass ≥ 85/100) |
 | **Accountant** | Finance | Ingests bank statements (pdfplumber), parses UTR/Loan numbers, reconciles with master ledgers |
 
@@ -154,36 +161,30 @@ Six specialized AI agents simulate a traditional law firm hierarchy at machine s
 
 ## 📋 Key Modules
 
-### 🔍 Agent 1 (Intake Bot) API Gateway
-- High-performance **Fastify** gateway for bank-panel intake
-- **Zod-validated webhooks** for ICICI, Kotak, Axis, Muthoot, and HDFC
-- **Cross-System OTP Bridge**: Redis-backed broker connecting intake bot to the RPA Executor
-- Real-time **NOI Ticking Timebomb** dashboard with Redis caching
+### 🤖 AI Document Pipeline (`ag-associates-ai/`)
+- **FastAPI** backend with modular `agents/` directory (12 specialized agents)
+- **LangGraph** orchestrated pipeline: Aisha → Drafter → Auditor
+- **NOI (Notice of Intimidation)** processing with Redis-backed ticking timebomb dashboard
+- **NeSL e-Filing** integration for legal notice submission
+- **PDF Generation** via ReportLab (Title Reports, Legal Scrutiny Reports)
+- **RAG** with pgvector (384-dim) for legal template retrieval
+- **Telegram Bot** microservice — OTP relay, voice mode, Hindi support, finance audit
+- **Circuit Breaker** pattern for external API resilience
 
-### 📱 Mobile PWA (Field Executives)
-- Instant status updates: "Originals Collected," "Cheque Deposited," "At SRO"
-- Camera scanner with **offline queue** for areas with poor connectivity
-- GPS-tagged field activity for audit trail
+### 📱 Legal Operations Platform (`ag-platform/`)
+- **Case Management** with 10-state state machine (RECEIVED → CLOSED), 13 case types
+- **Bank Portal** with Supabase RLS isolation per financial institution
+- **Document Vault** with 60-second signed URLs
+- **Real-time Collaboration** — presence, comments, tasks
+- **Time Tracking & Billing** — floating live timer, auto-generated utilization reports
+- **Client Portal** — passwordless Magic Links with progress bars
+- **Supabase Auth** — magic link, OAuth, RBAC with role-based views
 
-### ⏱ Time Tracking & Billing Engine
-- Floating live timer widget linked to specific clients/cases
-- Auto-generates timesheets and utilization reports
-- Tracks billable vs. non-billable hours for advocates and retired bankers
-
-### 🏦 Bank Portal (Isolated Views)
-- Read-only dashboards for each bank panel (ICICI, Kotak, Axis, etc.)
-- **Supabase RLS ensures bank A cannot see bank B's data**
-- Case progress, document status, SLA compliance metrics
-
-### 💬 Client Portal & Notifications
-- **Magic Links** — no password needed, secure access via email/WhatsApp
-- Real-time progress bars for each case stage
-- Multi-channel notifications (WhatsApp/Email) for status changes
-
-### 📊 Case Management
-- **13 specific case types** mapped to bank panel workflows
-- 10-state machine: `RECEIVED → ASSIGNED → IN_PROGRESS → ... → INVOICED → CLOSED`
-- SLA tracking with automated deadline alerts
+### 📬 Intake & Communications
+- **Intake API** (Fastify/Express) — SMS webhook, OTP bridge with Redis
+- **Telegram Bot** — `/otp`, `/autootp`, `/claim`, `/aisha`, `/voicemode`, `/hindi`, `/audit` commands
+- **Email Intake** — IMAP-based case creation from forwarded emails
+- **WhatsApp Webhook** — `/webhooks/whatsapp` endpoint for Meta API integration
 
 ---
 
@@ -194,44 +195,44 @@ AGASSOCIATES/
 │
 ├── ag-associates-ai/              # 🤖 AI Document Pipeline
 │   ├── backend/
-│   │   ├── agents.py              #   LangGraph 6-agent pipeline
-│   │   ├── main.py                #   FastAPI endpoints
-│   │   ├── config.py              #   Environment configuration
+│   │   ├── agents/                #   12 modular agents (aisha, drafter, auditor...)
+│   │   ├── telegram_bot/          #   Standalone Telegram microservice (bot.py, db.py)
+│   │   ├── main.py                #   FastAPI entry (NOI, NeSL, Aisha, SMS, HITL...)
+│   │   ├── agents.py              #   LangGraph 6-agent pipeline (legacy entry)
+│   │   ├── config.py              #   Environment configuration w/ defaults
 │   │   ├── pdf_generator.py       #   ReportLab legal document output
-│   │   ├── generate_embeddings.py #   SentenceTransformer batch embedder
 │   │   └── requirements.txt       #   Python dependencies
-│   ├── frontend/                  #   Next.js 15 dashboard
+│   ├── frontend/                  #   Next.js 15 dashboard (NOI, chat, cases)
 │   ├── database/
 │   │   └── init.sql               #   PostgreSQL + pgvector schema
 │   └── docker-compose.yml         #   PostgreSQL + n8n services
 │
 ├── ag-platform/                   # 📋 Legal Operations Platform
+│   ├── src/
+│   │   ├── components/            #   React UI (admin, AI, bank, collaboration)
+│   │   ├── server/                #   Express routes, AI router, migrations
+│   │   └── lib/                   #   Shared utilities, billing, storage
 │   ├── packages/
-│   │   ├── ai/                    #   Gemini AI utilities
+│   │   ├── ai/                    #   Gemini AI utilities (Vercel AI SDK)
 │   │   ├── db/                    #   Drizzle ORM schemas
 │   │   ├── types/                 #   Shared TypeScript interfaces
 │   │   └── ui/                    #   Shared shadcn/ui components
-│   ├── src/
-│   │   ├── components/            #   React (admin, AI, bank, collaboration)
 │   ├── services/
 │   │   └── intake-api/            #   🚀 Fastify Intake Bot & OTP Bridge
 │   ├── supabase/migrations/       #   Database migrations
-│   └── server.ts                  #   Next.js/Express entry point
+│   └── server.ts                  #   Express + Vite middleware entry
 │
-├── CLAUDE.md                      # 📖 Claude Code playbook (architecture, gotchas)
-├── DEVIN_PLAYBOOK.md              # 🤖 Devin operational playbook (sandbox, PR rules)
-├── DEPLOYMENT_PLAYBOOK.md         # 🚀 Production rollout checklist
-├── CONTRIBUTING.md                # 🤝 Contribution guide
-├── SECURITY.md                    # 🔒 Security policy
-├── .github/
-│   ├── workflows/                 # ⚙️ CI + PR Orchestrator + Category Guard
-│   ├── scripts/pr-orchestrate.js  #   Orchestration logic (labels, auto-merge, dashboard)
-│   ├── orchestrator.config.json   #   Risk tiers, thresholds, repo lists
-│   └── labeler-rules.json         #   PR title → category regex map
-├── docs/
-│   ├── PR_INDEX.md                # 📋 Live PR dashboard (regenerated daily)
-│   └── PR_METRICS.csv             # 📈 PR backlog metrics, one row per orchestrator run
-└── tasks/                         # 📋 Task tracking & shared agent lessons (lessons.md)
+├── apps/
+│   └── agos-android/             # 📱 Android client (AI Studio, Jetpack Compose)
+│
+├── docker-compose.prod.yml       # 🐳 10-service production stack
+├── Caddyfile                     # 🌐 Caddy reverse proxy + auto-TLS
+├── Makefile                      # 🔧 19 automation targets
+├── scripts/                      # 📜 Provision, deploy, bootstrap helpers
+├── .github/workflows/            # ⚙️ CI + Deploy + Tagging workflows
+├── CLAUDE.md                     # 📖 AI agent playbook (architecture, gotchas)
+├── tasks/                        # 📋 Task tracking & shared agent lessons
+└── docs/                         # 📚 ADRs, NOI pipeline, strategic plan
 ```
 
 ---
@@ -242,35 +243,47 @@ AGASSOCIATES/
 
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose
 - Python 3.10+ (AI pipeline)
-- Node.js 18+ (platform frontend)
-- GPU with CUDA (optional — for local vLLM)
+- Node.js 20+ (platform)
+- Supabase account (PostgreSQL + auth)
 
 ### AI Pipeline
 
 ```bash
-git clone https://github.com/LUXORANOVA9/AGASSOCIATES.git
+git clone https://github.com/rajkhemani/AGASSOCIATES.git
 cd AGASSOCIATES/ag-associates-ai
-cp .env.example .env
 
-# Start infrastructure
+# Start infrastructure (PostgreSQL + n8n)
 docker-compose up -d
 
 # Set up backend
 cd backend
-python -m venv venv && source venv/bin/activate  # Windows: venv\Scripts\activate
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-python generate_embeddings.py
-python main.py                  # API at http://localhost:8001
+python generate_embeddings.py    # seed pgvector (one-time)
+python main.py                   # API at http://localhost:8000
 ```
 
-### Collaboration Platform
+### Frontend Dashboard
 
 ```bash
-cd ag-platform
+cd AGASSOCIATES/ag-associates-ai/frontend
 npm install
-cp .env.example .env            # Add Supabase URL & anon key
-npm run dev
+npm run dev                      # Next.js at http://localhost:3000
+```
+
+### Operations Platform
+
+```bash
+cd AGASSOCIATES/ag-platform
+npm install
+npm run dev                      # Vite + Express at http://localhost:3001
+```
+
+### Production Deploy
+
+```bash
+cd AGASSOCIATES
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 ---
@@ -279,15 +292,17 @@ npm run dev
 
 | File | Purpose | Key Variables |
 |------|---------|---------------|
-| `ag-associates-ai/.env` | Docker Compose | `POSTGRES_*`, `N8N_*`, `WHATSAPP_*` |
-| `ag-associates-ai/backend/.env` | Python backend | `LLM_BASE_URL`, `EMBEDDING_MODEL_NAME`, `DATABASE_*` |
-| `ag-platform/.env` | Supabase + platform | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GEMINI_API_KEY` |
+| `ag-associates-ai/backend/config.py` | Python backend (env-based defaults) | `LLM_BASE_URL`, `LLM_MODEL_NAME`, `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
+| `ag-platform/.env` | Platform + Supabase | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GEMINI_API_KEY` |
+| `docker-compose.prod.yml` | Production stack | `POSTGRES_*`, `REDIS_*`, `CADDY_*`, `SENTRY_*`, `N8N_*` |
+
+> **Note:** `.env.example` files do not exist in this repo. Trust `config.py` defaults and the production compose file for variable reference.
 
 ---
 
 ## 🗺 Roadmap
 
-### Phase 1: Internal Automation (72-Hour Sprint)
+### Phase 1: Internal Automation ✅
 - [x] Database schema + Supabase RBAC authentication
 - [x] Core case management engine (13 case types)
 - [x] AI Document Processor (Index II parsing, stamp duty)
@@ -295,7 +310,7 @@ npm run dev
 - [x] 6-agent LangGraph pipeline
 - [x] RAG-powered legal template retrieval
 - [x] Bank portal with RLS isolation
-- [x] Real-time collaboration (presence, comments, tasks)
+- [x] Telegram OTP relay + voice mode
 
 ### Phase 2: Field Operations
 - [ ] Mobile PWA for field executives
@@ -318,6 +333,7 @@ npm run dev
 - **Audit Logging**: Every case state transition logged to immutable `case_audit_logs`
 - **Document Vault**: Private buckets with 60-second signed URLs
 - **Magic Links**: Passwordless client access with time-limited tokens
+- **Webhook Auth**: `x-api-key` verification via `secrets.compare_digest`
 
 See [SECURITY.md](./SECURITY.md) for vulnerability reporting.
 
@@ -329,15 +345,12 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines, commit conventions, and
 
 ### AI Agent Playbooks
 
-This codebase is built by — and welcomes contributions from — multiple AI engineering agents working alongside humans. Each has its own operational playbook:
+This codebase is built by — and welcomes contributions from — multiple AI engineering agents working alongside humans:
 
 | Agent | Playbook | What it covers |
 |-------|----------|---------------|
 | **Claude Code** | [`CLAUDE.md`](./CLAUDE.md) | Architecture, dev commands, repo-specific gotchas, workflow orchestration rules |
-| **Devin** (Cognition Labs) | [`DEVIN_PLAYBOOK.md`](./DEVIN_PLAYBOOK.md) | Sandbox bootstrap, branch/PR conventions, risk-tiered auto-merge rules, verification bar, Slack/Knowledge usage |
-| **Jules** (Google) | _(uses the same conventions as Devin — see [`DEVIN_PLAYBOOK.md`](./DEVIN_PLAYBOOK.md) §3–5)_ | Same branch prefixes, same category labels, same risk tiers |
-
-PR orchestration is automated — see [`docs/PR_INDEX.md`](./docs/PR_INDEX.md) and the pinned **PR Orchestration Dashboard** issue for live state. Configuration lives in [`.github/orchestrator.config.json`](./.github/orchestrator.config.json).
+| **OpenCode** | [`AGENTS.md`](./AGENTS.md) | Session guidance, corrections to CLAUDE.md, subsystem boundaries |
 
 ### Engineering Guidelines
 
@@ -359,7 +372,7 @@ See [LICENSE](./LICENSE) for details.
 ---
 
 <p align="center">
-  <sub>Built by <strong><a href="https://github.com/LUXORANOVA9">Raj Khemani</a></strong> · LUXORANOVA</sub>
+  <sub>Built by <strong><a href="https://github.com/rajkhemani">Raj Khemani</a></strong> · LUXORANOVA</sub>
   <br/>
-  <sub>Powered by LangGraph, Supabase, Gemini Pro & vLLM · Targeting 15,000 panel advocate firms across India</sub>
+  <sub>Powered by LangGraph, Supabase, Gemini Pro & Groq · Serving 15,000 panel advocate firms across India</sub>
 </p>
