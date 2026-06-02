@@ -288,6 +288,122 @@ docker compose -f docker-compose.prod.yml up -d
 
 ---
 
+## 🚢 Deployment Architecture
+
+The platform is deployed on a **Hetzner Cloud VPS** (CCX23, NBG1 datacenter) via a fully automated CI/CD pipeline.
+
+### Infrastructure
+
+| Layer | Technology | Details |
+|-------|-----------|---------|
+| **Host** | Hetzner CCX23 (4 vCPU, 32 GB RAM) | Ubuntu 22.04 LTS, Docker 24+ |
+| **Reverse Proxy** | Caddy 2 | Auto-TLS via Let's Encrypt, subdomain routing |
+| **Container Runtime** | Docker Compose | 10-service production stack |
+| **CI/CD** | GitHub Actions + GHCR | Build → Push → SSH deploy |
+| **Secrets** | GitHub Actions Secrets + Vars | `VPS_HOST`, `VPS_SSH_KEY`, `VPS_USER`, `SUPABASE_*` |
+| **Monitoring** | Sentry (optional) | Error tracking with env-based sampling rate |
+
+### Production Stack (10 Services)
+
+| Service | Image / Source | Port(s) | Healthcheck | Purpose |
+|---------|---------------|---------|-------------|---------|
+| `caddy` | caddy:2-alpine | 80, 443 | — | Reverse proxy + auto-TLS (Let's Encrypt) |
+| `postgres` | postgres:17-alpine | 5432 | pg_isready | Platform database (cases, users, timesheets) |
+| `redis` | redis:8-alpine | 6379 | redis-ping | OTP cache, job queue, session store |
+| `ai-backend` | `ghcr.io/rajkhemani/ag-ai-backend` | 8000 | `/health` | FastAPI + LangGraph agent pipeline |
+| `ai-dashboard` | `ghcr.io/rajkhemani/ag-ai-dashboard` | 3000 | wget :3000 | Next.js 15 admin dashboard |
+| `ag-platform` | `ghcr.io/rajkhemani/ag-platform` | 3001 | — | Express + Vite operations platform |
+| `n8n` | n8nio/n8n | 5678 | — | Workflow automation engine |
+| `intake-api` | `services/intake-api/` | 3002 | — | Fastify SMS webhook + OTP bridge |
+| `telegram-bot` | `ghcr.io/rajkhemani/ag-telegram-bot` | 3003, 3004 | :3004/health | Standalone Telegram microservice |
+| `email-intake` | `services/email-intake/` | — | — | IMAP-based email → case creation |
+
+All services share a Docker bridge network and log to `docker logs`. Healthchecks restart unhealthy containers automatically.
+
+### Caddy Routing
+
+| Domain / Path | Backend | Auth |
+|---------------|---------|------|
+| `advadiityagade.com` | Static landing page | None |
+| `app.advadiityagade.com` | ag-platform (:3001) | Supabase Auth + RLS |
+| `api.advadiityagade.com` | ai-backend (:8000) | API key |
+| `dashboard.advadiityagade.com` | ai-dashboard (:3000) | Supabase Auth |
+| `intake.advadiityagade.com` | intake-api (:3002) | API key |
+| `n8n.advadiityagade.com` | n8n (:5678) | Basic auth |
+| `docs.advadiityagade.com` | Static docs | None |
+| `/webhook*` | telegram-bot (:3003) | Telegram secret |
+
+### CI/CD Pipeline
+
+Every push to `main` touching `ag-associates-ai/`, `ag-platform/`, or the compose file triggers `deploy.yml`:
+
+```
+Push → Git checkout → docker/build-push-action × 3
+  ├─ ag-ai-backend (FastAPI + Python deps)
+  ├─ ag-ai-dashboard (Next.js output)
+  └─ ag-platform (Vite build + Express runtime)
+
+Push to ghcr.io/rajkhemani/*:latest + :{sha}
+
+SSH into VPS (deploy@46.225.185.91):
+  ├─ git fetch && reset --hard origin/main
+  ├─ docker compose pull
+  ├─ docker compose up -d --remove-orphans
+  └─ docker image prune -f
+
+Smoke test: GET https://api.advadiityagade.com/health → 200 OK
+```
+
+Secrets required in the GitHub repository:
+
+| Secret | Value | Used In |
+|--------|-------|---------|
+| `VPS_HOST` | `46.225.185.91` | SSH deploy step |
+| `VPS_PORT` | `22` | SSH deploy step |
+| `VPS_USER` | `deploy` | SSH deploy step |
+| `VPS_SSH_KEY` | Ed25519 private key | SSH authentication |
+| `GITHUB_TOKEN` | Auto-provided | GHCR push auth |
+| `PROD_DOMAIN` (var) | `advadiityagade.com` | `NEXT_PUBLIC_API_URL` build arg |
+| `SUPABASE_URL` (var) | Supabase project URL | Backend connection |
+| `SUPABASE_ANON_KEY` (var) | Supabase anon key | Client-side auth |
+
+### Deployment Directory Layout (VPS)
+
+```
+/srv/ag/
+├── repo/                    # Git clone (owned by deploy user)
+│   ├── docker-compose.prod.yml
+│   ├── Caddyfile
+│   ├── ag-associates-ai/
+│   └── ag-platform/
+├── .env                     # Runtime env vars (Postgres, Redis, tokens)
+├── data/                    # Persistent volumes (DB, Redis, uploads)
+└── deploy_key               # (Not on disk — provided via SSH agent)
+```
+
+### Bootstrapping a New VPS
+
+```bash
+# Prerequisites
+apt update && apt install -y docker.io docker-compose-v2 fail2ban ufw
+ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
+
+# Create deploy user
+useradd -m -s /bin/bash deploy
+usermod -aG docker deploy
+mkdir -p ~deploy/.ssh && chmod 700 ~deploy/.ssh
+
+# Clone and deploy
+cd /srv && mkdir ag && chown deploy:deploy ag
+su deploy
+git clone https://github.com/rajkhemani/AGASSOCIATES.git repo
+docker compose -f repo/docker-compose.prod.yml up -d
+```
+
+A self-hosted GitHub Actions runner (`ag-prod-runner`) can be installed as an alternative deploy path — see `scripts/setup-runner.sh`.
+
+---
+
 ## ⚙️ Environment Variables
 
 | File | Purpose | Key Variables |
