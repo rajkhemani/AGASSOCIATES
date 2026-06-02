@@ -7,11 +7,4 @@
     "build": "echo 'Root build step' && cd ag-platform && npm install && npm run build && cd ../ag-associates-ai/frontend && npm install && npm run build",
     "deploy": "echo 'Deploying'"
   },
-  "workspaces": [
-    "ag-platform",
-    "ag-platform/apps/*",
-    "ag-platform/packages/*",
-    "ag-platform/services/*",
-    "ag-associates-ai/frontend"
-  ]
 }
