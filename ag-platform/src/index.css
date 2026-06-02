@@ -4,14 +4,42 @@
 @tailwind components;
 @tailwind utilities;
 
+@import './styles/glass-theme.css';
+
 @layer base {
   :root {
     --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
     --font-serif: "Playfair Display", ui-serif, Georgia, serif;
     --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-bg-elevated: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.15);
+    --glass-border-hover: rgba(255, 255, 255, 0.3);
   }
 
   body {
-    @apply font-sans antialiased bg-slate-50 text-slate-900;
+    @apply font-sans antialiased;
+    background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
   }
 }

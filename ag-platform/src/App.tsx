@@ -19,39 +19,44 @@ function Navigation() {
   
   const getLinkStyle = (path: string) => {
     const isActive = location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
-    return `flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition ${isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`;
+    return `flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 ${
+      isActive 
+        ? 'glass-nav-link active text-white' 
+        : 'glass-nav-link text-white/70 hover:text-white hover:bg-white/10'
+    }`;
   };
 
   if (location.pathname === '/login') return null;
 
   return (
-    <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-40 shadow-sm">
-      <div className="flex items-center gap-2">
-        <div className="bg-indigo-700 text-white p-1.5 rounded-lg">
-          <Building2 size={24} />
+    <header className="glass-nav px-6 py-3 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="relative w-10 h-10 flex items-center justify-center">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-indigo-500/20 rounded-xl blur-lg" />
+          <div className="relative bg-gradient-to-br from-violet-500 to-indigo-500 text-white p-2 rounded-xl shadow-lg">
+            <Building2 size={22} />
+          </div>
         </div>
         <div className="flex flex-col">
-          <h1 className="text-lg font-serif font-bold text-slate-900 leading-none">AG Associates</h1>
-          <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500">Home Loan Origination</span>
+          <h1 className="text-lg font-serif font-bold text-white leading-none">AG Associates</h1>
+          <span className="text-[10px] uppercase font-mono tracking-wider text-white/50">Home Loan Origination</span>
         </div>
       </div>
-      <nav className="flex items-center space-x-2 border p-1 rounded-lg bg-slate-50 border-slate-200">
-        <Link to="/" className={getLinkStyle('/')}>
-           🌐 Marketing
-        </Link>
+      <nav className="flex items-center space-x-1 p-1 rounded-xl glass-card">
+        <Link to="/" className={getLinkStyle('/')}> 🌐 Marketing </Link>
         <Link to="/applicant" className={getLinkStyle('/applicant')}>
-           <UserCircle2 size={16} /> Applicant
+          <UserCircle2 size={16} /> Applicant
         </Link>
         <Link to="/admin" className={getLinkStyle('/admin')}>
-           <Briefcase size={16} /> Advisor
+          <Briefcase size={16} /> Advisor
         </Link>
         <Link to="/bank" className={getLinkStyle('/bank')}>
-           <Landmark size={16} /> Bank Portal
+          <Landmark size={16} /> Bank Portal
         </Link>
         {user && (
           <button 
             onClick={() => signOut()}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md text-red-600 hover:bg-red-50 transition"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-300"
           >
             <LogOut size={16} /> Logout
           </button>
@@ -71,9 +76,16 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
+        <div className="min-h-screen flex flex-col font-sans text-white relative overflow-x-hidden">
+          {/* Background Mesh Gradient */}
+          <div className="fixed inset-0 pointer-events-none z-0">
+            <div className="absolute inset-0 bg-gradient-mesh" />
+            <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
+          </div>
+          
           <Navigation />
-          <main className="flex-1 flex flex-col w-full">
+          <main className="flex-1 flex flex-col w-full relative z-10">
             <Routes>
               <Route path="/" element={<MarketingLanding />} />
               <Route path="/login" element={<LoginPage />} />
@@ -105,8 +117,8 @@ function App() {
             </Routes>
           </main>
 
-          <footer className="border-t border-slate-200 bg-white py-3 px-6 text-center text-xs text-slate-500">
-            <Link to="/privacy" className="hover:text-indigo-700 hover:underline">
+          <footer className="glass-card mx-6 mb-4 py-4 px-6 text-center text-xs text-white/50">
+            <Link to="/privacy" className="hover:text-violet-300 hover:underline transition-all duration-300">
               Privacy Policy
             </Link>
           </footer>
