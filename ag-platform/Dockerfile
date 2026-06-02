@@ -3,7 +3,7 @@ WORKDIR /app
 
 RUN apk add --no-cache python3 make g++
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 COPY tsconfig.json tsconfig.node.json vite.config.ts tailwind.config.js postcss.config.js ./
@@ -27,7 +27,7 @@ WORKDIR /app
 RUN apk add --no-cache postgresql-client
 
 COPY --from=builder /app/dist ./dist
-COPY package.json ./
+COPY package.json .npmrc ./
 COPY server.ts ./
 COPY src/server/ ./src/server/
 COPY tsconfig.json tsconfig.node.json ./
