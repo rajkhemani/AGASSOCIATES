@@ -312,13 +312,7 @@ docker compose -f docker-compose.prod.yml up -d
 - [x] Bank portal with RLS isolation
 - [x] Telegram OTP relay + voice mode
 
-### Phase 2: Field Operations
-- [ ] Mobile PWA for field executives
-- [ ] Camera scanner with offline queue
-- [ ] GPS-tagged field activity tracking
-- [ ] Live timer & billing engine
-
-### Phase 3: White-Label SaaS
+### Phase 2: White-Label SaaS
 - [ ] Multi-tenant architecture (org_id parameterized)
 - [ ] Theming engine (logo, colors, fonts per firm)
 - [ ] Maharashtra-specific legal module (SRO data, stamp duty rates)
