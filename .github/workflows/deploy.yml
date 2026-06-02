@@ -36,12 +36,12 @@ jobs:
           - name: ag-ai-dashboard
             context: ag-associates-ai/frontend
             build_args: |
-              NEXT_PUBLIC_API_URL=https://api.${{ secrets.PROD_DOMAIN }}
+              NEXT_PUBLIC_API_URL=https://api.${{ vars.PROD_DOMAIN }}
           - name: ag-platform
             context: ag-platform
             build_args: |
               VITE_SUPABASE_URL=${{ vars.SUPABASE_URL }}
-              VITE_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+              VITE_SUPABASE_ANON_KEY=${{ vars.SUPABASE_ANON_KEY }}
               VITE_API_BASE_URL=/api
     steps:
       - uses: actions/checkout@v4
@@ -92,7 +92,7 @@ jobs:
       - name: Smoke test API health
         run: |
           for i in 1 2 3 4 5 6; do
-            if curl -sf "https://api.${{ secrets.PROD_DOMAIN }}/health" >/dev/null; then
+            if curl -sf "https://api.${{ vars.PROD_DOMAIN }}/health" >/dev/null; then
               echo "API healthy"; exit 0
             fi
             echo "waiting for API ($i/6)…"; sleep 10
