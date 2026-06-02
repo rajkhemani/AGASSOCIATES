@@ -6,5 +6,5 @@
   "scripts": {
     "build": "echo 'Root build step' && cd ag-platform && npm install && npm run build && cd ../ag-associates-ai/frontend && npm install && npm run build",
     "deploy": "echo 'Deploying'"
-  },
+  }
 }
