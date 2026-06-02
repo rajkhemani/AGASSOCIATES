@@ -68,5 +68,9 @@ IGR_PORTAL_PASSWORD = os.getenv("IGR_PORTAL_PASSWORD", "")
 GRAS_PORTAL_URL = os.getenv("GRAS_PORTAL_URL", "https://gras.mahakosh.gov.in/echallan/")
 
 
+# Zoho Mail Configuration (for Email Intake Agent)
+ZOHO_EMAIL_USER = os.getenv("ZOHO_EMAIL_USER", "admin@advadiityagade.com")
+ZOHO_EMAIL_PASS = os.getenv("ZOHO_EMAIL_PASS", "")  # App Password
+
 def get_database_url():
     return f"postgresql://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"

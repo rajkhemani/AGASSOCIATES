@@ -36,7 +36,6 @@ COMMAND_SECONDS = float(os.environ.get("WAKEWORD_COMMAND_SECONDS", "5"))
 
 
 def _record_wav(seconds: float) -> bytes:
-    import numpy as np  # type: ignore
     import sounddevice as sd  # type: ignore
 
     frames = int(seconds * SAMPLE_RATE)

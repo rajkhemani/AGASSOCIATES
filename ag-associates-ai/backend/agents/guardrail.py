@@ -11,7 +11,7 @@ from .state import AgentState
 @traceable(name="Guardrail_Regex_Validator")
 def guardrail_node(state: AgentState) -> AgentState:
     """Hard-fail if critical extracted fields are missing or implausible."""
-    print(f"\n🛡️ [GUARDRAIL] Validating Aisha's extraction to prevent hallucinations")
+    print("\n🛡️ [GUARDRAIL] Validating Aisha's extraction to prevent hallucinations")
     state['current_node'] = 'guardrail'
     if 'timestamps' not in state or state['timestamps'] is None:
         state['timestamps'] = {}

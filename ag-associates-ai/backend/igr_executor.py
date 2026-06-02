@@ -12,13 +12,13 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from playwright.async_api import async_playwright
 
 from circuit_breaker import get_breaker, CircuitState
 from hitl_queue import hitl_queue
-from selector_config import load_portal_selectors, get_selector
+from selector_config import get_selector
 from workforce.ledger import record_activity
 
 logger = logging.getLogger(__name__)

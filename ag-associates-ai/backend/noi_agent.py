@@ -6,12 +6,10 @@ NOI States: DOCUMENTS_RECEIVED → CHALLAN_GENERATED → CHALLAN_PAID → VERIFI
             → NOI_DROP_RECEIVED → RECTIFY → NOI_FILED → ACKNOWLEDGED → COMPLETED
 """
 
-import asyncio
-import json
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from agents.stamp_duty import validate_stamp_duty
 from workforce.ledger import record_activity

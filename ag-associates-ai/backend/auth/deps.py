@@ -5,10 +5,10 @@ to produce an AuthContext that require_permission() gates can use.
 """
 
 import os
-from typing import Callable, Optional
+from typing import Callable
 
 import httpx
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 
 from .google_oauth import require_user
 from .rbac import AuthContext, Role

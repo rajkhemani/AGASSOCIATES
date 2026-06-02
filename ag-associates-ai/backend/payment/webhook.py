@@ -1,8 +1,7 @@
 import os
 import logging
 import stripe
-from fastapi import Request, HTTPException
-from .models import PaymentStatus
+from fastapi import HTTPException
 from .stripe_client import StripeClient
 
 logger = logging.getLogger(__name__)

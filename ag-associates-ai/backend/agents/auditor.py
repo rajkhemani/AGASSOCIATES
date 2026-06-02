@@ -46,7 +46,7 @@ CRITICAL:
 
 def auditor_node(state: AgentState) -> AgentState:
     """Score the draft 0-100 against extracted fields; passed = ≥85 and no critical issues."""
-    print(f"\n🔍 [AUDITOR] Starting quality audit")
+    print("\n🔍 [AUDITOR] Starting quality audit")
     state['current_node'] = 'auditor'
     state['timestamps']['auditor_start'] = datetime.now().isoformat()
 

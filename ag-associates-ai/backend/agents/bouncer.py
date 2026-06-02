@@ -1,8 +1,6 @@
 """Node 1.7: Bouncer — mathematical sanity check on stamp duty paid."""
 
-import re
 from datetime import datetime
-from typing import Any, Optional
 
 from langsmith import traceable
 
@@ -14,7 +12,7 @@ from .utils import record_activity
 @traceable(name="Bouncer_Math_Validator")
 def bouncer_node(state: AgentState) -> AgentState:
     """Verify stamp duty paid ≈ 0.3% of (rent × months) within ₹50 tolerance."""
-    print(f"\n⚖️ [BOUNCER] Verifying stamp duty calculations")
+    print("\n⚖️ [BOUNCER] Verifying stamp duty calculations")
     state['current_node'] = 'bouncer'
     state['timestamps']['bouncer_start'] = datetime.now().isoformat()
     state['bouncer_passed'] = False

@@ -1,6 +1,5 @@
 import asyncio
 import time
-from concurrent.futures import ThreadPoolExecutor
 
 # Since we don't need the whole app, we just benchmark the endpoint logic
 import sys

@@ -1,7 +1,6 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, List
 from pydantic import BaseModel
 import logging
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,7 @@
 from openai import OpenAI
-from typing import List, Dict, Any, Optional
+from typing import Dict
 import logging
-from config import LLM_BASE_URL, LLM_MODEL_NAME
+from config import LLM_BASE_URL
 
 logger = logging.getLogger(__name__)
 

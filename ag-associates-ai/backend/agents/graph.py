@@ -121,7 +121,7 @@ def process_rental_request(
         print("\n" + "=" * 60)
         print("✅ WORKFLOW COMPLETED")
         print("=" * 60)
-        print(f"\n📋 SUMMARY:")
+        print("\n📋 SUMMARY:")
         print(f"   Tenant: {final_state.get('tenant_name') or 'N/A'}")
         print(f"   Property: {(final_state.get('property_address') or 'N/A')[:50]}...")
         print(f"   Rent: {final_state.get('rent_amount') or 'N/A'}")

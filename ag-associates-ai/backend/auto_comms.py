@@ -6,10 +6,9 @@ advances, stalls, or encounters errors.
 Wired to NOIAgent._notify() — every NOI status transition fires a dispatch.
 """
 
-import json
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Dict
 
 import httpx
 

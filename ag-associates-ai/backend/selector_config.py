@@ -12,10 +12,9 @@ The supabase_config table schema:
 Add a unique constraint on (portal, selector_key).
 """
 
-import json
 import logging
 import os
-from typing import Dict, Optional
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

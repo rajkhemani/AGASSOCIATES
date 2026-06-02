@@ -4,10 +4,8 @@ Detects document type, extracts transactions, runs audit checks,
 and returns a structured report.
 """
 
-import re
 import io
 import logging
-from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)

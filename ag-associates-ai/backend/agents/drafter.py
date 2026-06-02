@@ -42,7 +42,7 @@ TEMPLATE STRUCTURE TO FOLLOW:
 
 def drafter_node(state: AgentState) -> AgentState:
     """Find best template via similarity_search, inject extracted fields, save MD + PDF."""
-    print(f"\n📝 [DRAFTER] Starting document drafting")
+    print("\n📝 [DRAFTER] Starting document drafting")
     state['current_node'] = 'drafter'
     state['timestamps']['drafter_start'] = datetime.now().isoformat()
     state['revision_count'] = state.get('revision_count', 0) + 1
@@ -152,7 +152,7 @@ def _persist_outputs(state: AgentState, document_md: str) -> None:
     try:
         pdf_path = convert_to_pdf(document_md, f"{state['sender']}_{timestamp}")
         state['pdf_path'] = pdf_path
-        print(f"✅ [DRAFTER] Document drafted and saved:")
+        print("✅ [DRAFTER] Document drafted and saved:")
         print(f"   Markdown: {md_path}")
         print(f"   PDF: {pdf_path}")
     except Exception as pdf_error:

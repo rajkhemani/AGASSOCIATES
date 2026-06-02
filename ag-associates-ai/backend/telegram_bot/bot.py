@@ -24,10 +24,9 @@ import os
 import json
 import io
 import re
-import signal
 import logging
 import asyncio
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Optional
 
 import redis.asyncio as aioredis
@@ -753,7 +752,8 @@ async def _cleanup_loop(app: Application):
 # ── Health endpoint ──────────────────────────────────────────────────────
 
 def run_health_check():
-    import http.server, socketserver, threading
+    import http.server
+    import socketserver
 
     class H(http.server.BaseHTTPRequestHandler):
         def do_GET(self):

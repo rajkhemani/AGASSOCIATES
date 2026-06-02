@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from .stripe_client import StripeClient
 from .webhook import PaymentWebhookHandler
 

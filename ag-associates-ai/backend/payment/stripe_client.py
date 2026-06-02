@@ -2,7 +2,6 @@ import os
 import logging
 import stripe
 from typing import Dict, Any
-from .models import PaymentStatus
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +28,8 @@ class StripeClient:
                     'quantity': 1,
                 }],
                 mode='payment',
-                success_url=f"https://advisor.agassociates.com/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
-                cancel_url=f"https://advisor.agassociates.com/payment/cancel",
+                success_url="https://advisor.agassociates.com/payment/success?session_id={CHECKOUT_SESSION_ID}",
+                cancel_url="https://advisor.agassociates.com/payment/cancel",
                 customer_email=customer_email,
                 client_reference_id=case_id,
             )

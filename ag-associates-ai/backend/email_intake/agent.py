@@ -10,14 +10,12 @@ Flow:
 """
 
 import os
-import json
 import logging
 import asyncio
 import imaplib
 import email
 import re
 from email.header import decode_header
-from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
@@ -28,10 +26,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 
 # ── Config ───────────────────────────────────────────────────────────────
 
-IMAP_HOST = os.environ.get("EMAIL_IMAP_HOST", "imap.gmail.com")
+# Zoho Mail Configuration
+IMAP_HOST = os.environ.get("EMAIL_IMAP_HOST", "imap.zoho.in")
 IMAP_PORT = int(os.environ.get("EMAIL_IMAP_PORT", "993"))
-IMAP_USER = os.environ.get("EMAIL_IMAP_USER", "")
-IMAP_PASS = os.environ.get("EMAIL_IMAP_PASS", "")
+IMAP_USER = os.environ.get("EMAIL_IMAP_USER", "admin@advadiityagade.com")
+IMAP_PASS = os.environ.get("EMAIL_IMAP_PASS", "Parii@1907")  # App Password from Zoho
 IMAP_INBOX = os.environ.get("EMAIL_IMAP_INBOX", "INBOX")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
@@ -179,15 +178,19 @@ async def fetch_new_emails() -> list[dict]:
 
 # ── LLM Extraction ───────────────────────────────────────────────────────
 
-async def extract_loan_details(email_text: str, sender: str, subject: str) -> Optional[LoanSanctionExtract]:
-    """Use LLM to extract structured loan sanction details from email."""
-    prompt = f"""Extract loan sanction details from this bank email.
+async def extract_loan_details(email_text: str, sender: str, subject: str, attachments: list = None) -> Optional[LoanSanctionExtract]:
+    """Extract loan sanction details from bank email and attachments."""
+    attachment_text = ""
+    if attachments:
+        attachment_text = "\n\nAttachments found: " + ", ".join([att.get('filename', 'unknown') for att in attachments])
+    
+    prompt = f"""Extract loan sanction details from this bank email and attachments.
 
 Sender: {sender}
 Subject: {subject}
 
 Email content:
-{email_text[:4000]}
+{email_text[:4000]}{attachment_text}
 """
 
     try:

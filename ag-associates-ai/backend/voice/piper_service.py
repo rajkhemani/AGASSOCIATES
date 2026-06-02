@@ -9,7 +9,6 @@ import io
 import logging
 import os
 import wave
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

@@ -255,7 +255,7 @@ def guardrail_node(state: AgentState) -> AgentState:
     Node 1.5: Guardrail - Prevents LLM hallucination before drafting begins.
     Hard fails if critical data is missing or fails regex validation.
     """
-    print(f"\n🛡️ [GUARDRAIL] Validating Aisha's extraction to prevent hallucinations")
+    print("\n🛡️ [GUARDRAIL] Validating Aisha's extraction to prevent hallucinations")
     state['current_node'] = 'guardrail'
     if 'timestamps' not in state or state['timestamps'] is None:
         state['timestamps'] = {}
@@ -315,7 +315,7 @@ def bouncer_node(state: AgentState) -> AgentState:
     """
     Node 1.7: The Bouncer - Mathematically verifies stamp duty paid.
     """
-    print(f"\n⚖️ [BOUNCER] Verifying stamp duty calculations")
+    print("\n⚖️ [BOUNCER] Verifying stamp duty calculations")
     state['current_node'] = 'bouncer'
     state['timestamps']['bouncer_start'] = datetime.now().isoformat()
     state['bouncer_passed'] = False
@@ -422,7 +422,7 @@ def drafter_node(state: AgentState) -> AgentState:
     """
     Node 2: Drafter - Find template and generate document
     """
-    print(f"\n📝 [DRAFTER] Starting document drafting")
+    print("\n📝 [DRAFTER] Starting document drafting")
     state['current_node'] = 'drafter'
     state['timestamps']['drafter_start'] = datetime.now().isoformat()
     state['revision_count'] = state.get('revision_count', 0) + 1
@@ -512,7 +512,6 @@ Generate the complete rental agreement document:
         pdf_filename = f"agreement_{state['sender']}_{timestamp}"
         
         # Ensure output directory exists
-        import os
         from config import OUTPUT_DIR
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         
@@ -525,7 +524,7 @@ Generate the complete rental agreement document:
         try:
             pdf_path = convert_to_pdf(result.content, f"{state['sender']}_{timestamp}")
             state['pdf_path'] = pdf_path
-            print(f"✅ [DRAFTER] Document drafted and saved:")
+            print("✅ [DRAFTER] Document drafted and saved:")
             print(f"   Markdown: {md_path}")
             print(f"   PDF: {pdf_path}")
         except Exception as pdf_error:
@@ -594,7 +593,7 @@ def auditor_node(state: AgentState) -> AgentState:
     """
     Node 3: Auditor - Quality assurance check
     """
-    print(f"\n🔍 [AUDITOR] Starting quality audit")
+    print("\n🔍 [AUDITOR] Starting quality audit")
     state['current_node'] = 'auditor'
     state['timestamps']['auditor_start'] = datetime.now().isoformat()
     
@@ -825,7 +824,7 @@ def process_rental_request(raw_input: str, sender: str = "whatsapp_user", org_id
         print("="*60)
         
         # Summary
-        print(f"\n📋 SUMMARY:")
+        print("\n📋 SUMMARY:")
         print(f"   Tenant: {final_state.get('tenant_name') or 'N/A'}")
         print(f"   Property: {(final_state.get('property_address') or 'N/A')[:50]}...")
         print(f"   Rent: {final_state.get('rent_amount') or 'N/A'}")

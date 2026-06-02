@@ -76,7 +76,7 @@ class GrasRPAExecutor:
                 if not otp_code:
                     return {"success": False, "error": "OTP Timeout. Staff did not need to interrupt, system will retry."}
 
-                logger.info(f"✅ [EXECUTOR] Received OTP asynchronously. Submitting...")
+                logger.info("✅ [EXECUTOR] Received OTP asynchronously. Submitting...")
                 # await page.fill("input[id='otp_input']", otp_code)
                 # await page.click("button[id='verify_otp']")
 

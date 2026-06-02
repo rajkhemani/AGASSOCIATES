@@ -10,7 +10,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -22,7 +22,6 @@ from conversation_store import (
     ensure_tables,
     get_conversation_context_window,
     get_or_create_conversation,
-    get_all_context,
     set_context,
     resolve_user,
 )

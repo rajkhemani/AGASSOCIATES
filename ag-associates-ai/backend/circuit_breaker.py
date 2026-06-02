@@ -10,13 +10,10 @@ States:
   HALF_OPEN — Testing if the portal has recovered
 """
 
-import asyncio
-import json
 import logging
 import os
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 

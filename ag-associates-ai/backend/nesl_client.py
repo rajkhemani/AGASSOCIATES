@@ -8,7 +8,6 @@ Modes (auto-selected by available config):
 
 import asyncio
 import hashlib
-import json
 import logging
 import os
 import uuid

@@ -1,5 +1,4 @@
 import os
-import os
 import re
 import json
 import base64
@@ -14,18 +13,15 @@ if importlib.util.find_spec("sentry_sdk"):
     import sentry_sdk
 from fastapi import FastAPI, Header, HTTPException, status, Response, Request, Depends, Cookie
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 from voice.voice_api import router as voice_router
 from workforce import workforce_router
-from auth import oauth_router, require_auth, require_permission, AuthContext
+from auth import oauth_router, require_permission, AuthContext
 from playground import playground_router, session_manager as _playground_sm
 from payment.router import router as payment_router
 from controller_agent import UnifiedController
-from agents import process_rental_request
 from aisha_core import handle_message as aisha_handle_message, ensure_tables
-from conversation_store import resolve_user
 from nesl_client import NeslClient
 
 
@@ -369,8 +365,6 @@ async def aisha_voice_call_webhook(
     Twilio Voice webhook — handles inbound calls with speech recognition.
     First call: prompts user to speak. Subsequent: processes speech via Aisha.
     """
-    from voice.piper_service import synthesize
-    import base64
 
     if not SpeechResult:
         twiml = """<?xml version="1.0" encoding="UTF-8"?>

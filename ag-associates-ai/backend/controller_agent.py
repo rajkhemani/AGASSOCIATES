@@ -1,9 +1,7 @@
 import logging
-import json
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 from utils.mcp_client import MCPClient
 from utils.conversation_service import ConversationService
-from config import LLM_MODEL_NAME
 
 logger = logging.getLogger(__name__)
 

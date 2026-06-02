@@ -27,7 +27,7 @@ from .vox_router import vox_router
 from .whisper_service import whisper_service
 
 try:
-    from utils.s3 import generate_presigned_upload_url, generate_presigned_url, s3_client, BUCKET_NAME
+    from utils.s3 import generate_presigned_url, s3_client, BUCKET_NAME
     _HAS_S3 = True
 except Exception:
     _HAS_S3 = False

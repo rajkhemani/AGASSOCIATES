@@ -1,9 +1,8 @@
 import json
 import os
-import subprocess
 import httpx
 import logging
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@ import secrets
 from typing import Any, Dict, List, Optional
 
 import psycopg2
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException
 from psycopg2.extras import RealDictCursor
 
 from config import get_database_url

@@ -1,5 +1,3 @@
-import os
-from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)

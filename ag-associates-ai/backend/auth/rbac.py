@@ -14,7 +14,7 @@ e.g., PRINCIPAL can do everything ADVOCATE can do, plus firm management.
 
 from __future__ import annotations
 import enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, Callable
 from fastapi import HTTPException, status
 
