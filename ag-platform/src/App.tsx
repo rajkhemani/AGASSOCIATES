@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { MarketingLanding } from './components/home/MarketingLanding';
 import { ApplicantDashboard } from './components/applicant/ApplicantDashboard';
 import { AdvisorCockpit } from './components/admin/AdvisorCockpit';
@@ -10,8 +10,28 @@ import { WorkforceControl } from './components/admin/WorkforceControl';
 import { PrivacyPolicy } from './components/privacy/PrivacyPolicy';
 import { ErrorBoundary } from './components/ui';
 import { useAuthStore } from './store/useAuthStore';
-import { Building2, UserCircle2, Briefcase, Landmark, LogOut } from 'lucide-react';
+import { Building2, UserCircle2, Briefcase, Landmark, LogOut, Loader2 } from 'lucide-react';
 import { TimeTracker } from './components/collaboration/TimeTracker';
+import config from './lib/config';
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0f0f23]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative w-16 h-16 flex items-center justify-center">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-indigo-500/20 rounded-2xl blur-xl animate-pulse" />
+          <div className="relative bg-gradient-to-br from-violet-500 to-indigo-500 text-white p-4 rounded-2xl shadow-lg">
+            <Building2 size={32} />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-white/70">
+          <Loader2 size={18} className="animate-spin" />
+          <span className="text-sm font-medium">Loading AG Associates...</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Navigation() {
   const location = useLocation();
@@ -38,8 +58,8 @@ function Navigation() {
           </div>
         </div>
         <div className="flex flex-col">
-          <h1 className="text-lg font-serif font-bold text-white leading-none">AG Associates</h1>
-          <span className="text-[10px] uppercase font-mono tracking-wider text-white/50">Home Loan Origination</span>
+          <h1 className="text-lg font-serif font-bold text-white leading-none">{config.app.name}</h1>
+          <span className="text-[10px] uppercase font-mono tracking-wider text-white/50">{config.app.description}</span>
         </div>
       </div>
       <nav className="flex items-center space-x-1 p-1 rounded-xl glass-card">
@@ -53,13 +73,17 @@ function Navigation() {
         <Link to="/bank" className={getLinkStyle('/bank')}>
           <Landmark size={16} /> Bank Portal
         </Link>
-        {user && (
+        {user ? (
           <button 
             onClick={() => signOut()}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-300"
           >
             <LogOut size={16} /> Logout
           </button>
+        ) : (
+          <Link to="/login" className={getLinkStyle('/login')}>
+            Login
+          </Link>
         )}
       </nav>
     </header>
@@ -68,10 +92,24 @@ function Navigation() {
 
 function App() {
   const initializeAuth = useAuthStore((state) => state.initialize);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    initializeAuth();
+    const init = async () => {
+      try {
+        await initializeAuth();
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    init();
   }, [initializeAuth]);
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <ErrorBoundary>
@@ -118,7 +156,8 @@ function App() {
           </main>
 
           <footer className="glass-card mx-6 mb-4 py-4 px-6 text-center text-xs text-white/50">
-            <Link to="/privacy" className="hover:text-violet-300 hover:underline transition-all duration-300">
+            <p>© 2024 {config.app.name}. All rights reserved.</p>
+            <Link to="/privacy" className="hover:text-violet-300 hover:underline transition-all duration-300 mt-1 inline-block">
               Privacy Policy
             </Link>
           </footer>
