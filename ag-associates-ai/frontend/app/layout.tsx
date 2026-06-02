@@ -2,23 +2,23 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Adv. Aditya Gade | Advocate & AI Systems Architect',
-  description: 'Building autonomous AI workflows for blitzscaling. Architected with the $7T Billion-Dollar Prompter Methodology.',
-  keywords: ['Aditya Gade', 'Advocate', 'AI Systems', 'LangGraph', 'Zero-Staff Enterprise', 'AG Associates'],
+  title: 'AG Associates | Premium Financial Advisory',
+  description: 'India\'s premier financial advisory firm delivering excellence since 1999. Strategic guidance for institutions and corporations.',
+  keywords: ['financial advisory', 'corporate finance', 'investment banking', 'portfolio management', 'risk advisory', 'AG Associates'],
   openGraph: {
-    title: 'Adv. Aditya Gade | Advocate & AI Systems Architect',
-    description: 'Building autonomous AI workflows for blitzscaling. Zero staff. Exponential scale.',
-    url: 'https://advadityagade.com',
-    siteName: 'Adv. Aditya Gade',
+    title: 'AG Associates | Premium Financial Advisory',
+    description: 'Strategic financial guidance and investment advisory services for discerning institutions.',
+    url: 'https://advadiityagade.com',
+    siteName: 'AG Associates',
     locale: 'en_IN',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Adv. Aditya Gade | Advocate & AI Systems Architect',
-    description: 'Building autonomous AI workflows for blitzscaling. Zero staff. Exponential scale.',
+    title: 'AG Associates | Premium Financial Advisory',
+    description: 'Strategic financial guidance for institutions and corporations.',
   },
-  metadataBase: new URL('https://advadityagade.com'),
+  metadataBase: new URL('https://advadiityagade.com'),
 }
 
 export default function RootLayout({
@@ -27,8 +27,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="antialiased">
-      <body>{children}</body>
+    <html lang="en" className="antialiased scroll-smooth">
+      <body className="min-h-screen">{children}</body>
     </html>
   )
 }

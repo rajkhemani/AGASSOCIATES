@@ -1,40 +1,48 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    './pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
       colors: {
-        'dark-bg': '#050810',
-        'dark-card': '#0d1117',
-        'accent-green': '#22c55e',
-        'accent-blue': '#3b82f6',
-        'accent-purple': '#8b5cf6',
-        'accent-orange': '#fb923c',
-        'accent-amber': '#f59e0b',
-        'accent-gold': '#d97706',
-        'blueprint': '#0a1628',
-        'blueprint-line': '#1e3a5f',
+        'dark-bg': '#0a0a18',
+        'dark-card': '#12122a',
+        'gold': {
+          50: '#FFF9E6',
+          100: '#FFF0C2',
+          200: '#FFE099',
+          300: '#FFD070',
+          400: '#D4AF37', // Primary gold
+          500: '#B8860B', // Dark gold
+          600: '#996515',
+          700: '#7A4F10',
+          800: '#5C3A0B',
+          900: '#3D2606',
+        },
+      },
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        serif: ['Playfair Display', 'Georgia', 'serif'],
+        mono: ['JetBrains Mono', 'Menlo', 'monospace'],
+      },
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        'gradient-gold': 'linear-gradient(135deg, #D4AF37, #B8860B)',
       },
       animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'glow': 'glow 2s ease-in-out infinite alternate',
-        'float': 'float 6s ease-in-out infinite',
-        'float-delayed': 'float 6s ease-in-out 1.5s infinite',
-        'spin-slow': 'spin 12s linear infinite',
+        'pulse-gold': 'pulse-gold 3s ease-in-out infinite',
       },
       keyframes: {
-        glow: {
-          '0%': { boxShadow: '0 0 20px rgba(34, 197, 94, 0.3)' },
-          '100%': { boxShadow: '0 0 40px rgba(34, 197, 94, 0.6)' },
+        'pulse-gold': {
+          '0%, 100%': { boxShadow: '0 0 20px rgba(212, 175, 55, 0.3)' },
+          '50%': { boxShadow: '0 0 40px rgba(212, 175, 55, 0.6)' },
         },
-        float: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-18px)' },
-        },
+      },
+      boxShadow: {
+        'gold': '0 4px 16px rgba(212, 175, 55, 0.25)',
+        'gold-lg': '0 8px 24px rgba(212, 175, 55, 0.4)',
       },
     },
   },
