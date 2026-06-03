@@ -86,7 +86,7 @@ export function ProjectBriefGenerator({ orgId }: ProjectBriefGeneratorProps) {
               placeholder="Figma files, React codebase, Documentation"
             />
           </div>
-          
+
           <div className="mt-auto">
             {error && (
               <div className="text-red-500 text-xs mb-3 bg-red-50 p-2 rounded">
@@ -94,7 +94,7 @@ export function ProjectBriefGenerator({ orgId }: ProjectBriefGeneratorProps) {
               </div>
             )}
             {!isLoading ? (
-              <button 
+              <button
                 onClick={handleGenerate}
                 disabled={!projectData.project_name || !projectData.scope_description}
                 className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-medium py-2 rounded flex items-center justify-center gap-2 transition"
@@ -102,7 +102,7 @@ export function ProjectBriefGenerator({ orgId }: ProjectBriefGeneratorProps) {
                 <Sparkles className="w-4 h-4" /> Generate Brief
               </button>
             ) : (
-              <button 
+              <button
                 onClick={stop}
                 className="w-full bg-red-100 hover:bg-red-200 text-red-700 font-medium py-2 rounded flex items-center justify-center gap-2 transition"
               >
@@ -120,7 +120,7 @@ export function ProjectBriefGenerator({ orgId }: ProjectBriefGeneratorProps) {
               <p>Analyzing project constraints & generating brief...</p>
             </div>
           )}
-          
+
           {!isLoading && !completion && !error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
               <FileText className="w-12 h-12 mb-4 text-gray-200" />

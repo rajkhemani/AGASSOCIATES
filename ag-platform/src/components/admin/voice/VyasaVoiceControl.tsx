@@ -15,7 +15,7 @@ export function VyasaVoiceControl() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -106,7 +106,7 @@ export function VyasaVoiceControl() {
             <div className="relative group">
               <AnimatePresence>
                 {isRecording && (
-                  <motion.div 
+                  <motion.div
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1.5, opacity: 0.3 }}
                     exit={{ scale: 0.8, opacity: 0 }}
@@ -114,14 +114,14 @@ export function VyasaVoiceControl() {
                   />
                 )}
               </AnimatePresence>
-              
+
               <button
                 onMouseDown={startRecording}
                 onMouseUp={stopRecording}
                 className={cn(
                   "relative w-48 h-48 rounded-full flex items-center justify-center transition-all duration-500 shadow-2xl",
-                  isRecording 
-                    ? "bg-cyan-500 scale-95 shadow-cyan-500/50" 
+                  isRecording
+                    ? "bg-cyan-500 scale-95 shadow-cyan-500/50"
                     : "bg-gradient-to-br from-slate-800 to-slate-900 border-4 border-slate-700 hover:border-cyan-500/50"
                 )}
               >
@@ -129,7 +129,7 @@ export function VyasaVoiceControl() {
                   "absolute inset-2 rounded-full border border-white/5",
                   isRecording && "animate-ping"
                 )} />
-                
+
                 {isRecording ? (
                   <div className="flex flex-col items-center gap-2">
                     <Mic className="text-white animate-pulse" size={48} />
@@ -145,14 +145,14 @@ export function VyasaVoiceControl() {
                 )}
               </button>
             </div>
-            
+
             <div className="flex gap-4">
               <div className="flex flex-col items-center gap-1">
                 <div className="w-12 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                   <motion.div 
+                   <motion.div
                     animate={isRecording ? { x: [-48, 48] } : { x: -48 }}
                     transition={{ repeat: Infinity, duration: 1 }}
-                    className="w-full h-full bg-cyan-500" 
+                    className="w-full h-full bg-cyan-500"
                    />
                 </div>
                 <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest">Audio Stream</span>
@@ -173,7 +173,7 @@ export function VyasaVoiceControl() {
               <div className="flex-1 space-y-4">
                 <AnimatePresence mode="wait">
                   {isRecording ? (
-                    <motion.div 
+                    <motion.div
                       key="listening"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -182,7 +182,7 @@ export function VyasaVoiceControl() {
                       "Say something like 'Vyasa, status of case MHR-123'..."
                     </motion.div>
                   ) : transcript ? (
-                    <motion.div 
+                    <motion.div
                       key="transcript"
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -205,7 +205,7 @@ export function VyasaVoiceControl() {
                            </div>
 
                            {result.execution && (
-                              <motion.div 
+                              <motion.div
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 className="bg-emerald-500/5 border border-emerald-500/20 p-4 rounded-2xl"
@@ -223,7 +223,7 @@ export function VyasaVoiceControl() {
                       )}
                     </motion.div>
                   ) : error ? (
-                    <motion.div 
+                    <motion.div
                       key="error"
                       className="flex flex-col items-center justify-center gap-3 text-red-400 h-full"
                     >

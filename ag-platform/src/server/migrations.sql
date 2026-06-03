@@ -44,8 +44,8 @@ END $$;
 -- CASE STATUS ENUM
 DO $$ BEGIN
     CREATE TYPE case_status AS ENUM (
-        'RECEIVED', 'ASSIGNED', 'DOCUMENT_COLLECTION', 'IN_PROGRESS', 
-        'PENDING_REGISTRATION', 'REGISTERED', 'QUALITY_CHECK', 
+        'RECEIVED', 'ASSIGNED', 'DOCUMENT_COLLECTION', 'IN_PROGRESS',
+        'PENDING_REGISTRATION', 'REGISTERED', 'QUALITY_CHECK',
         'DELIVERED', 'INVOICED', 'CLOSED', 'ON_HOLD', 'REJECTED'
     );
 EXCEPTION
@@ -55,7 +55,7 @@ END $$;
 -- DISBURSEMENT TYPES ENUM
 DO $$ BEGIN
     CREATE TYPE disbursement_type AS ENUM (
-        'STAMP_DUTY', 'REGISTRATION_FEE', 'FRANKING_CHARGE', 'CTC_FEE', 
+        'STAMP_DUTY', 'REGISTRATION_FEE', 'FRANKING_CHARGE', 'CTC_FEE',
         'CHALLAN_0_3_PCT', 'MTR_FEE', 'ESBTR_FEE', 'NEWSPAPER_CHARGE', 'OTHER'
     );
 EXCEPTION
@@ -199,7 +199,7 @@ CREATE TRIGGER update_cases_updated_at BEFORE UPDATE ON cases FOR EACH ROW EXECU
 -- SEED DATA
 INSERT INTO organizations (id, name) VALUES ('7f45dc5f-6bef-4fae-b46a-a2306e69936d', 'AG Associates HQs') ON CONFLICT DO NOTHING;
 
-INSERT INTO banks (id, name, short_code, type) VALUES 
+INSERT INTO banks (id, name, short_code, type) VALUES
 ('7407ac8f-0cb7-434e-994c-4329a11939a7', 'HDFC Bank', 'HDFC', 'BANK'),
 ('2a32c22f-e7a2-487c-b9de-2bfd51455080', 'ICICI Bank', 'ICICI', 'BANK'),
 ('f4bfbc33-985d-4368-9b95-85c9bb6bf77f', 'State Bank of India', 'SBI', 'BANK'),
@@ -207,6 +207,6 @@ INSERT INTO banks (id, name, short_code, type) VALUES
 ON CONFLICT (short_code) DO NOTHING;
 
 -- Create a internal principal profile (fixed ID for dev consistency)
-INSERT INTO profiles (id, full_name, role, org_id) 
+INSERT INTO profiles (id, full_name, role, org_id)
 SELECT '28a4eb7d-162c-4161-817d-20c30ffa5f46', 'Head Advocate', 'PRINCIPAL', id FROM organizations LIMIT 1
 ON CONFLICT DO NOTHING;

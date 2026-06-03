@@ -1,8 +1,8 @@
 # Test-Driven Development (TDD) Guidelines
 
-**Category**: test  
-**Applies to**: claude, gemini, cursor, copilot, any  
-**Version**: 1.0.0  
+**Category**: test
+**Applies to**: claude, gemini, cursor, copilot, any
+**Version**: 1.0.0
 
 **Overview**
 TDD is the discipline of writing a failing test *before* writing implementation code. It forces you to think about the interface before the internals, produces tests that actually test behavior (not just coverage), and gives you a safety net for every refactor.

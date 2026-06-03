@@ -9,6 +9,7 @@ Designed so a single FastAPI worker owns the manager. Don't share across
 workers — each uvicorn worker gets its own pool, which is fine because the
 admin UI binds to one session_id per window.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -57,7 +58,11 @@ class SessionManager:
             self._playwright = await async_playwright().start()
         self._browser = await self._playwright.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"],
+            args=[
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled",
+            ],
         )
         if self._reaper_task is None or self._reaper_task.done():
             self._reaper_task = asyncio.create_task(self._reap_idle())
@@ -69,7 +74,11 @@ class SessionManager:
                 await asyncio.sleep(60)
                 cutoff = time.time() - IDLE_TTL_SECONDS
                 async with self._lock:
-                    stale = [sid for sid, s in self._sessions.items() if s.last_used_at < cutoff]
+                    stale = [
+                        sid
+                        for sid, s in self._sessions.items()
+                        if s.last_used_at < cutoff
+                    ]
                 for sid in stale:
                     logger.info("reaping idle session %s", sid)
                     await self.close(sid)
@@ -78,8 +87,12 @@ class SessionManager:
             except Exception as exc:
                 logger.warning("reaper loop error: %s", exc)
 
-    async def create(self, label: str = "tab", owner: Optional[str] = None,
-                     start_url: Optional[str] = None) -> Session:
+    async def create(
+        self,
+        label: str = "tab",
+        owner: Optional[str] = None,
+        start_url: Optional[str] = None,
+    ) -> Session:
         browser = await self._ensure_browser()
         context = await browser.new_context(viewport=DEFAULT_VIEWPORT)
         page = await context.new_page()
@@ -90,10 +103,19 @@ class SessionManager:
         if start_url:
             try:
                 await page.goto(start_url, timeout=20000)
-                session.history.append({"ts": time.time(), "action": "goto", "url": start_url})
+                session.history.append(
+                    {"ts": time.time(), "action": "goto", "url": start_url}
+                )
             except Exception as exc:
                 logger.warning("initial goto failed: %s", exc)
-                session.history.append({"ts": time.time(), "action": "goto", "url": start_url, "error": str(exc)})
+                session.history.append(
+                    {
+                        "ts": time.time(),
+                        "action": "goto",
+                        "url": start_url,
+                        "error": str(exc),
+                    }
+                )
         return session
 
     async def list(self) -> List[Dict[str, Any]]:
@@ -105,11 +127,17 @@ class SessionManager:
                     title = await s.page.title()
                 except Exception:
                     url, title = "about:blank", ""
-                out.append({
-                    "id": s.id, "label": s.label, "owner": s.owner,
-                    "url": url, "title": title,
-                    "created_at": s.created_at, "last_used_at": s.last_used_at,
-                })
+                out.append(
+                    {
+                        "id": s.id,
+                        "label": s.label,
+                        "owner": s.owner,
+                        "url": url,
+                        "title": title,
+                        "created_at": s.created_at,
+                        "last_used_at": s.last_used_at,
+                    }
+                )
         return out
 
     async def get(self, sid: str) -> Session:
@@ -159,7 +187,11 @@ class SessionManager:
         try:
             if kind == "goto":
                 url = kwargs["url"]
-                await page.goto(url, timeout=kwargs.get("timeout", 30000), wait_until="domcontentloaded")
+                await page.goto(
+                    url,
+                    timeout=kwargs.get("timeout", 30000),
+                    wait_until="domcontentloaded",
+                )
                 result = {"url": page.url}
             elif kind == "click":
                 selector = kwargs.get("selector")
@@ -173,7 +205,11 @@ class SessionManager:
                 else:
                     raise ValueError("click requires 'selector' or 'x' and 'y'")
             elif kind == "fill":
-                await page.fill(kwargs["selector"], kwargs["value"], timeout=kwargs.get("timeout", 10000))
+                await page.fill(
+                    kwargs["selector"],
+                    kwargs["value"],
+                    timeout=kwargs.get("timeout", 10000),
+                )
                 result = {"filled": kwargs["selector"]}
             elif kind == "press":
                 await page.keyboard.press(kwargs["key"])
@@ -193,10 +229,14 @@ class SessionManager:
                 result = {"url": page.url}
             elif kind == "extract_text":
                 selector = kwargs.get("selector", "body")
-                text = await page.locator(selector).first.inner_text(timeout=kwargs.get("timeout", 5000))
+                text = await page.locator(selector).first.inner_text(
+                    timeout=kwargs.get("timeout", 5000)
+                )
                 result = {"text": text}
             elif kind == "wait_for":
-                await page.wait_for_selector(kwargs["selector"], timeout=kwargs.get("timeout", 10000))
+                await page.wait_for_selector(
+                    kwargs["selector"], timeout=kwargs.get("timeout", 10000)
+                )
                 result = {"matched": kwargs["selector"]}
             else:
                 raise ValueError(f"unknown action: {kind}")
@@ -206,7 +246,13 @@ class SessionManager:
             session.touch()
             return {"ok": True, "result": result, "url": page.url}
         except Exception as exc:
-            entry = {"ts": time.time(), "action": kind, **kwargs, "ok": False, "error": str(exc)}
+            entry = {
+                "ts": time.time(),
+                "action": kind,
+                **kwargs,
+                "ok": False,
+                "error": str(exc),
+            }
             session.history.append(entry)
             session.touch()
             return {"ok": False, "error": str(exc), "url": page.url}
@@ -214,7 +260,9 @@ class SessionManager:
     async def screenshot(self, sid: str, quality: int = 60) -> str:
         """Return a base64-encoded JPEG of the current page."""
         session = await self.get(sid)
-        png_bytes = await session.page.screenshot(type="jpeg", quality=quality, full_page=False)
+        png_bytes = await session.page.screenshot(
+            type="jpeg", quality=quality, full_page=False
+        )
         return base64.b64encode(png_bytes).decode("ascii")
 
 

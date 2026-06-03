@@ -51,7 +51,7 @@ export const config = {
       embeddings: '/v1/embeddings',
       models: '/v1/models',
     },
-    
+
     // Supabase endpoints
     supabase: {
       auth: `${import.meta.env.VITE_SUPABASE_URL || ''}/auth/v1`,

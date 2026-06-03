@@ -70,11 +70,12 @@ router.post('/cases', async (req, res) => {
 });
 
 router.put('/cases/:id/status', async (req, res) => {
+  let userId = DEV_USER_ID;
   try {
     const { status, notes } = req.body;
-    const userId = req.body.userId || (req as any).user?.sub || DEV_USER_ID;
+    userId = req.body.userId || (req as any).user?.sub || DEV_USER_ID;
     await CaseService.updateStatus(req.params.id, status, userId, notes);
-    
+
     if (status === 'IN_PROGRESS') {
       const caseDetails = await CaseService.getCaseById(req.params.id);
       if (caseDetails) {
@@ -93,7 +94,7 @@ router.put('/cases/:id/status', async (req, res) => {
         }).catch(err => console.error("Failed to trigger AI pipeline:", err));
       }
     }
-    
+
     res.status(200).json({ message: 'Status updated' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update status' });
@@ -102,13 +103,14 @@ router.put('/cases/:id/status', async (req, res) => {
 
 // Frontend AdvisorCockpit calls PATCH /api/cases/:id with { status }
 router.patch('/cases/:id', async (req, res) => {
+  let userId = DEV_USER_ID;
   try {
     const { status, notes } = req.body;
     if (!status) {
       res.status(400).json({ error: 'Status is required' });
       return;
     }
-    const userId = req.headers['x-user-id'] as string || (req as any).user?.sub || DEV_USER_ID;
+    userId = req.headers['x-user-id'] as string || (req as any).user?.sub || DEV_USER_ID;
     await CaseService.updateStatus(req.params.id, status, userId, notes || 'Status updated via pipeline');
     const updatedCase = await CaseService.getCaseById(req.params.id);
     res.json(updatedCase);

@@ -69,6 +69,8 @@ def require_permission(permission_code: str) -> Callable:
         ):
             ...
     """
+
     async def checker(auth: AuthContext = Depends(require_auth)) -> None:
         auth.require(permission_code)
+
     return checker

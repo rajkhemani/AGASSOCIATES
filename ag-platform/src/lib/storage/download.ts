@@ -30,11 +30,11 @@ export async function downloadFile(bucketId: string, storagePath: string, fileNa
   const { data, error } = await supabase.storage
     .from(bucketId)
     .download(storagePath);
-  
+
   if (error || !data) {
       throw new Error(`Download failed: ${error?.message}`);
   }
-  
+
   const blobUrl = URL.createObjectURL(data);
   const a = document.createElement("a");
   a.href = blobUrl;

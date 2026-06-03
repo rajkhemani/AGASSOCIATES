@@ -120,7 +120,7 @@ Designed for current single-tenant use with a seamless path to white-labeling Sa
 ## 6. Security Considerations
 
 *   **Data Sovereignty**: Deployment exclusively in AWS `ap-south-1` via Supabase to comply with Indian banking data guidelines.
-*   **Document Vault**: 
+*   **Document Vault**:
     *   Documents are stored in a private Supabase bucket.
     *   Access requires strict RLS passing.
     *   Frontend only receives short-lived Signed URLs (e.g., 60-second expiry).

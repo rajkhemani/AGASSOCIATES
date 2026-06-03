@@ -19,20 +19,20 @@ CREATE TABLE IF NOT EXISTS public.voice_command_logs (
 ALTER TABLE public.voice_command_logs ENABLE ROW LEVEL SECURITY;
 
 -- Admins can see all logs
-CREATE POLICY "Admins can view all voice logs" 
-ON public.voice_command_logs 
-FOR SELECT 
+CREATE POLICY "Admins can view all voice logs"
+ON public.voice_command_logs
+FOR SELECT
 USING (
     EXISTS (
-        SELECT 1 FROM public.user_roles 
+        SELECT 1 FROM public.user_roles
         WHERE user_id = auth.uid() AND role = 'admin'
     )
 );
 
 -- Users can see their own logs
-CREATE POLICY "Users can view their own voice logs" 
-ON public.voice_command_logs 
-FOR SELECT 
+CREATE POLICY "Users can view their own voice logs"
+ON public.voice_command_logs
+FOR SELECT
 USING (auth.uid() = user_id);
 
 -- Voice System Configuration Table

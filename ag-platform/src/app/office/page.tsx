@@ -229,7 +229,7 @@ function BrowserApp({ win, onUpdate }: { win: Win; onUpdate: (id: string, p: Par
           return;
         }
         await pollScreenshot(sid);
-        pollRef.current = setInterval(() => pollScreenshot(sid), 800);
+        pollRef.current = setInterval(() => pollScreenshot(sid!), 800);
       } catch (e: any) { setErr(e?.message || "init failed"); }
     })();
 

@@ -21,6 +21,7 @@ from fastapi import HTTPException, status
 
 # ── Role Definitions ────────────────────────────────────────────────────
 
+
 class Role(enum.IntEnum):
     BANK_VIEWER = 20
     CLERK = 40
@@ -50,17 +51,22 @@ class Role(enum.IntEnum):
 
 # ── Granular Permissions ────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class Permission:
     """A granular action within the system, gated by a minimum role level."""
+
     code: str
     label: str
     min_role_level: int  # Minimum Role.value required
 
+
 # Grouped by domain
 FIRM_PERMISSIONS = [
     Permission("firm.manage_users", "Manage users & roles", Role.PRINCIPAL.value),
-    Permission("firm.manage_billing", "Manage billing & invoices", Role.PRINCIPAL.value),
+    Permission(
+        "firm.manage_billing", "Manage billing & invoices", Role.PRINCIPAL.value
+    ),
     Permission("firm.view_analytics", "View firm-wide analytics", Role.PRINCIPAL.value),
     Permission("firm.audit_log", "View audit logs", Role.ADVOCATE.value),
 ]
@@ -97,7 +103,9 @@ RPA_PERMISSIONS = [
 ]
 
 HITL_PERMISSIONS = [
-    Permission("hitl.view", "View HITL tasks and circuit breaker status", Role.CLERK.value),
+    Permission(
+        "hitl.view", "View HITL tasks and circuit breaker status", Role.CLERK.value
+    ),
     Permission("hitl.manage", "Claim and complete HITL tasks", Role.EXECUTIVE.value),
 ]
 
@@ -108,7 +116,9 @@ AI_PERMISSIONS = [
 ]
 
 DASHBOARD_PERMISSIONS = [
-    Permission("dashboard.view", "View dashboard metrics and templates", Role.CLERK.value),
+    Permission(
+        "dashboard.view", "View dashboard metrics and templates", Role.CLERK.value
+    ),
 ]
 
 NON_RPA_PERMISSIONS = [
@@ -117,16 +127,30 @@ NON_RPA_PERMISSIONS = [
 
 REPORT_PERMISSIONS = [
     Permission("reports.view_dashboard", "View main dashboard", Role.CLERK.value),
-    Permission("reports.view_analytics", "View advanced analytics", Role.ADVOCATE.value),
+    Permission(
+        "reports.view_analytics", "View advanced analytics", Role.ADVOCATE.value
+    ),
     Permission("reports.export", "Export case data", Role.ADVOCATE.value),
 ]
 
-ALL_PERMISSIONS = FIRM_PERMISSIONS + CASE_PERMISSIONS + NOI_PERMISSIONS + COMMS_PERMISSIONS + RPA_PERMISSIONS + HITL_PERMISSIONS + AI_PERMISSIONS + DASHBOARD_PERMISSIONS + NON_RPA_PERMISSIONS + REPORT_PERMISSIONS
+ALL_PERMISSIONS = (
+    FIRM_PERMISSIONS
+    + CASE_PERMISSIONS
+    + NOI_PERMISSIONS
+    + COMMS_PERMISSIONS
+    + RPA_PERMISSIONS
+    + HITL_PERMISSIONS
+    + AI_PERMISSIONS
+    + DASHBOARD_PERMISSIONS
+    + NON_RPA_PERMISSIONS
+    + REPORT_PERMISSIONS
+)
 
 PERMISSION_MAP: dict[str, Permission] = {p.code: p for p in ALL_PERMISSIONS}
 
 
 # ── Role → Default Permissions ─────────────────────────────────────────
+
 
 def permissions_for_role(role: Role) -> list[Permission]:
     """Get all permissions a role has (including inherited)."""
@@ -148,9 +172,11 @@ def can(role: Role | str | int, permission_code: str) -> bool:
 
 # ── FastAPI Integration ──────────────────────────────────────────────────
 
+
 @dataclass
 class AuthContext:
     """Injected into request handlers after auth verification."""
+
     user_id: str
     role: Role
     org_id: Optional[str] = None
@@ -177,6 +203,8 @@ class AuthContext:
 
 def require_permission(permission_code: str) -> Callable:
     """FastAPI dependency factory — use as Depends(require_permission('case.create'))."""
+
     def checker(auth: AuthContext = None) -> None:
         auth.require(permission_code)
+
     return checker

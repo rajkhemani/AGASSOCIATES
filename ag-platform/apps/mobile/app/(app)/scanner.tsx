@@ -105,4 +105,3 @@ function CaseSelector({ casesQuery, activeCaseId, onSelect }: CaseSelectorProps)
         </View>
     );
 }
-

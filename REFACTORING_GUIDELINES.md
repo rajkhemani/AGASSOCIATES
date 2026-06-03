@@ -1,8 +1,8 @@
 # Refactoring Guidelines
 
-**Category**: refactoring  
-**Applies to**: claude, gemini, cursor, copilot, any  
-**Version**: 1.0.0  
+**Category**: refactoring
+**Applies to**: claude, gemini, cursor, copilot, any
+**Version**: 1.0.0
 
 **Overview**
 Refactoring changes the internal structure of code without changing its external behavior. The keyword is "without" — if behavior changes, it's not refactoring, it's modification. This skill enforces safe refactoring with tests as the safety net.

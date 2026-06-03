@@ -47,11 +47,11 @@ CRITICAL:
 def auditor_node(state: AgentState) -> AgentState:
     """Score the draft 0-100 against extracted fields; passed = ≥85 and no critical issues."""
     print("\n🔍 [AUDITOR] Starting quality audit")
-    state['current_node'] = 'auditor'
-    state['timestamps']['auditor_start'] = datetime.now().isoformat()
+    state["current_node"] = "auditor"
+    state["timestamps"]["auditor_start"] = datetime.now().isoformat()
 
     try:
-        if not state.get('drafted_document'):
+        if not state.get("drafted_document"):
             raise ValueError("No drafted document available for audit")
 
         llm = ChatOpenAI(
@@ -61,9 +61,12 @@ def auditor_node(state: AgentState) -> AgentState:
             temperature=0.1,
         )
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", AUDITOR_SYSTEM_PROMPT),
-            ("human", """
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", AUDITOR_SYSTEM_PROMPT),
+                (
+                    "human",
+                    """
 Extracted Requirements (from Aisha):
 {extracted_json}
 
@@ -71,32 +74,41 @@ Drafted Document:
 {drafted_document}
 
 Perform the quality audit and return JSON:
-"""),
-        ])
+""",
+                ),
+            ]
+        )
         parser = JsonOutputParser()
         chain = prompt | llm | parser
 
-        extracted_str = json.dumps(state['extracted_json'], indent=2, ensure_ascii=False)
-        result = invoke_llm_with_retry(chain, {
-            "extracted_json": extracted_str,
-            "drafted_document": state['drafted_document'],
-        })
+        extracted_str = json.dumps(
+            state["extracted_json"], indent=2, ensure_ascii=False
+        )
+        result = invoke_llm_with_retry(
+            chain,
+            {
+                "extracted_json": extracted_str,
+                "drafted_document": state["drafted_document"],
+            },
+        )
 
-        state['audit_passed'] = result.get('passed', False)
-        state['audit_feedback'] = result.get('feedback', '')
+        state["audit_passed"] = result.get("passed", False)
+        state["audit_feedback"] = result.get("feedback", "")
 
-        issues = result.get('issues', [])
-        score = result.get('score', 0)
+        issues = result.get("issues", [])
+        score = result.get("score", 0)
 
         print(f"📊 [AUDITOR] Audit Score: {score}/100")
         print(f"✅ [AUDITOR] Audit Passed: {state['audit_passed']}")
         record_activity(
-            source="agent", staff_kind="agent", staff_short_name="auditor",
+            source="agent",
+            staff_kind="agent",
+            staff_short_name="auditor",
             capability_code="case.audit",
             summary=f"Audit score {score}/100 — {'passed' if state['audit_passed'] else 'failed'}",
             payload={"score": score, "issues_count": len(issues)},
-            status="ok" if state['audit_passed'] else "warn",
-            org_id=state.get('org_id'),
+            status="ok" if state["audit_passed"] else "warn",
+            org_id=state.get("org_id"),
         )
 
         if issues:
@@ -108,9 +120,9 @@ Perform the quality audit and return JSON:
     except Exception as e:
         error_msg = f"Auditor failed: {str(e)}"
         print(f"❌ [AUDITOR] {error_msg}")
-        state['errors'].append(error_msg)
-        state['audit_passed'] = False
-        state['audit_feedback'] = f"Audit could not be completed: {str(e)}"
+        state["errors"].append(error_msg)
+        state["audit_passed"] = False
+        state["audit_feedback"] = f"Audit could not be completed: {str(e)}"
 
-    state['timestamps']['auditor_end'] = datetime.now().isoformat()
+    state["timestamps"]["auditor_end"] = datetime.now().isoformat()
     return state

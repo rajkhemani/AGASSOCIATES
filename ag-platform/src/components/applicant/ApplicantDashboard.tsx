@@ -48,7 +48,7 @@ export function ApplicantDashboard() {
   return (
     <div className="flex flex-col h-full bg-slate-50 relative p-6">
       <div className="max-w-4xl w-full mx-auto space-y-6">
-        
+
         <header className="mb-8">
           <h2 className="text-2xl font-serif font-bold text-slate-900">Application Dashboard</h2>
           <p className="text-slate-600 mt-1">Loan Ref: <span className="font-mono text-slate-800">#{activeCase.case_number}</span></p>
@@ -91,7 +91,7 @@ export function ApplicantDashboard() {
                  </button>
                </li>
              </ul>
-             
+
              <div className="mt-6 bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm text-slate-600">
                Or use <span className="font-semibold text-slate-800">Account Aggregator</span> to fetch your banking data securely via Finvu.
                <button className="mt-2 w-full py-2 bg-slate-900 text-white rounded-lg font-medium">Link Bank Account Securely</button>
@@ -128,8 +128,8 @@ export function ApplicantDashboard() {
 function Milestone({ title, active, completed }: { step: number, title: string, active: boolean, completed: boolean }) {
   return (
     <div className={`flex flex-col items-center gap-2 ${active || completed ? 'text-indigo-700' : 'text-slate-400'}`}>
-      {completed ? <CheckCircle2 className="text-indigo-600 bg-white" size={24} /> : 
-       active ? <Circle className="text-indigo-600 fill-indigo-50" size={24} /> : 
+      {completed ? <CheckCircle2 className="text-indigo-600 bg-white" size={24} /> :
+       active ? <Circle className="text-indigo-600 fill-indigo-50" size={24} /> :
        <Circle className="text-slate-300" size={24} />}
       <span className="text-xs font-semibold uppercase tracking-wider text-center">{title}</span>
     </div>

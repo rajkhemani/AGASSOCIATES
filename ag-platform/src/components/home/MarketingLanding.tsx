@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Building2, 
-  Shield, 
-  Clock, 
-  CheckCircle, 
-  Star, 
-  ArrowRight, 
+import {
+  Building2,
+  Shield,
+  Clock,
+  CheckCircle,
+  Star,
+  ArrowRight,
   ChevronDown,
   Users,
   FileCheck,
@@ -100,17 +100,17 @@ function ParticleField() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = canvasRef.current as any;
     if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
+
+    const ctx = canvas.getContext('2d') as any;
     if (!ctx) return;
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
     const particles: { x: number; y: number; vx: number; vy: number; size: number; opacity: number }[] = [];
-    
+
     for (let i = 0; i < 80; i++) {
       particles.push({
         x: Math.random() * canvas.width,
@@ -123,17 +123,17 @@ function ParticleField() {
     }
 
     let animationId: number;
-    
+
     function animate() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
+
       particles.forEach(p => {
         p.x += p.vx;
         p.y += p.vy;
-        
+
         if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
         if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
-        
+
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(139, 92, 246, ${p.opacity})`;
@@ -142,16 +142,16 @@ function ParticleField() {
 
       animationId = requestAnimationFrame(animate);
     }
-    
+
     animate();
-    
+
     const handleResize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };
-    
+
     window.addEventListener('resize', handleResize);
-    
+
     return () => {
       cancelAnimationFrame(animationId);
       window.removeEventListener('resize', handleResize);
@@ -351,7 +351,7 @@ export function MarketingLanding() {
                 <Sparkles size={14} className="text-violet-400" />
                 <span className="text-sm">#1 NOI Processing Platform in India</span>
               </div>
-              
+
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
                 <span className="bg-gradient-to-r from-white via-violet-200 to-white bg-clip-text text-transparent">
                   File Your NOI
@@ -361,20 +361,20 @@ export function MarketingLanding() {
                   With Confidence
                 </span>
               </h1>
-              
+
               <p className="text-lg md:text-xl text-white/70 mb-8 max-w-xl mx-auto lg:mx-0">
                 Experience the future of property registration. Our intelligent platform transforms complex NOI filings into simple, paperless processes.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Link 
+                <Link
                   to="/login"
                   className="group px-8 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold rounded-2xl shadow-xl shadow-violet-500/30 hover:shadow-violet-500/50 transition-all duration-300 flex items-center justify-center gap-2"
                 >
                   Start Filing Now
                   <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                 </Link>
-                <button 
+                <button
                   onClick={() => setShowVideo(true)}
                   className="px-8 py-4 glass-button flex items-center justify-center gap-2"
                 >
@@ -413,7 +413,7 @@ export function MarketingLanding() {
                       <p className="text-sm text-white/50">Property Registration Complete</p>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
                       <span className="text-white/70">Status</span>
@@ -498,7 +498,7 @@ export function MarketingLanding() {
               </span>
             </h2>
             <p className="text-lg text-white/60 max-w-2xl mx-auto">
-              Our comprehensive platform handles every aspect of Notice of Intimation filing, 
+              Our comprehensive platform handles every aspect of Notice of Intimation filing,
               from document collection to final acknowledgment.
             </p>
           </div>
@@ -506,7 +506,7 @@ export function MarketingLanding() {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, i) => (
               <FloatingCard3D key={i} delay={i * 100}>
-                <div 
+                <div
                   className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6"
                   style={{ backgroundColor: `${feature.color}20` }}
                 >
@@ -547,13 +547,13 @@ export function MarketingLanding() {
               {processSteps.map((step, i) => (
                 <div key={i} className="relative">
                   <div className="glass-card p-6 rounded-2xl text-center relative z-10">
-                    <div 
+                    <div
                       className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold"
                       style={{ backgroundColor: step.color }}
                     >
                       {step.step}
                     </div>
-                    <div 
+                    <div
                       className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4"
                       style={{ backgroundColor: `${step.color}20` }}
                     >
@@ -589,8 +589,8 @@ export function MarketingLanding() {
             {testimonials.map((testimonial, i) => (
               <div key={i} className="glass-card p-8 rounded-2xl">
                 <div className="flex items-center gap-4 mb-4">
-                  <img 
-                    src={testimonial.image} 
+                  <img
+                    src={testimonial.image}
                     alt={testimonial.name}
                     className="w-14 h-14 rounded-full object-cover border-2 border-violet-500/30"
                   />
@@ -712,14 +712,14 @@ export function MarketingLanding() {
                 Join thousands of legal professionals and property owners who trust AG Associates for their NOI filing needs.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link 
+                <Link
                   to="/login"
                   className="group px-8 py-4 bg-white text-violet-900 font-semibold rounded-2xl hover:bg-white/90 transition-all flex items-center justify-center gap-2"
                 >
                   Start Free Trial
                   <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                 </Link>
-                <a 
+                <a
                   href="https://wa.me/919876543210"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -750,7 +750,7 @@ export function MarketingLanding() {
               Your trusted partner for property registration and NOI filing services across India.
             </p>
           </div>
-          
+
           <div>
             <h4 className="text-white font-semibold mb-4">Quick Links</h4>
             <ul className="space-y-2 text-white/60 text-sm">
@@ -760,7 +760,7 @@ export function MarketingLanding() {
               <li><Link to="/login" className="hover:text-white transition-colors">Login</Link></li>
             </ul>
           </div>
-          
+
           <div>
             <h4 className="text-white font-semibold mb-4">Legal</h4>
             <ul className="space-y-2 text-white/60 text-sm">
@@ -769,7 +769,7 @@ export function MarketingLanding() {
               <li><a href="#" className="hover:text-white transition-colors">Refund Policy</a></li>
             </ul>
           </div>
-          
+
           <div>
             <h4 className="text-white font-semibold mb-4">Contact</h4>
             <ul className="space-y-2 text-white/60 text-sm">
@@ -779,7 +779,7 @@ export function MarketingLanding() {
             </ul>
           </div>
         </div>
-        
+
         <div className="border-t border-white/10 mt-8 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-white/50 text-sm">
             © 2024 AG Associates. All rights reserved.

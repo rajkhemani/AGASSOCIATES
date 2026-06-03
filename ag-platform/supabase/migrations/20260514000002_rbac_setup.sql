@@ -11,18 +11,18 @@ CREATE TABLE IF NOT EXISTS public.user_roles (
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can see their own role
-CREATE POLICY "Users can view their own role" 
-ON public.user_roles 
-FOR SELECT 
+CREATE POLICY "Users can view their own role"
+ON public.user_roles
+FOR SELECT
 USING (auth.uid() = user_id);
 
 -- Policy: Admins can see all roles
-CREATE POLICY "Admins can view all roles" 
-ON public.user_roles 
-FOR ALL 
+CREATE POLICY "Admins can view all roles"
+ON public.user_roles
+FOR ALL
 USING (
     EXISTS (
-        SELECT 1 FROM public.user_roles 
+        SELECT 1 FROM public.user_roles
         WHERE user_id = auth.uid() AND role = 'admin'
     )
 );

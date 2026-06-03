@@ -27,7 +27,7 @@ export const FieldApp: React.FC = () => {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+
     const savedQueue = localStorage.getItem('field_offline_queue');
     if (savedQueue) {
       setQueue(JSON.parse(savedQueue));
@@ -74,9 +74,9 @@ export const FieldApp: React.FC = () => {
         dataUrl: reader.result as string,
         status: 'pending'
       };
-      
+
       setQueue(prev => [...prev, newItem]);
-      
+
       if (isOnline) {
         setTimeout(syncQueue, 100);
       }
@@ -86,18 +86,18 @@ export const FieldApp: React.FC = () => {
 
   const syncQueue = async () => {
     const pendingItems = queue.filter(item => item.status === 'pending');
-    
+
     for (const item of pendingItems) {
       // Mark as syncing
       setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'syncing' } : q));
-      
+
       try {
         // Simulate API call to Supabase / Backend Document Vault
         await new Promise(resolve => setTimeout(resolve, 1500));
-        
+
         // Mark as completed
         setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'completed' } : q));
-        
+
         if (isOnline) {
             try {
                 await fetch(`/api/cases/${item.caseId}/status`, {
@@ -114,7 +114,7 @@ export const FieldApp: React.FC = () => {
         setQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'pending' } : q));
       }
     }
-    
+
     // Clear completed items after 3 seconds
     setTimeout(() => {
       setQueue(prev => prev.filter(q => q.status !== 'completed'));
@@ -135,7 +135,7 @@ export const FieldApp: React.FC = () => {
 
       <div className="bg-slate-800 rounded-xl p-4 shadow-lg mb-6 border border-slate-700">
         <label className="block text-sm font-medium text-slate-400 mb-2">Select Active Case</label>
-        <select 
+        <select
           className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           value={selectedCaseId}
           onChange={(e) => setSelectedCaseId(e.target.value)}
@@ -148,20 +148,20 @@ export const FieldApp: React.FC = () => {
       </div>
 
       <div className="mb-8">
-        <label 
-          htmlFor="camera-upload" 
+        <label
+          htmlFor="camera-upload"
           className="flex flex-col items-center justify-center w-full h-48 bg-blue-600 hover:bg-blue-500 rounded-2xl cursor-pointer transition-colors shadow-lg shadow-blue-900/50"
         >
           <Camera size={48} className="mb-3" />
           <span className="text-lg font-semibold">Scan Document</span>
           <span className="text-blue-200 text-sm mt-1">Uses device camera</span>
         </label>
-        <input 
-          id="camera-upload" 
-          type="file" 
-          accept="image/*" 
-          capture="environment" 
-          className="hidden" 
+        <input
+          id="camera-upload"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
           onChange={handleCapture}
         />
       </div>
@@ -171,7 +171,7 @@ export const FieldApp: React.FC = () => {
           <span>Upload Queue</span>
           <span className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-xs">{queue.length} items</span>
         </h2>
-        
+
         {queue.length === 0 ? (
           <div className="text-center py-8 text-slate-500 bg-slate-800/50 rounded-xl border border-slate-700/50">
             Queue is empty
@@ -189,7 +189,7 @@ export const FieldApp: React.FC = () => {
                     <p className="text-xs text-slate-400">{new Date(item.timestamp).toLocaleTimeString()}</p>
                   </div>
                 </div>
-                
+
                 <div className="flex-shrink-0">
                   {item.status === 'pending' && <Clock className="text-amber-400" size={20} />}
                   {item.status === 'syncing' && <Upload className="text-blue-400 animate-bounce" size={20} />}

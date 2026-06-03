@@ -4,6 +4,7 @@ When a staff member (agent or human) accumulates too many ``error``/``warn``
 events in a short window, flip their state to ``disabled`` and emit a
 ``system`` ledger entry so the admin sees why. Thresholds are env-tunable.
 """
+
 from __future__ import annotations
 
 import logging

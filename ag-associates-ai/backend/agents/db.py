@@ -9,6 +9,7 @@ from psycopg2.extras import RealDictCursor
 from config import EMBEDDING_MODEL_NAME, EMBEDDING_DIMENSION, get_database_url
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,6 +31,7 @@ def _get_embedding_model():
     if _embedding_model is None:
         try:
             from sentence_transformers import SentenceTransformer
+
             _embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
         except ImportError:
             logger.warning(

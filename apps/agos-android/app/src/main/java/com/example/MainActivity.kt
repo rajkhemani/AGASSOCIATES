@@ -193,9 +193,9 @@ fun VibeHeader(isApiKeyAvailable: Boolean) {
                 modifier = Modifier.size(22.dp)
             )
         }
-        
+
         Spacer(modifier = Modifier.width(12.dp))
-        
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "AGOS ENGINE",
@@ -258,7 +258,7 @@ fun DashboardTabContent(
     prs: List<PullRequest>
 ) {
     var selectedPRForDeployment by remember { mutableStateOf<PullRequest?>(null) }
-    
+
     // Auto-select first PullRequest as target for simulation if empty
     LaunchedEffect(prs) {
         if (selectedPRForDeployment == null && prs.isNotEmpty()) {
@@ -316,9 +316,9 @@ fun DashboardTabContent(
                             )
                         }
                     }
-                    
+
                     Spacer(modifier = Modifier.height(16.dp))
-                    
+
                     Row(
                         verticalAlignment = Alignment.Bottom,
                         modifier = Modifier.fillMaxWidth()
@@ -341,9 +341,9 @@ fun DashboardTabContent(
                             )
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.height(16.dp))
-                    
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(24.dp)
@@ -496,7 +496,7 @@ fun DashboardTabContent(
                                 fontSize = 11.sp,
                                 modifier = Modifier.weight(1f)
                             )
-                            
+
                             // Target PR Picker drop-down simulation (horizontal input chip list)
                             LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -592,7 +592,7 @@ fun DashboardTabContent(
                                 .padding(8.dp)
                         ) {
                             val terminalState = rememberLazyListState()
-                            
+
                             // Auto-scroll terminal lines to the bottom as build steps stream
                             LaunchedEffect(viewModel.terminalLines.size) {
                                 if (viewModel.terminalLines.isNotEmpty()) {
@@ -735,7 +735,7 @@ fun PipelineCard(
                 tint = NeonIndigo,
                 modifier = Modifier.size(20.dp)
             )
-            
+
             Column {
                 Text(
                     text = name,
@@ -997,9 +997,9 @@ fun PullRequestCard(
                 Icon(Icons.Default.Person, contentDescription = "Author", tint = CyberTextSecondary, modifier = Modifier.size(13.dp))
                 Spacer(modifier = Modifier.width(3.dp))
                 Text(text = pr.author, fontSize = 11.sp, color = CyberTextSecondary)
-                
+
                 Spacer(modifier = Modifier.width(12.dp))
-                
+
                 // Category Capsule
                 Box(
                     modifier = Modifier
@@ -1699,7 +1699,7 @@ fun TopologyTabContent(viewModel: VibeViewModel) {
                         // Stack Tech info
                         Text(text = "TECHNICAL STACK SPECIFICATION", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = NeonCyan)
                         Text(text = node.techStack, fontSize = 12.sp, color = CyberTextPrimary, fontWeight = FontWeight.Bold)
-                        
+
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // Description
@@ -2060,7 +2060,7 @@ fun RoomSchemaDatabaseVisualizer(viewModel: VibeViewModel) {
                     count = prs.size,
                     fields = listOf("id: Int (PK)", "title: Text", "riskTier: Text", "status: Text", "mergeStatus: Text")
                 )
-                
+
                 // Table: deployment_runs
                 SchemaDatabaseTableCard(
                     tableName = "deployment_runs (Room Entity)",
@@ -2116,7 +2116,7 @@ fun SchemaDatabaseTableCard(tableName: String, count: Int, fields: List<String>)
             Spacer(modifier = Modifier.height(6.dp))
             HorizontalDivider(color = CyberBorder.copy(alpha = 0.3f))
             Spacer(modifier = Modifier.height(6.dp))
-            
+
             // Render list of properties in custom grid
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),

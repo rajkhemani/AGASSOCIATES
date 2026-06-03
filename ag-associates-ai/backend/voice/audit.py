@@ -4,6 +4,7 @@ Writes are best-effort: an audit failure must never block the user-facing
 request. All sensitive payloads stay inside Postgres — only command IDs are
 ever returned over the wire.
 """
+
 from __future__ import annotations
 
 import json
@@ -113,7 +114,9 @@ def get_pending(command_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def get_latest_pending_for_user(user_id: str, max_age_seconds: int = 30) -> Optional[Dict[str, Any]]:
+def get_latest_pending_for_user(
+    user_id: str, max_age_seconds: int = 30
+) -> Optional[Dict[str, Any]]:
     """Return the most recent ``pending_confirm`` command for ``user_id`` that
     was created within ``max_age_seconds``. Used by the WhatsApp YES/NO loop
     where the caller doesn't quote the command_id back."""

@@ -61,24 +61,24 @@ CREATE TABLE IF NOT EXISTS public.brainstorm_messages (
 
 -- Seed Initial AI Agents into Workforce
 INSERT INTO public.workforce (org_id, name, type, role, status)
-SELECT 
-    id, 
+SELECT
+    id,
     'Vyasa Agent', 'agent', 'Legal Research & Strategy', 'active'
 FROM public.organizations
 WHERE name = 'AG Associates'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO public.workforce (org_id, name, type, role, status)
-SELECT 
-    id, 
+SELECT
+    id,
     'Executor Agent', 'agent', 'RPA & Execution', 'active'
 FROM public.organizations
 WHERE name = 'AG Associates'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO public.workforce (org_id, name, type, role, status)
-SELECT 
-    id, 
+SELECT
+    id,
     'Accountant Agent', 'agent', 'Financial Reconciliation', 'active'
 FROM public.organizations
 WHERE name = 'AG Associates'

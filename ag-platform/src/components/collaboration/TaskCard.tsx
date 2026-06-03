@@ -11,7 +11,7 @@ interface TaskCardProps {
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task, isOverlay }) => {
   return (
-    <div 
+    <div
       className={`bg-white p-3 rounded-lg shadow-sm border border-gray-200 group flex items-start gap-2 ${isOverlay ? 'shadow-xl rotate-3 cursor-grabbing ring-2 ring-blue-500' : 'hover:shadow-md transition-shadow'}`}
     >
       <div className="mt-1 text-gray-300 group-hover:text-gray-400 cursor-grab active:cursor-grabbing">

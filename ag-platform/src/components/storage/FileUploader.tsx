@@ -37,7 +37,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ organizationId, proj
 
   const startUpload = async (file: File, uploadId: string) => {
     setUploads((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], status: "uploading" } }));
-    
+
     try {
       const record = await uploadFileResumable(
         file,
@@ -50,7 +50,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ organizationId, proj
           setUploads((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], progress } }));
         }
       );
-      
+
       setUploads((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], status: "completed", progress: 100, id: record.id } }));
       if (onUploadComplete) onUploadComplete(record);
     } catch (err: any) {
@@ -72,8 +72,8 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ organizationId, proj
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-4">
-      <div 
-        {...getRootProps()} 
+      <div
+        {...getRootProps()}
         className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${isDragActive ? "border-blue-500 bg-blue-50/50" : "border-gray-300 hover:border-gray-400"}`}
       >
         <input {...getInputProps()} />

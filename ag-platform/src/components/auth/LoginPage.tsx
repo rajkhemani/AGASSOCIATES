@@ -71,7 +71,7 @@ export function LoginPage() {
          <div className="w-full h-full" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #334155 1px, transparent 0)', backgroundSize: '40px 40px' }} />
       </div>
 
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md z-10"
@@ -88,7 +88,7 @@ export function LoginPage() {
         {/* Login Card */}
         <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-          
+
           <div className="relative">
             <h2 className="text-2xl font-semibold text-white mb-6 text-center">Secure Portal Access</h2>
 
@@ -103,15 +103,15 @@ export function LoginPage() {
                     onClick={() => setRole(r.id)}
                     className={cn(
                       "flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-300",
-                      isActive 
-                        ? "bg-amber-500/10 border-amber-500/50 text-amber-500" 
+                      isActive
+                        ? "bg-amber-500/10 border-amber-500/50 text-amber-500"
                         : "bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-slate-800"
                     )}
                   >
                     <Icon size={20} />
                     <span className="text-xs font-medium">{r.label}</span>
                     {isActive && (
-                      <motion.div 
+                      <motion.div
                         layoutId="activeRole"
                         className="absolute inset-0 rounded-xl border-2 border-amber-500 pointer-events-none"
                         transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
@@ -127,7 +127,7 @@ export function LoginPage() {
                 <label className="text-sm font-medium text-slate-300 ml-1">Username or Email Address</label>
                 <div className="relative group">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-amber-500 transition-colors" size={18} />
-                  <input 
+                  <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -145,7 +145,7 @@ export function LoginPage() {
                 </div>
                 <div className="relative group">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-amber-500 transition-colors" size={18} />
-                  <input 
+                  <input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -153,7 +153,7 @@ export function LoginPage() {
                     className="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-3.5 pl-12 pr-12 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 transition-all"
                     required
                   />
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
@@ -174,7 +174,7 @@ export function LoginPage() {
                 <label htmlFor="remember" className="text-xs text-slate-400">Remember me</label>
               </div>
 
-              <button 
+              <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-gradient-to-r from-amber-400 to-amber-600 hover:from-amber-500 hover:to-amber-700 text-slate-900 font-bold py-4 rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 group"

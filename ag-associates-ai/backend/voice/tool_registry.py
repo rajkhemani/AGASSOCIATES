@@ -4,27 +4,31 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ToolDefinition(BaseModel):
     name: str
     description: str
-    risk: str # low, med, high
+    risk: str  # low, med, high
     parameters: Dict[str, Any]
+
 
 class ToolRegistry:
     def __init__(self):
         self.tools: Dict[str, Callable] = {}
         self.definitions: List[ToolDefinition] = []
 
-    def register(self, name: str, description: str, risk: str, parameters: Dict[str, Any]):
+    def register(
+        self, name: str, description: str, risk: str, parameters: Dict[str, Any]
+    ):
         def decorator(func: Callable):
             self.tools[name] = func
-            self.definitions.append(ToolDefinition(
-                name=name,
-                description=description,
-                risk=risk,
-                parameters=parameters
-            ))
+            self.definitions.append(
+                ToolDefinition(
+                    name=name, description=description, risk=risk, parameters=parameters
+                )
+            )
             return func
+
         return decorator
 
     def get_tool_schemas(self):
@@ -43,32 +47,49 @@ class ToolRegistry:
             # Surface bad arg shapes as a structured error rather than a 500.
             return {"error": f"invalid arguments for {name}: {exc}"}
 
+
 tool_registry = ToolRegistry()
 
 # --- Initial Tools ---
+
 
 @tool_registry.register(
     name="status_query",
     description="Get the current status of a legal case by its ID",
     risk="low",
     parameters={
-        "case_id": {"type": "string", "description": "The unique ID of the case (e.g. MHR-123)"}
-    }
+        "case_id": {
+            "type": "string",
+            "description": "The unique ID of the case (e.g. MHR-123)",
+        }
+    },
 )
 def status_query(case_id: str):
     # Mock lookup
-    return {"case_id": case_id, "status": "Under Review", "next_step": "Stamp Duty Calculation"}
+    return {
+        "case_id": case_id,
+        "status": "Under Review",
+        "next_step": "Stamp Duty Calculation",
+    }
+
 
 @tool_registry.register(
     name="generate_report",
     description="Generate a performance report for a specific time period",
     risk="low",
     parameters={
-        "period": {"type": "string", "enum": ["daily", "weekly", "monthly"], "description": "Report period"}
-    }
+        "period": {
+            "type": "string",
+            "enum": ["daily", "weekly", "monthly"],
+            "description": "Report period",
+        }
+    },
 )
 def generate_report(period: str):
-    return {"report_url": f"https://s3.luxor9.com/reports/{period}_summary.pdf", "period": period}
+    return {
+        "report_url": f"https://s3.luxor9.com/reports/{period}_summary.pdf",
+        "period": period,
+    }
 
 
 @tool_registry.register(
@@ -79,11 +100,18 @@ def generate_report(period: str):
     ),
     risk="low",
     parameters={
-        "case_summary": {"type": "string", "description": "Short factual summary of the case"},
-        "query": {"type": "string", "description": "The specific legal question to answer"},
+        "case_summary": {
+            "type": "string",
+            "description": "Short factual summary of the case",
+        },
+        "query": {
+            "type": "string",
+            "description": "The specific legal question to answer",
+        },
     },
 )
 def vyasa_legal_opinion(case_summary: str, query: str):
     # Lazy import to avoid pulling LangChain into the registry at module load.
     from vyasa_agent import vyasa_agent
+
     return vyasa_agent.generate_legal_opinion({"summary": case_summary}, query)

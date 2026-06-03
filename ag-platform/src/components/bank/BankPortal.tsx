@@ -28,7 +28,7 @@ export function BankPortal() {
   return (
     <div className="flex flex-col h-full bg-slate-50 p-6">
       <div className="max-w-6xl w-full mx-auto space-y-6">
-        
+
         <header className="mb-8 flex justify-between items-end">
           <div>
             <h2 className="text-2xl font-serif font-bold text-slate-900 flex items-center gap-2">
@@ -38,9 +38,9 @@ export function BankPortal() {
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search ref # or PAN..." 
+            <input
+              type="text"
+              placeholder="Search ref # or PAN..."
               className="pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>

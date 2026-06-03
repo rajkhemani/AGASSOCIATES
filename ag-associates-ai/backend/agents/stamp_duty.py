@@ -8,7 +8,7 @@ def extract_numeric(val) -> Optional[float]:
     if val is None:
         return None
     try:
-        cleaned = re.sub(r'[^\d.]', '', str(val))
+        cleaned = re.sub(r"[^\d.]", "", str(val))
         return float(cleaned) if cleaned else None
     except ValueError:
         return None
@@ -17,21 +17,21 @@ def extract_numeric(val) -> Optional[float]:
 def duration_to_months(duration_str: str) -> int:
     if not duration_str:
         return 0
-    tokens = re.findall(r'(\d+(?:\.\d+)?)\s*([a-zA-Z]*)', duration_str.lower())
+    tokens = re.findall(r"(\d+(?:\.\d+)?)\s*([a-zA-Z]*)", duration_str.lower())
     if tokens:
         total = 0.0
         for val_str, unit in tokens:
             val = float(val_str)
-            if 'year' in unit or 'yr' in unit:
+            if "year" in unit or "yr" in unit:
                 total += val * 12
             else:
                 total += val
         return int(round(total))
-    nums = re.findall(r'(\d+(?:\.\d+)?)', duration_str)
+    nums = re.findall(r"(\d+(?:\.\d+)?)", duration_str)
     if not nums:
         return 0
     val = float(nums[0])
-    if any(u in duration_str.lower() for u in ['year', 'yr']):
+    if any(u in duration_str.lower() for u in ["year", "yr"]):
         return int(round(val * 12))
     return int(round(val))
 
@@ -43,7 +43,12 @@ def validate_stamp_duty(
 ) -> dict:
     loan = extract_numeric(loan_amount)
     if loan is None:
-        return {"passed": False, "expected": 0, "actual": 0, "feedback": "Invalid loan amount"}
+        return {
+            "passed": False,
+            "expected": 0,
+            "actual": 0,
+            "feedback": "Invalid loan amount",
+        }
 
     expected = loan * 0.003
 

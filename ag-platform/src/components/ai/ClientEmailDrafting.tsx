@@ -54,7 +54,7 @@ export function ClientEmailDrafting({ orgId }: { orgId: string }) {
       </div>
 
       <div className="space-y-3">
-        <select 
+        <select
           value={emailType}
           onChange={(e) => setEmailType(e.target.value)}
           className="w-full border-gray-200 border p-2 rounded text-sm"
@@ -73,7 +73,7 @@ export function ClientEmailDrafting({ orgId }: { orgId: string }) {
           className="w-full border-gray-200 border p-2 rounded text-sm resize-none"
         />
 
-        <button 
+        <button
           onClick={generateDraft}
           disabled={isLoading || !contextData}
           className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-2 rounded flex justify-center items-center gap-2 text-sm transition"
@@ -91,7 +91,7 @@ export function ClientEmailDrafting({ orgId }: { orgId: string }) {
                onChange={(e) => setRecipient(e.target.value)}
                className="w-full border-gray-200 border p-2 rounded text-sm"
              />
-             <textarea 
+             <textarea
                value={draft}
                onChange={(e) => setDraft(e.target.value)}
                rows={8}

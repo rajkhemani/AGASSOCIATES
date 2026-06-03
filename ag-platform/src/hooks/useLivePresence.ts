@@ -34,7 +34,7 @@ export function useLivePresence(projectId: string) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
       if (!isMounted) return;
-      
+
       userId = session.user.id;
       userEmail = session.user.email;
 
@@ -42,7 +42,7 @@ export function useLivePresence(projectId: string) {
         .on("presence", { event: "sync" }, () => {
           if (!isMounted) return;
           const newState = channel.presenceState<PresenceUser>();
-          
+
           const uniqueUsers = new Map<string, PresenceUser>();
           Object.values(newState).forEach((presenceKeys) => {
             presenceKeys.forEach((presence) => {
@@ -51,7 +51,7 @@ export function useLivePresence(projectId: string) {
               }
             });
           });
-          
+
           setUsers(Array.from(uniqueUsers.values()));
         })
         .subscribe(async (status) => {

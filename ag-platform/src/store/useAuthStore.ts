@@ -64,8 +64,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        set({ session, user: session.user as unknown as AuthUser });
-        const role = session.user.app_metadata?.role || 'applicant';
+        set({ session: session as any, user: session.user as unknown as AuthUser });
+        const role = (session.user.app_metadata as any)?.role || 'applicant';
         set({ role });
       }
     } catch (error) {
@@ -76,9 +76,9 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     if (!DEV_MODE) {
       supabase.auth.onAuthStateChange((_event, session) => {
-        set({ session, user: session?.user ? (session.user as unknown as AuthUser) : null });
+        set({ session: session as any, user: session?.user ? (session.user as unknown as AuthUser) : null });
         if (session) {
-          const role = session.user.app_metadata?.role || 'applicant';
+          const role = (session.user.app_metadata as any)?.role || 'applicant';
           set({ role });
         } else {
           set({ role: null });

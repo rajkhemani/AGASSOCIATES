@@ -120,10 +120,18 @@ class IgrRpaExecutor:
         logger.info(f"🚀 [IGR] Starting NOI filing for case: {case_id}")
 
         if not await self._check_igr_breaker(case_id):
-            return {"success": False, "error": "IGR circuit breaker OPEN — task queued for human review", "hitl": True, "case_id": case_id}
+            return {
+                "success": False,
+                "error": "IGR circuit breaker OPEN — task queued for human review",
+                "hitl": True,
+                "case_id": case_id,
+            }
 
         if not grn_number:
-            return {"success": False, "error": "GRN number required — generate challan first"}
+            return {
+                "success": False,
+                "error": "GRN number required — generate challan first",
+            }
 
         browser = None
         try:
@@ -139,7 +147,9 @@ class IgrRpaExecutor:
                 await page.fill(self.sel["password_input"], self.portal_password)
                 await page.click(self.sel["login_button"])
 
-                otp_code = await self._wait_for_otp(f"igr:{case_id}", timeout_seconds=120)
+                otp_code = await self._wait_for_otp(
+                    f"igr:{case_id}", timeout_seconds=120
+                )
                 if not otp_code:
                     return {"success": False, "error": "OTP Timeout — login failed"}
 
@@ -161,7 +171,9 @@ class IgrRpaExecutor:
                 kyc_path = self._upload_path("borrower_kyc", case_id)
                 stamp_path = self._upload_path("stamp_duty_receipt", case_id)
 
-                await page.set_input_files(self.sel["sanction_letter_upload"], sanction_path)
+                await page.set_input_files(
+                    self.sel["sanction_letter_upload"], sanction_path
+                )
                 await page.set_input_files(self.sel["borrower_kyc_upload"], kyc_path)
                 await page.set_input_files(self.sel["stamp_duty_upload"], stamp_path)
 
@@ -211,9 +223,12 @@ class IgrRpaExecutor:
                 except Exception:
                     pass
 
-    async def _wait_for_otp(self, key: str, timeout_seconds: int = 120) -> Optional[str]:
+    async def _wait_for_otp(
+        self, key: str, timeout_seconds: int = 120
+    ) -> Optional[str]:
         """Poll Redis for OTP delivered via Telegram bot."""
         import redis.asyncio as aioredis
+
         r = aioredis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379"))
         try:
             start = asyncio.get_event_loop().time()
@@ -230,15 +245,18 @@ class IgrRpaExecutor:
     async def _store_filing_result(self, case_id: str, ack: str):
         """Store filing acknowledgment in Redis for downstream use."""
         import redis.asyncio as aioredis
+
         r = aioredis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379"))
         try:
             await r.setex(
                 f"noi_filing:{case_id}",
                 86400 * 7,
-                json.dumps({
-                    "acknowledgment_number": ack,
-                    "filed_at": datetime.utcnow().isoformat(),
-                }),
+                json.dumps(
+                    {
+                        "acknowledgment_number": ack,
+                        "filed_at": datetime.utcnow().isoformat(),
+                    }
+                ),
             )
         finally:
             await r.close()
