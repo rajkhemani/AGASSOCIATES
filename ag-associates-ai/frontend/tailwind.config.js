@@ -7,8 +7,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'dark-bg': '#0a0a18',
-        'dark-card': '#12122a',
+        'dark-bg': '#0A0A0A',
+        'dark-card': '#121212',
+        'dark-border': '#1F1F1F',
+        'accent-blue': '#3b82f6',
+        'accent-purple': '#8b5cf6',
+        'accent-green': '#10b981',
+        'accent-amber': '#f59e0b',
+        'accent-orange': '#f97316',
         'gold': {
           50: '#FFF9E6',
           100: '#FFF0C2',
@@ -33,11 +39,18 @@ module.exports = {
       },
       animation: {
         'pulse-gold': 'pulse-gold 3s ease-in-out infinite',
+        'float': 'float 6s ease-in-out infinite',
+        'float-delayed': 'float 6s ease-in-out infinite 3s',
+        'ping': 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
       },
       keyframes: {
         'pulse-gold': {
           '0%, 100%': { boxShadow: '0 0 20px rgba(212, 175, 55, 0.3)' },
           '50%': { boxShadow: '0 0 40px rgba(212, 175, 55, 0.6)' },
+        },
+        'float': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-20px)' },
         },
       },
       boxShadow: {

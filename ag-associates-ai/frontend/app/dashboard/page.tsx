@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Activity, FileText, CheckCircle, Clock, Brain, Database, Zap } from 'lucide-react';
+import { Activity, FileText, CheckCircle, Clock, Brain, Database, Zap, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 
 interface DashboardStatus {
   total_templates: number;
@@ -48,7 +49,7 @@ export default function Dashboard() {
           setStatus(data);
         }
       } catch (error) {
-        console.error('Failed to fetch dashboard status:', error);
+        console.error('Failed to fetch status:', error);
       } finally {
         setLoading(false);
       }
@@ -59,105 +60,54 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Simulate workflow progression for demo.
-  // Uses recursive setTimeouts instead of setInterval so the post-cycle
-  // pause cannot overlap with the advancement tick and corrupt the reset.
+  // Poll workflow status every second
   useEffect(() => {
-    const workflowSteps: Array<WorkflowState['current_step']> = [
-      'intake',
-      'drafting',
-      'auditing',
-      'complete',
-    ];
+    const fetchWorkflow = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/dashboard/workflow`);
+        if (response.ok) {
+          const data = await response.json();
+          setWorkflow(data);
 
-    const STEP_DELAY_MS = 4000;
-    const CYCLE_PAUSE_MS = 5000;
-
-    let currentIndex = 0;
-    let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    const tick = () => {
-      if (cancelled) return;
-
-      if (currentIndex < workflowSteps.length) {
-        const step = workflowSteps[currentIndex];
-        if (step === 'intake') {
-          neslFiledForCycleRef.current = false;
+          // If workflow hits 'complete' and we haven't filed yet, trigger NeSL
+          if (data.current_step === 'complete' && !neslFiledForCycleRef.current) {
+            triggerNeslFiling();
+          } else if (data.current_step !== 'complete') {
+            // Reset for the next cycle
+            neslFiledForCycleRef.current = false;
+            setNeslStatus('idle');
+            setTransactionId(null);
+          }
         }
-        setWorkflow({
-          current_step: step,
-          progress: ((currentIndex + 1) / workflowSteps.length) * 100,
-          agent_active: getAgentForStep(step),
-          last_update: new Date().toISOString(),
-        });
-        currentIndex++;
-        timeoutId = setTimeout(tick, STEP_DELAY_MS);
-      } else {
-        // Pause after completion, then restart the cycle from the beginning.
-        timeoutId = setTimeout(() => {
-          if (cancelled) return;
-          currentIndex = 0;
-          tick();
-        }, CYCLE_PAUSE_MS);
+      } catch (error) {
+        console.error('Failed to fetch workflow:', error);
       }
     };
 
-    timeoutId = setTimeout(tick, STEP_DELAY_MS);
-
-    return () => {
-      cancelled = true;
-      if (timeoutId !== null) clearTimeout(timeoutId);
-    };
+    fetchWorkflow();
+    const interval = setInterval(fetchWorkflow, 1000);
+    return () => clearInterval(interval);
   }, []);
 
-  // Simulate NeSL filing once per workflow cycle. An AbortController cancels
-  // any still-in-flight request when the component unmounts or a new cycle
-  // begins, so overlapping calls cannot race and clobber each other's state.
-  useEffect(() => {
-    if (workflow.current_step === 'complete' && !neslFiledForCycleRef.current) {
-      neslFiledForCycleRef.current = true;
-      simulateNeslFiling();
-    }
-  }, [workflow.current_step]);
-
-  useEffect(() => {
-    return () => {
-      neslAbortRef.current?.abort();
-    };
-  }, []);
-
-  const getAgentForStep = (step: WorkflowState['current_step']): string => {
-    switch (step) {
-      case 'intake': return 'Aisha (Intake)';
-      case 'drafting': return 'Drafter (Legal Architect)';
-      case 'auditing': return 'Auditor (QA)';
-      case 'revision': return 'Drafter (Revision)';
-      case 'complete': return 'All Agents';
-      default: return 'None';
-    }
-  };
-
-  const simulateNeslFiling = async () => {
-    // Abort any previous in-flight request so its late response cannot
-    // overwrite the status for the current cycle.
-    neslAbortRef.current?.abort();
-    const controller = new AbortController();
-    neslAbortRef.current = controller;
-
+  const triggerNeslFiling = async () => {
+    if (neslStatus !== 'idle') return;
+    neslFiledForCycleRef.current = true;
     setNeslStatus('processing');
+
+    if (neslAbortRef.current) neslAbortRef.current.abort();
+    neslAbortRef.current = new AbortController();
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/nesl/execute`, {
+      const response = await fetch(`${API_BASE_URL}/api/nesl/file`, {
         method: 'POST',
-        signal: controller.signal,
+        signal: neslAbortRef.current.signal,
       });
+
       if (response.ok) {
         const data = await response.json();
         setTransactionId(data.transaction_id);
         setNeslStatus('filed');
       } else {
-        // fetch does not throw on HTTP errors; handle non-OK responses
-        // explicitly so neslStatus doesn't get stuck on 'processing'.
         console.error('NeSL filing returned non-OK status:', response.status);
         setNeslStatus('idle');
       }
@@ -210,6 +160,11 @@ export default function Dashboard() {
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
+        <div className="flex items-center gap-4 mb-4">
+          <Link href="/" className="p-2 rounded-lg glass hover:bg-white/10 transition-colors">
+            <ArrowLeft className="w-5 h-5 text-gray-400" />
+          </Link>
+        </div>
         <h1 className="text-4xl font-bold text-white mb-2">AG Associates AI</h1>
         <p className="text-gray-400">Real-time Agent Workflow Dashboard</p>
       </motion.header>

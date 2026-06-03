@@ -2,21 +2,21 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'AG Associates | Premium Financial Advisory',
-  description: 'India\'s premier financial advisory firm delivering strategic guidance for institutions and corporations. Portfolio management, risk mitigation, and corporate advisory services.',
-  keywords: ['financial advisory', 'corporate finance', 'investment banking', 'portfolio management', 'risk advisory', 'AG Associates'],
+  title: 'Adv. Aditya Gade | AI Systems Architect & LegalOps',
+  description: 'Architecting autonomous AI workflows for legal and financial operations. Expert in multi-agent systems, RAG, and LegalOps automation.',
+  keywords: ['Aditya Gade', 'Advocate', 'AI Systems Architect', 'LegalOps', 'Automation', 'LangGraph', 'Multi-Agent Systems'],
   openGraph: {
-    title: 'AG Associates | Premium Financial Advisory',
-    description: 'Strategic financial guidance and investment advisory services for discerning institutions.',
+    title: 'Adv. Aditya Gade | AI Systems Architect & LegalOps',
+    description: 'Architecting autonomous AI workflows for legal and financial operations.',
     url: 'https://advadiityagade.com',
-    siteName: 'AG Associates',
+    siteName: 'Adv. Aditya Gade',
     locale: 'en_IN',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'AG Associates | Premium Financial Advisory',
-    description: 'Strategic financial guidance for institutions and corporations.',
+    title: 'Adv. Aditya Gade | AI Systems Architect & LegalOps',
+    description: 'Architecting autonomous AI workflows for legal and financial operations.',
   },
   metadataBase: new URL('https://advadiityagade.com'),
 }
@@ -28,7 +28,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="antialiased scroll-smooth">
-      <body className="min-h-screen">{children}</body>
+      <body className="min-h-screen bg-[#0a0a18]">{children}</body>
     </html>
   )
 }

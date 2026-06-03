@@ -22,6 +22,7 @@ import {
   X,
   GripHorizontal,
 } from 'lucide-react';
+import Link from 'next/link';
 
 type PipelineStage = 'intake' | 'verification' | 'valuation' | 'filing' | 'acknowledged';
 type EscalationTier = 1 | 2 | 3 | null;
@@ -48,603 +49,246 @@ const PIPELINE_STAGES: { key: PipelineStage; label: string; icon: typeof Scale }
   { key: 'verification', label: 'Verification', icon: UserCheck },
   { key: 'valuation', label: 'Valuation', icon: Calculator },
   { key: 'filing', label: 'Filing', icon: Cpu },
-  { key: 'acknowledged', label: 'Acknowledged', icon: CheckCircle },
+  { key: 'acknowledged', label: 'Done', icon: CheckCircle },
 ];
-
-const AGENTS: Record<PipelineStage, string> = {
-  intake: 'Aisha (Gatekeeper)',
-  verification: 'Vyasa (Reader)',
-  valuation: 'Auditor (Bouncer)',
-  filing: 'Executor (RPA)',
-  acknowledged: 'Sentinel (QC)',
-};
 
 const MOCK_CASES: NoiCase[] = [
   {
-    id: 'KOTAK-NOI-2026-0042',
+    id: 'KTK-NOI-2026-0482',
     bank: 'Kotak Mahindra',
-    borrower: 'Rajesh Sharma',
-    loanAmount: 4500000,
+    borrower: 'Aditi Rao',
+    loanAmount: 8500000,
     stage: 'filing',
-    progress: 72,
-    grn: 'GRN-2026-0317-8842',
-    utr: null,
-    createdAt: '2026-04-28T09:15:00Z',
-    slaDeadline: '2026-05-28T09:15:00Z',
+    progress: 85,
+    grn: '2026042800482',
+    utr: 'BANK-UTR-99382',
+    createdAt: '2026-04-25',
+    slaDeadline: '2026-05-02',
     escalation: null,
     escalationReason: null,
-    assignedAgent: 'Executor (RPA)',
+    assignedAgent: 'Drafter',
     priority: 'high',
   },
   {
-    id: 'AXIS-NOI-2026-0039',
+    id: 'AXS-NOI-2026-0391',
     bank: 'Axis Finance',
-    borrower: 'Priya Mehta',
-    loanAmount: 12000000,
-    stage: 'valuation',
-    progress: 45,
+    borrower: 'Suresh Patil',
+    loanAmount: 12400000,
+    stage: 'verification',
+    progress: 40,
     grn: null,
     utr: null,
-    createdAt: '2026-04-30T11:30:00Z',
-    slaDeadline: '2026-05-30T11:30:00Z',
+    createdAt: '2026-04-27',
+    slaDeadline: '2026-05-04',
     escalation: 2,
-    escalationReason: 'PAN verification mismatch — name on PAN differs from Aadhaar',
-    assignedAgent: 'Auditor (Bouncer)',
-    priority: 'high',
-  },
-  {
-    id: 'ICICI-NOI-2026-0045',
-    bank: 'ICICI Bank',
-    borrower: 'Vikram Patil',
-    loanAmount: 7800000,
-    stage: 'intake',
-    progress: 18,
-    grn: null,
-    utr: null,
-    createdAt: '2026-05-03T14:00:00Z',
-    slaDeadline: '2026-06-02T14:00:00Z',
-    escalation: null,
-    escalationReason: null,
-    assignedAgent: 'Aisha (Gatekeeper)',
+    escalationReason: 'Index II Mismatch',
+    assignedAgent: 'Vyasa',
     priority: 'medium',
   },
   {
-    id: 'KVN-NOI-2026-0039',
-    bank: 'Karur Vysya',
-    borrower: 'Sunil Jadhav',
-    loanAmount: 2500000,
-    stage: 'intake',
-    progress: 8,
-    grn: null,
-    utr: null,
-    createdAt: '2026-05-04T16:45:00Z',
-    slaDeadline: '2026-06-03T16:45:00Z',
-    escalation: 1,
-    escalationReason: 'Missing Index II document — auto-follow-up sent via WhatsApp',
-    assignedAgent: 'Aisha (Gatekeeper)',
-    priority: 'low',
-  },
-  {
-    id: 'MUTHOOT-NOI-2026-0039',
-    bank: 'Muthoot Homefin',
-    borrower: 'Anita Deshmukh',
-    loanAmount: 3500000,
+    id: 'HDFC-NOI-2026-0512',
+    bank: 'HDFC Bank',
+    borrower: 'Amit Patel',
+    loanAmount: 4500000,
     stage: 'acknowledged',
     progress: 100,
-    grn: 'GRN-2026-0312-5521',
-    utr: 'HDFC250426003912',
-    createdAt: '2026-04-20T10:00:00Z',
-    slaDeadline: '2026-05-20T10:00:00Z',
+    grn: '2026042600512',
+    utr: 'HDFC-PAY-11223',
+    createdAt: '2026-04-20',
+    slaDeadline: '2026-04-27',
     escalation: null,
     escalationReason: null,
-    assignedAgent: 'Sentinel (QC)',
+    assignedAgent: 'Executor',
     priority: 'low',
-  },
-  {
-    id: 'AXIS-NOI-2026-0041',
-    bank: 'Axis Finance',
-    borrower: 'Rohit Khandelwal',
-    loanAmount: 9500000,
-    stage: 'verification',
-    progress: 34,
-    grn: null,
-    utr: null,
-    createdAt: '2026-05-02T08:30:00Z',
-    slaDeadline: '2026-06-01T08:30:00Z',
-    escalation: null,
-    escalationReason: null,
-    assignedAgent: 'Vyasa (Reader)',
-    priority: 'medium',
   },
 ];
 
-function formatCurrency(n: number): string {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
-}
-
-function daysUntil(dateStr: string): number {
-  const now = new Date();
-  const deadline = new Date(dateStr);
-  return Math.max(0, Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-const container = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.08 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
-};
-
-function CaseCard({ caseData, selected, onSelect }: { caseData: NoiCase; selected: boolean; onSelect: () => void }) {
-  const stageIndex = PIPELINE_STAGES.findIndex(s => s.key === caseData.stage);
-  const slaDays = daysUntil(caseData.slaDeadline);
-  const isUrgent = slaDays <= 7;
-  const isWarning = slaDays <= 14 && slaDays > 7;
-  const isComplete = caseData.stage === 'acknowledged';
-
-  return (
-    <motion.button
-      variants={item}
-      onClick={onSelect}
-      className={`w-full text-left glass-gold glass-gold-hover rounded-xl p-5 transition-all duration-300 ${
-        selected
-          ? 'border-gold/40 glow-gold'
-          : 'border-transparent'
-      } ${isUrgent ? 'border-red-500/20' : ''}`}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2.5">
-          <div className={`w-2 h-2 rounded-full ${
-            isComplete ? 'bg-gold' : isUrgent ? 'bg-red-400' : isWarning ? 'bg-amber-400' : 'bg-gold/50'
-          }`} />
-          <span className="text-xs font-mono text-gold-muted">{caseData.id}</span>
-        </div>
-        <div className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded ${
-          caseData.bank === 'Kotak Mahindra' ? 'bg-blue-500/10 text-blue-300' :
-          caseData.bank === 'Axis Finance' ? 'bg-red-500/10 text-red-300' :
-          caseData.bank === 'ICICI Bank' ? 'bg-purple-500/10 text-purple-300' :
-          caseData.bank === 'Karur Vysya' ? 'bg-emerald-500/10 text-emerald-300' :
-          'bg-amber-500/10 text-amber-300'
-        }`}>
-          {caseData.bank}
-        </div>
-      </div>
-
-      <h3 className="text-white font-medium text-base mb-1 font-display">{caseData.borrower}</h3>
-      <p className="text-gray-500 text-xs mb-3">{formatCurrency(caseData.loanAmount)}</p>
-
-      <div className="mb-3">
-        <div className="flex justify-between text-[10px] font-mono text-gray-500 mb-1">
-          <span>{PIPELINE_STAGES[stageIndex]?.label}</span>
-          <span>{caseData.progress}%</span>
-        </div>
-        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${caseData.progress}%` }}
-            transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
-            className={`h-full rounded-full ${
-              isComplete ? 'bg-gold' : isUrgent ? 'bg-red-400' : 'bg-gold/60'
-            }`}
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Clock className={`w-3 h-3 ${isUrgent ? 'text-red-400' : isWarning ? 'text-amber-400' : 'text-gray-500'}`} />
-          <span className={`text-xs font-mono ${
-            isUrgent ? 'text-red-400' : isWarning ? 'text-amber-400' : 'text-gray-500'
-          }`}>
-            {slaDays}d remaining
-          </span>
-        </div>
-        {caseData.escalation && (
-          <div className={`flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded ${
-            caseData.escalation === 3 ? 'bg-red-500/15 text-red-400' :
-            caseData.escalation === 2 ? 'bg-amber-500/15 text-amber-400' :
-            'bg-blue-500/10 text-blue-300'
-          }`}>
-            <AlertTriangle className="w-2.5 h-2.5" />
-            T{caseData.escalation}
-          </div>
-        )}
-        {caseData.grn && (
-          <span className="text-[10px] font-mono text-gold/60">GRN ✓</span>
-        )}
-      </div>
-    </motion.button>
-  );
-}
-
-function StageIndicator({ current, stage }: { current: PipelineStage; stage: typeof PIPELINE_STAGES[0] }) {
-  const stageIndex = PIPELINE_STAGES.findIndex(s => s.key === current);
-  const thisIndex = PIPELINE_STAGES.findIndex(s => s.key === stage.key);
-  const isComplete = thisIndex < stageIndex;
-  const isActive = thisIndex === stageIndex;
-  const Icon = stage.icon;
-
-  return (
-    <div className="flex items-center gap-3">
-      <div className={`relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-500 ${
-        isComplete ? 'bg-gold/20 border border-gold/40' :
-        isActive ? 'bg-gold/10 border border-gold/50 shadow-[0_0_12px_rgba(201,168,76,0.2)]' :
-        'bg-white/[0.03] border border-white/[0.06]'
-      }`}>
-        <Icon className={`w-4 h-4 ${
-          isComplete ? 'text-gold' :
-          isActive ? 'text-gold-light' :
-          'text-gray-600'
-        }`} />
-        {isActive && (
-          <motion.span
-            layoutId="active-pulse"
-            className="absolute inset-0 rounded-full border border-gold/30"
-            animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-xs font-medium ${isComplete ? 'text-gold' : isActive ? 'text-white' : 'text-gray-500'}`}>
-          {stage.label}
-        </p>
-        <p className="text-[10px] font-mono text-gray-600 truncate">
-          {AGENTS[stage.key]}
-        </p>
-      </div>
-      {isComplete && <CheckCircle className="w-3.5 h-3.5 text-gold flex-shrink-0" />}
-    </div>
-  );
-}
-
-function SLACountdown({ deadline, createdAt }: { deadline: string; createdAt: string }) {
-  const [now, setNow] = useState(new Date());
-  const slaDays = daysUntil(deadline);
-  const totalDays = Math.ceil((new Date(deadline).getTime() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
-  const elapsed = totalDays - slaDays;
-  const pct = Math.min(100, Math.max(0, (elapsed / totalDays) * 100));
-  const isUrgent = slaDays <= 7;
-  const isWarning = slaDays <= 14 && slaDays > 7;
-
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(t);
-  }, []);
-
-  return (
-    <div className="glass-gold rounded-xl p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Clock className={`w-4 h-4 ${isUrgent ? 'text-red-400' : isWarning ? 'text-amber-400' : 'text-gold'}`} />
-          <span className="text-xs font-medium text-gray-400">Section 89B SLA</span>
-        </div>
-        <span className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded ${
-          isUrgent ? 'bg-red-500/15 text-red-400' :
-          isWarning ? 'bg-amber-500/15 text-amber-400' :
-          'bg-gold/10 text-gold'
-        }`}>
-          {isUrgent ? 'Critical' : isWarning ? 'Warning' : 'On Track'}
-        </span>
-      </div>
-
-      <div className="text-center mb-4">
-        <motion.span
-          key={slaDays}
-          initial={{ scale: 1.2, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className={`text-4xl font-display font-bold ${isUrgent ? 'text-red-400' : isWarning ? 'text-amber-400' : 'text-gold'}`}
-        >
-          {slaDays}
-        </motion.span>
-        <p className="text-gray-500 text-xs mt-1">days remaining of {totalDays}</p>
-      </div>
-
-      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
-          className={`h-full rounded-full ${isUrgent ? 'bg-red-400' : isWarning ? 'bg-amber-400' : 'bg-gold/60'}`}
-        />
-      </div>
-    </div>
-  );
-}
-
-function EscalationMatrix({ cases }: { cases: NoiCase[] }) {
-  const tiers = [
-    {
-      tier: 1,
-      label: 'Auto-Resolution',
-      icon: MessageSquare,
-      desc: 'Missing documents, blurry photos — AI auto-messages client via WhatsApp',
-      color: 'text-blue-400',
-      bg: 'bg-blue-500/10',
-      border: 'border-blue-500/20',
-      cases: cases.filter(c => c.escalation === 1),
-    },
-    {
-      tier: 2,
-      label: 'Dashboard Flag',
-      icon: Shield,
-      desc: 'Name mismatch, API timeout — flagged as NEEDS_REVIEW',
-      color: 'text-amber-400',
-      bg: 'bg-amber-500/10',
-      border: 'border-amber-500/20',
-      cases: cases.filter(c => c.escalation === 2),
-    },
-    {
-      tier: 3,
-      label: 'Critical Escalation',
-      icon: Phone,
-      desc: 'Stamp duty mismatch, 30-day SLA breach risk — WhatsApp alert to founder',
-      color: 'text-red-400',
-      bg: 'bg-red-500/10',
-      border: 'border-red-500/20',
-      cases: cases.filter(c => c.escalation === 3),
-    },
-  ];
-
-  return (
-    <div className="glass-gold rounded-xl p-5">
-      <div className="flex items-center gap-2 mb-5">
-        <AlertTriangle className="w-4 h-4 text-gold" />
-        <h3 className="text-white font-display text-base">3-Tier Escalation Matrix</h3>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {tiers.map(t => (
-          <div key={t.tier} className={`${t.bg} ${t.border} border rounded-lg p-4`}>
-            <div className="flex items-center gap-2 mb-2">
-              <t.icon className={`w-4 h-4 ${t.color}`} />
-              <span className={`text-xs font-medium ${t.color}`}>Tier {t.tier}</span>
-            </div>
-            <p className="text-white font-medium text-sm mb-1">{t.label}</p>
-            <p className="text-gray-500 text-[11px] leading-relaxed mb-3">{t.desc}</p>
-            <div className="flex items-center gap-1.5">
-              <span className={`text-lg font-display font-bold ${t.color}`}>{t.cases.length}</span>
-              <span className="text-gray-600 text-[10px]">active</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export default function NoiCasesPage() {
-  const [cases] = useState<NoiCase[]>(MOCK_CASES);
-  const [selectedId, setSelectedId] = useState<string>(cases[0]?.id ?? '');
+export default function NoiCases() {
+  const [cases, setCases] = useState<NoiCase[]>(MOCK_CASES);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterBank, setFilterBank] = useState<string>('all');
-  const [filterStage, setFilterStage] = useState<PipelineStage | 'all'>('all');
+  const [selectedCase, setSelectedCase] = useState<NoiCase | null>(null);
 
-  const selected = cases.find(c => c.id === selectedId) ?? cases[0];
-  const filtered = cases.filter(c => {
-    if (filterBank !== 'all' && c.bank !== filterBank) return false;
-    if (filterStage !== 'all' && c.stage !== filterStage) return false;
-    if (searchQuery && !c.borrower.toLowerCase().includes(searchQuery.toLowerCase()) && !c.id.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  });
-
-  const banks = [...new Set(cases.map(c => c.bank))];
+  const filteredCases = cases.filter(
+    (c) =>
+      c.borrower.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.id.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="min-h-screen bg-black noise-overlay">
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-48 -right-48 w-[600px] h-[600px] orb-gold opacity-40" />
-        <div className="absolute -bottom-48 -left-48 w-[500px] h-[500px] orb-gold opacity-30" />
-      </div>
-
-      <div className="relative z-10 max-w-[1440px] mx-auto px-6 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="flex items-start justify-between mb-10"
-        >
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center">
-                <Scale className="w-5 h-5 text-gold" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-display text-white tracking-tight">
-                  NOI Pipeline
-                </h1>
-                <p className="text-gray-500 text-xs font-mono">
-                  Notice of Intimation · Section 89B Registration Act
-                </p>
-              </div>
-            </div>
+    <div className="min-h-screen bg-obsidian text-white p-8">
+      <header className="mb-12 flex justify-between items-center">
+        <div>
+          <div className="flex items-center gap-4 mb-4">
+            <Link href="/" className="p-2 border border-hairline hover:bg-white/5 transition-colors">
+              <Scale size={20} className="text-gray-400" />
+            </Link>
+            <h1 className="text-3xl font-bold tracking-tighter uppercase">NOI Pipeline</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-xs text-gray-600">
-              <span className="w-1.5 h-1.5 rounded-full bg-gold/60" />
-              {cases.filter(c => c.stage !== 'acknowledged').length} active
-            </div>
-            <div className="h-6 w-px bg-white/[0.06]" />
-            <div className="flex items-center gap-1.5 text-xs text-gray-600">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
-              {cases.filter(c => c.stage === 'acknowledged').length} filed
-            </div>
-          </div>
-        </motion.div>
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
+            Autonomous Notice of Intimation Filing System
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6">
-          <div className="space-y-6">
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="flex items-center gap-3 flex-wrap"
-            >
-              <div className="relative flex-1 min-w-[200px] max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-                <input
-                  type="text"
-                  placeholder="Search borrower or case ID..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-gold/30 focus:shadow-[0_0_0_3px_rgba(201,168,76,0.06)] transition-all"
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input
+              type="text"
+              placeholder="SEARCH CASE ID / BORROWER..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-transparent border border-hairline pl-10 pr-4 py-2 text-[10px] font-bold uppercase tracking-widest outline-none focus:border-white transition-colors w-64"
+            />
+          </div>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-[#1F1F1F] border border-[#1F1F1F]">
+        {filteredCases.map((c) => (
+          <motion.div
+            key={c.id}
+            layoutId={c.id}
+            onClick={() => setSelectedCase(c)}
+            className="bg-obsidian p-8 hover:bg-white/5 transition-all cursor-pointer group"
+          >
+            <div className="flex justify-between items-start mb-10">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                {c.id}
+              </span>
+              {c.escalation && (
+                <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-red-500 border border-red-500/30 px-2 py-0.5">
+                  <AlertTriangle size={10} />
+                  Tier {c.escalation}
+                </span>
+              )}
+            </div>
+
+            <h3 className="text-xl font-bold mb-2 tracking-tight">{c.borrower}</h3>
+            <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-8">
+              {c.bank} · ₹{(c.loanAmount / 100000).toFixed(1)}L
+            </p>
+
+            <div className="space-y-4">
+              <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest">
+                <span className="text-gray-600">Stage: {c.stage}</span>
+                <span className="text-white">{c.progress}%</span>
+              </div>
+              <div className="h-1 bg-[#1F1F1F] w-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${c.progress}%` }}
+                  className="h-full bg-white"
                 />
               </div>
-              <select
-                value={filterBank}
-                onChange={e => setFilterBank(e.target.value)}
-                className="bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-gray-400 focus:outline-none focus:border-gold/30"
-              >
-                <option value="all">All Banks</option>
-                {banks.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <select
-                value={filterStage}
-                onChange={e => setFilterStage(e.target.value as PipelineStage | 'all')}
-                className="bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-gray-400 focus:outline-none focus:border-gold/30"
-              >
-                <option value="all">All Stages</option>
-                {PIPELINE_STAGES.map(s => (
-                  <option key={s.key} value={s.key}>{s.label}</option>
-                ))}
-              </select>
-            </motion.div>
+            </div>
 
+            <div className="mt-10 pt-8 border-t border-hairline flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500">
+                Agent: {c.assignedAgent}
+              </span>
+              <ArrowUpRight size={14} className="text-white" />
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {selectedCase && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
             <motion.div
-              variants={container}
-              initial="hidden"
-              animate="visible"
-              className="space-y-3"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedCase(null)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-4xl bg-obsidian border border-hairline p-12 overflow-hidden"
             >
-              {filtered.length === 0 ? (
-                <div className="glass-gold rounded-xl p-10 text-center">
-                  <Search className="w-8 h-8 text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No cases match your filters</p>
-                </div>
-              ) : (
-                filtered.map(c => (
-                  <CaseCard
-                    key={c.id}
-                    caseData={c}
-                    selected={c.id === selectedId}
-                    onSelect={() => setSelectedId(c.id)}
-                  />
-                ))
-              )}
-            </motion.div>
-          </div>
+              <button
+                onClick={() => setSelectedCase(null)}
+                className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors"
+              >
+                <X size={24} />
+              </button>
 
-          <div className="space-y-4">
-            <AnimatePresence mode="wait">
-              {selected && (
-                <motion.div
-                  key={selected.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                  className="sticky top-8 space-y-4"
-                >
-                  <div className="glass-gold-strong rounded-xl p-5 liquid-edge">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <p className="text-[10px] font-mono text-gold/60 uppercase tracking-widest mb-1">
-                          Case Details
-                        </p>
-                        <h2 className="text-white font-display text-lg leading-tight">{selected.borrower}</h2>
-                        <p className="text-gray-500 text-xs font-mono mt-0.5">{selected.id}</p>
-                      </div>
-                      <div className={`px-2 py-1 rounded text-[10px] font-mono uppercase tracking-wider ${
-                        selected.priority === 'high' ? 'bg-red-500/10 text-red-400' :
-                        selected.priority === 'medium' ? 'bg-amber-500/10 text-amber-400' :
-                        'bg-blue-500/10 text-blue-300'
-                      }`}>
-                        {selected.priority}
-                      </div>
+              <div className="grid md:grid-cols-2 gap-16">
+                <div>
+                  <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-6">Case Dossier</p>
+                  <h2 className="text-4xl font-bold text-white tracking-tighter mb-4">{selectedCase.borrower}</h2>
+                  <p className="text-gray-500 text-sm font-light tracking-wide mb-12">
+                    Case reference {selectedCase.id} initiated on {selectedCase.createdAt}.
+                    Assigned to {selectedCase.assignedAgent} agent for {selectedCase.stage} processing.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-8 mb-12">
+                    <div>
+                      <p className="text-gray-600 text-[9px] font-bold uppercase tracking-widest mb-2">Loan Amount</p>
+                      <p className="text-white font-mono text-lg">₹{selectedCase.loanAmount.toLocaleString()}</p>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-3 mb-5">
-                      <div className="bg-white/[0.02] rounded-lg p-3">
-                        <p className="text-[10px] font-mono text-gray-600 uppercase tracking-wider mb-1">Bank</p>
-                        <p className="text-white text-sm">{selected.bank}</p>
-                      </div>
-                      <div className="bg-white/[0.02] rounded-lg p-3">
-                        <p className="text-[10px] font-mono text-gray-600 uppercase tracking-wider mb-1">Loan</p>
-                        <p className="text-white text-sm">{formatCurrency(selected.loanAmount)}</p>
-                      </div>
-                      <div className="bg-white/[0.02] rounded-lg p-3">
-                        <p className="text-[10px] font-mono text-gray-600 uppercase tracking-wider mb-1">Created</p>
-                        <p className="text-white text-sm">{formatDate(selected.createdAt)}</p>
-                      </div>
-                      <div className="bg-white/[0.02] rounded-lg p-3">
-                        <p className="text-[10px] font-mono text-gray-600 uppercase tracking-wider mb-1">Agent</p>
-                        <p className="text-white text-sm truncate">{selected.assignedAgent}</p>
-                      </div>
+                    <div>
+                      <p className="text-gray-600 text-[9px] font-bold uppercase tracking-widest mb-2">SLA Deadline</p>
+                      <p className="text-white font-mono text-lg">{selectedCase.slaDeadline}</p>
                     </div>
-
-                    {selected.grn && (
-                      <div className="bg-gold/5 border border-gold/10 rounded-lg px-4 py-3 mb-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">GRN</p>
-                            <p className="text-gold text-sm font-mono mt-0.5">{selected.grn}</p>
-                          </div>
-                          <CheckCircle className="w-4 h-4 text-gold" />
-                        </div>
-                        {selected.utr && (
-                          <div className="mt-2 pt-2 border-t border-gold/10">
-                            <p className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">UTR</p>
-                            <p className="text-white text-sm font-mono mt-0.5">{selected.utr}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {selected.escalation && (
-                      <div className={`rounded-lg px-4 py-3 mb-4 ${
-                        selected.escalation === 3 ? 'bg-red-500/10 border border-red-500/20' :
-                        selected.escalation === 2 ? 'bg-amber-500/10 border border-amber-500/20' :
-                        'bg-blue-500/10 border border-blue-500/20'
-                      }`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <AlertTriangle className={`w-3.5 h-3.5 ${
-                            selected.escalation === 3 ? 'text-red-400' :
-                            selected.escalation === 2 ? 'text-amber-400' : 'text-blue-300'
-                          }`} />
-                          <span className={`text-[10px] font-mono uppercase tracking-wider ${
-                            selected.escalation === 3 ? 'text-red-400' :
-                            selected.escalation === 2 ? 'text-amber-400' : 'text-blue-300'
-                          }`}>
-                            Tier {selected.escalation} Escalation
-                          </span>
-                        </div>
-                        <p className="text-gray-400 text-xs">{selected.escalationReason}</p>
-                      </div>
-                    )}
-
-                    <div className="space-y-1">
-                      {PIPELINE_STAGES.map(s => (
-                        <StageIndicator key={s.key} current={selected.stage} stage={s} />
-                      ))}
+                    <div>
+                      <p className="text-gray-600 text-[9px] font-bold uppercase tracking-widest mb-2">GRN Number</p>
+                      <p className="text-white font-mono text-lg">{selectedCase.grn || 'PENDING'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 text-[9px] font-bold uppercase tracking-widest mb-2">UTR/Payment</p>
+                      <p className="text-white font-mono text-lg">{selectedCase.utr || 'PENDING'}</p>
                     </div>
                   </div>
 
-                  <SLACountdown deadline={selected.slaDeadline} createdAt={selected.createdAt} />
+                  <div className="flex gap-4">
+                    <button className="flex-1 bg-white text-black text-[10px] font-bold uppercase tracking-widest py-4 hover:bg-gray-200 transition-colors">
+                      Download Draft
+                    </button>
+                    <button className="flex-1 border border-hairline text-white text-[10px] font-bold uppercase tracking-widest py-4 hover:bg-white/5 transition-colors">
+                      View Audit Log
+                    </button>
+                  </div>
+                </div>
 
-                  <EscalationMatrix cases={cases} />
-                </motion.div>
-              )}
-            </AnimatePresence>
+                <div className="border-l border-hairline pl-16">
+                  <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-10">Pipeline Progress</p>
+                  <div className="space-y-10">
+                    {PIPELINE_STAGES.map((stage, i) => {
+                      const isCompleted = PIPELINE_STAGES.findIndex(s => s.key === selectedCase.stage) >= i;
+                      const isActive = selectedCase.stage === stage.key;
+
+                      return (
+                        <div key={stage.key} className="flex items-center gap-6 group">
+                          <div className={`w-10 h-10 border ${
+                            isCompleted ? 'border-white bg-white text-black' : 'border-[#1F1F1F] text-gray-700'
+                          } flex items-center justify-center transition-colors`}>
+                            <stage.icon size={16} />
+                          </div>
+                          <div>
+                            <p className={`text-[11px] font-bold uppercase tracking-widest ${
+                              isCompleted ? 'text-white' : 'text-gray-700'
+                            }`}>
+                              {stage.label}
+                            </p>
+                            {isActive && (
+                              <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-1 animate-pulse">
+                                Processing...
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

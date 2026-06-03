@@ -24,20 +24,13 @@ interface Message {
   created_at?: string;
 }
 
-interface AishaResponse {
-  conversation_id: string;
-  user_id: string;
-  response: string;
-  intent: string;
-  data?: Record<string, unknown>;
-}
-
 interface AishaChatProps {
   onClose?: () => void;
   embedded?: boolean;
+  useUnified?: boolean;
 }
 
-export default function AishaChat({ onClose, embedded }: AishaChatProps) {
+export default function AishaChat({ onClose, embedded, useUnified }: AishaChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -48,75 +41,52 @@ export default function AishaChat({ onClose, embedded }: AishaChatProps) {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const lastMessageIdRef = useRef<number>(0);
   const streamRef = useRef<EventSource | null>(null);
-  const lastMessageIdRef = useRef(0);
 
-  const scrollToBottom = useCallback((smooth = true) => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: smooth ? 'smooth' : 'auto',
-    });
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
 
-  const handleScroll = useCallback(() => {
-    const el = chatContainerRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-    setShowScrollBtn(!atBottom);
-  }, []);
+  const handleScroll = () => {
+    if (!chatContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 100);
+  };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+  const connectStream = useCallback(() => {
+    if (!conversationId || useUnified) return;
 
-  const connectStream = useCallback((convId: string) => {
-    if (streamRef.current) {
-      streamRef.current.close();
-    }
+    if (streamRef.current) streamRef.current.close();
 
-    const es = new EventSource(
-      `${API_BASE_URL}/api/aisha/chat/${convId}/stream?after_id=${lastMessageIdRef.current}`
-    );
+    const url = `${API_BASE_URL}/api/aisha/stream/${conversationId}`;
+    const es = new EventSource(url);
+    streamRef.current = es;
 
     es.onopen = () => setStreamConnected(true);
+    es.onerror = () => {
+      setStreamConnected(false);
+      setTimeout(connectStream, 5000);
+    };
 
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        const msg: Message = {
-          id: data.id,
-          role: data.role,
-          content: data.content,
-        };
-        if (data.id > lastMessageIdRef.current) {
-          lastMessageIdRef.current = data.id;
+        if (data.type === 'message' && data.message.id > lastMessageIdRef.current) {
+          setMessages((prev) => [...prev, data.message]);
+          lastMessageIdRef.current = data.message.id;
+          scrollToBottom();
         }
-        setMessages((prev) => {
-          const exists = prev.some((m) => m.id === msg.id);
-          return exists ? prev : [...prev, msg];
-        });
-      } catch {
-        // ignore parse errors on keepalive comments
+      } catch (err) {
+        console.error('SSE Parse Error:', err);
       }
     };
-
-    es.onerror = () => {
-      setStreamConnected(false);
-      setTimeout(() => {
-        if (conversationId) connectStream(conversationId);
-      }, 3000);
-    };
-
-    streamRef.current = es;
-  }, [conversationId]);
+  }, [conversationId, scrollToBottom, useUnified]);
 
   useEffect(() => {
-    if (conversationId) {
-      connectStream(conversationId);
-    }
-    return () => {
-      streamRef.current?.close();
-    };
-  }, [conversationId, connectStream]);
+    if (conversationId && !useUnified) connectStream();
+    return () => streamRef.current?.close();
+  }, [conversationId, connectStream, useUnified]);
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -133,9 +103,11 @@ export default function AishaChat({ onClose, embedded }: AishaChatProps) {
       content: text,
     };
     setMessages((prev) => [...prev, optimistic]);
+    scrollToBottom();
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/aisha/chat`, {
+      const endpoint = useUnified ? '/api/unified/chat' : '/api/aisha/chat';
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -150,10 +122,20 @@ export default function AishaChat({ onClose, embedded }: AishaChatProps) {
         throw new Error(errText || `HTTP ${res.status}`);
       }
 
-      const data: AishaResponse = await res.json();
+      const data = await res.json();
 
       if (!conversationId && data.conversation_id) {
         setConversationId(data.conversation_id);
+      }
+
+      if (useUnified) {
+        const aiMessage: Message = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: data.response || data.message || "Request received.",
+        };
+        setMessages((prev) => [...prev, aiMessage]);
+        scrollToBottom();
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Failed to send message';
@@ -181,49 +163,44 @@ export default function AishaChat({ onClose, embedded }: AishaChatProps) {
 
   const containerClasses = embedded
     ? 'flex flex-col h-full'
-    : 'fixed bottom-6 right-6 w-[420px] h-[640px] flex flex-col glass-strong rounded-2xl shadow-2xl z-50';
+    : 'fixed bottom-32 right-10 w-[400px] h-[600px] flex flex-col bg-[#121212] border border-[#1F1F1F] shadow-2xl z-50 overflow-hidden rounded-sm';
 
   return (
     <motion.div
-      initial={embedded ? false : { opacity: 0, scale: 0.9, y: 20 }}
-      animate={embedded ? undefined : { opacity: 1, scale: 1, y: 0 }}
-      exit={embedded ? undefined : { opacity: 0, scale: 0.9, y: 20 }}
+      initial={embedded ? false : { opacity: 0, y: 20 }}
+      animate={embedded ? undefined : { opacity: 1, y: 0 }}
+      exit={embedded ? undefined : { opacity: 0, y: 20 }}
       className={containerClasses}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] shrink-0">
+      <div className="flex items-center justify-between px-6 py-5 border-b border-[#1F1F1F] shrink-0 bg-[#0A0A0A]">
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-accent-purple/20 flex items-center justify-center">
-              <Bot className="w-5 h-5 text-accent-purple" />
-            </div>
-            <div
-              className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-dark-bg ${
-                streamConnected ? 'bg-accent-green' : 'bg-gray-500'
-              }`}
-            />
+          <div className="w-8 h-8 bg-white flex items-center justify-center">
+            <Bot className="w-5 h-5 text-black" />
           </div>
           <div>
-            <h3 className="text-white font-semibold text-sm leading-tight">Aisha</h3>
-            <p className="text-gray-500 text-xs leading-tight">
-              {streamConnected ? 'Online' : 'Connecting...'}
+            <h3 className="text-white font-bold text-[11px] uppercase tracking-widest leading-tight">
+              {useUnified ? 'Aisha Unified' : 'Aisha'}
+            </h3>
+            <p className="text-gray-500 text-[9px] uppercase tracking-widest leading-tight mt-0.5">
+              {useUnified ? 'Autonomous Controller' : (streamConnected ? 'Online' : 'Connecting...')}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           <button
             onClick={clearChat}
-            className="p-2 rounded-lg hover:bg-white/[0.06] text-gray-500 hover:text-gray-300 transition-colors"
+            className="p-1.5 hover:bg-white/5 text-gray-500 hover:text-white transition-colors"
             title="Clear conversation"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-white/[0.06] text-gray-500 hover:text-gray-300 transition-colors"
+              className="p-1.5 hover:bg-white/5 text-gray-500 hover:text-white transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
@@ -233,31 +210,35 @@ export default function AishaChat({ onClose, embedded }: AishaChatProps) {
       <div
         ref={chatContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth"
+        className="flex-1 overflow-y-auto px-6 py-6 space-y-6 scroll-smooth"
       >
         {messages.length === 0 && !sending && (
           <div className="flex flex-col items-center justify-center h-full text-center px-6">
-            <div className="w-16 h-16 rounded-2xl bg-accent-purple/10 flex items-center justify-center mb-4">
-              <Sparkles className="w-8 h-8 text-accent-purple" />
+            <div className="w-12 h-12 bg-[#1F1F1F] flex items-center justify-center mb-6">
+              <Sparkles className="w-6 h-6 text-white" />
             </div>
-            <h4 className="text-white font-semibold mb-2">Chat with Aisha</h4>
-            <p className="text-gray-500 text-sm leading-relaxed">
-              Ask me about case status, draft legal documents, check NOI progress,
-              or get help with firm operations.
+            <h4 className="text-white font-bold text-[11px] uppercase tracking-widest mb-3">Initialize Interaction</h4>
+            <p className="text-gray-500 text-xs leading-relaxed font-light tracking-wide mb-8">
+              {useUnified
+                ? "Unified workforce orchestrator. Execute complex tasks across AG Associates systems."
+                : "Legal processing agent. Ask about case status or document drafting."}
             </p>
-            <div className="mt-6 grid grid-cols-1 gap-2 w-full max-w-[280px]">
-              {[
-                'What is the status of my cases?',
-                'Draft a rental agreement',
-                'Generate a GRAS challan',
+            <div className="grid grid-cols-1 gap-2 w-full">
+              {(useUnified ? [
+                'Status of my workforce',
+                'Check cloudrun servers',
+                'Verify latest filings',
+              ] : [
+                'Status of my cases',
+                'Draft rental agreement',
                 'Show recent activities',
-              ].map((suggestion) => (
+              ]).map((suggestion) => (
                 <button
                   key={suggestion}
                   onClick={() => {
                     setInput(suggestion);
                   }}
-                  className="text-left text-sm text-gray-400 hover:text-white p-3 rounded-xl glass hover:bg-white/[0.08] transition-colors"
+                  className="text-left text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-white hover:bg-white/5 p-4 border border-[#1F1F1F] transition-all"
                 >
                   {suggestion}
                 </button>
@@ -266,128 +247,77 @@ export default function AishaChat({ onClose, embedded }: AishaChatProps) {
           </div>
         )}
 
-        <AnimatePresence initial={false}>
-          {messages.map((msg, i) => (
-            <motion.div
-              key={msg.id || i}
-              initial={{ opacity: 0, y: 10, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+        {messages.map((msg, i) => (
+          <div
+            key={msg.id || i}
+            className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+          >
+            <div
+              className={`w-7 h-7 flex items-center justify-center shrink-0 ${
+                msg.role === 'user' ? 'bg-[#1F1F1F]' : 'border border-[#1F1F1F]'
+              }`}
             >
-              <div
-                className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
-                  msg.role === 'user'
-                    ? 'bg-accent-blue/20'
-                    : 'bg-accent-purple/20'
-                }`}
-              >
-                {msg.role === 'user' ? (
-                  <User className="w-4 h-4 text-accent-blue" />
-                ) : (
-                  <Bot className="w-4 h-4 text-accent-purple" />
-                )}
-              </div>
-              <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-accent-blue/10 text-white border border-accent-blue/20'
-                    : 'glass text-gray-200'
-                }`}
-              >
-                {msg.content}
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+              {msg.role === 'user' ? (
+                <User className="w-4 h-4 text-white" />
+              ) : (
+                <Bot className="w-4 h-4 text-white" />
+              )}
+            </div>
+            <div
+              className={`max-w-[85%] text-xs leading-relaxed tracking-wide ${
+                msg.role === 'user' ? 'text-white text-right' : 'text-gray-400'
+              }`}
+            >
+              {msg.content}
+            </div>
+          </div>
+        ))}
 
         {sending && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex gap-3"
-          >
-            <div className="w-8 h-8 rounded-lg bg-accent-purple/20 flex items-center justify-center">
-              <Bot className="w-4 h-4 text-accent-purple" />
+          <div className="flex gap-4">
+            <div className="w-7 h-7 border border-[#1F1F1F] flex items-center justify-center">
+              <Bot className="w-4 h-4 text-white" />
             </div>
-            <div className="glass rounded-2xl px-4 py-3">
-              <div className="flex gap-1.5">
-                <motion.div
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ duration: 1.2, repeat: Infinity, delay: 0 }}
-                  className="w-2 h-2 rounded-full bg-accent-purple"
-                />
-                <motion.div
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }}
-                  className="w-2 h-2 rounded-full bg-accent-purple"
-                />
-                <motion.div
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }}
-                  className="w-2 h-2 rounded-full bg-accent-purple"
-                />
-              </div>
+            <div className="flex items-center gap-1.5 h-7">
+              <div className="w-1 h-1 bg-white animate-pulse" />
+              <div className="w-1 h-1 bg-white animate-pulse [animation-delay:0.2s]" />
+              <div className="w-1 h-1 bg-white animate-pulse [animation-delay:0.4s]" />
             </div>
-          </motion.div>
+          </div>
         )}
 
         {error && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20"
-          >
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <p className="text-red-400 text-sm">{error}</p>
-          </motion.div>
+          <div className="flex items-center gap-3 p-4 bg-red-950/20 border border-red-900/50">
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+            <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest">{error}</p>
+          </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Scroll to bottom button */}
-      <AnimatePresence>
-        {showScrollBtn && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            onClick={() => scrollToBottom()}
-            className="absolute bottom-20 left-1/2 -translate-x-1/2 p-2 rounded-full glass-strong hover:bg-white/[0.12] transition-colors"
-          >
-            <ChevronDown className="w-4 h-4 text-gray-400" />
-          </motion.button>
-        )}
-      </AnimatePresence>
-
       {/* Input */}
-      <div className="shrink-0 border-t border-white/[0.06] p-4">
-        <div className="flex items-end gap-2 glass rounded-xl p-1.5">
-          <textarea
+      <div className="shrink-0 border-t border-[#1F1F1F] p-6 bg-[#0A0A0A]">
+        <div className="flex items-center gap-3 border border-[#1F1F1F] px-4 py-1">
+          <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message Aisha..."
-            rows={1}
-            className="flex-1 bg-transparent text-white placeholder-gray-500 text-sm px-3 py-2 outline-none resize-none max-h-32"
-            style={{ fieldSizing: 'content' }}
+            placeholder="INPUT COMMAND..."
+            className="flex-1 bg-transparent text-white placeholder-gray-700 text-[10px] font-bold uppercase tracking-[0.2em] py-3 outline-none"
           />
           <button
             onClick={sendMessage}
             disabled={!input.trim() || sending}
-            className="p-2.5 rounded-lg bg-accent-blue hover:bg-accent-blue/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0"
+            className="text-gray-500 hover:text-white disabled:opacity-20 transition-colors"
           >
             {sending ? (
-              <Loader2 className="w-4 h-4 text-white animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Send className="w-4 h-4 text-white" />
+              <Send className="w-4 h-4" />
             )}
           </button>
         </div>
-        <p className="text-[10px] text-gray-600 text-center mt-2">
-          Powered by AG Associates AI
-        </p>
       </div>
     </motion.div>
   );
