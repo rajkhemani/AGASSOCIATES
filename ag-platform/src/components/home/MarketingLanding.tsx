@@ -86,8 +86,8 @@ function FloatingCard3D({ children, delay = 0 }: { children: React.ReactNode; de
       style={{ transitionDelay: `${delay}ms` }}
     >
       <div className="relative group">
-        <div className="absolute -inset-1 bg-gradient-to-r from-violet-500 via-indigo-500 to-purple-500 rounded-2xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-500" />
-        <div className="relative glass-card p-8 rounded-2xl">
+        <div className="absolute -inset-1 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 rounded-2xl blur-lg opacity-20 group-hover:opacity-40 transition-opacity duration-500" />
+        <div className="relative glass-card p-8 rounded-2xl border border-white/5">
           {children}
         </div>
       </div>
@@ -115,16 +115,17 @@ function ParticleField() {
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: (Math.random() - 0.5) * 0.5,
-        size: Math.random() * 2 + 1,
-        opacity: Math.random() * 0.5 + 0.1
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        size: Math.random() * 1.5 + 0.5,
+        opacity: Math.random() * 0.3 + 0.05
       });
     }
 
     let animationId: number;
     
     function animate() {
+      if (!ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
       particles.forEach(p => {
@@ -136,7 +137,7 @@ function ParticleField() {
         
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(139, 92, 246, ${p.opacity})`;
+        ctx.fillStyle = `rgba(212, 175, 55, ${p.opacity})`;
         ctx.fill();
       });
 
@@ -171,7 +172,7 @@ function ParticleField() {
 function GlowingOrb({ color, size, position }: { color: string; size: string; position: string }) {
   return (
     <div
-      className={`absolute ${size} ${position} rounded-full blur-3xl opacity-20 animate-pulse`}
+      className={`absolute ${size} ${position} rounded-full blur-3xl opacity-10 animate-pulse`}
       style={{ backgroundColor: color }}
     />
   );
@@ -179,57 +180,55 @@ function GlowingOrb({ color, size, position }: { color: string; size: string; po
 
 export function MarketingLanding() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [activeFeature, setActiveFeature] = useState(0);
-  const [showVideo, setShowVideo] = useState(false);
 
   const features = [
     {
       icon: FileCheck,
       title: 'Smart Document Processing',
       description: 'AI-powered document verification with 99.9% accuracy rate. Automatically extract and validate all loan-related documents.',
-      color: '#8b5cf6'
+      color: '#D4AF37'
     },
     {
       icon: Clock,
       title: 'Real-time Tracking',
       description: 'Track your application status in real-time. Get instant notifications at every milestone of your NOI process.',
-      color: '#06b6d4'
+      color: '#B8860B'
     },
     {
       icon: Shield,
       title: 'Bank-grade Security',
-      description: 'Enterprise-level encryption and secure data handling. Your sensitive information is protected at every step.',
-      color: '#10b981'
+      description: 'Your data is protected by enterprise-grade encryption and strictly enforced Row-Level Security (RLS).',
+      color: '#F4D03F'
     },
     {
-      icon: Bell,
-      title: 'Instant Notifications',
-      description: 'Stay updated with WhatsApp, SMS, and email notifications. Never miss an important update on your application.',
-      color: '#f59e0b'
+      icon: Users,
+      title: 'Collaborative Workflow',
+      description: 'Seamless communication between applicants, advisors, and bank staff to accelerate the loan origination cycle.',
+      color: '#996515'
     }
   ];
 
   const stats = [
-    { label: 'Active Users', value: 2500, suffix: '+', icon: Users },
-    { label: 'NOI Filed', value: 15000, suffix: '+', icon: FileCheck },
-    { label: 'Success Rate', value: 98.5, suffix: '%', icon: TrendingUp },
-    { label: 'Avg. Processing Time', value: 24, suffix: 'hrs', icon: Timer }
+    { value: 15000, label: 'Cases Processed', suffix: '+' },
+    { value: 99.9, label: 'Accuracy Rate', suffix: '%' },
+    { value: 24, label: 'Avg. Filing Time', suffix: 'h' },
+    { value: 15, label: 'Banking Partners', suffix: '+' }
   ];
 
   const testimonials = [
     {
-      name: 'Rajesh Kumar',
-      role: 'Branch Manager, HDFC Bank',
+      name: 'Aditi Rao',
+      role: 'Loan Officer, HDFC Bank',
       content: 'AG Associates has transformed how we handle NOI filings. The efficiency improvement is remarkable.',
       rating: 5,
-      image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face'
+      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face'
     },
     {
-      name: 'Priya Sharma',
+      name: 'Suresh Patil',
       role: 'Property Consultant',
       content: 'The glassmorphic interface is not just beautiful - it makes my work so much easier. Highly recommended!',
       rating: 5,
-      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face'
+      image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face'
     },
     {
       name: 'Amit Patel',
@@ -240,571 +239,200 @@ export function MarketingLanding() {
     }
   ];
 
-  const processSteps = [
-    {
-      step: 1,
-      icon: FileCheck,
-      title: 'Document Submission',
-      description: 'Upload your sanction letter and property documents through our secure portal',
-      color: '#8b5cf6'
-    },
-    {
-      step: 2,
-      icon: CreditCard,
-      title: 'Challan Generation',
-      description: 'System automatically calculates applicable fees and generates challan',
-      color: '#06b6d4'
-    },
-    {
-      step: 3,
-      icon: CreditCard,
-      title: 'Payment Processing',
-      description: 'Pay Stamp Duty & Registration fees securely online',
-      color: '#10b981'
-    },
-    {
-      step: 4,
-      icon: Award,
-      title: 'NOI Filing',
-      description: 'We file your Notice of Intimation with the registrar',
-      color: '#f59e0b'
-    },
-    {
-      step: 5,
-      icon: CheckCircle,
-      title: 'Acknowledgment',
-      description: 'Receive your filed NOI acknowledgment instantly',
-      color: '#ec4899'
-    }
-  ];
-
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      {/* Animated Background */}
+    <div className="min-h-screen bg-[#0A0A0A] overflow-x-hidden">
       <ParticleField />
-      <GlowingOrb color="#8b5cf6" size="w-[600px] h-[600px]" position="top-[-200px] left-[-200px]" />
-      <GlowingOrb color="#06b6d4" size="w-[500px] h-[500px]" position="top-[20%] right-[-150px]" />
-      <GlowingOrb color="#10b981" size="w-[400px] h-[400px]" position="bottom-[10%] left-[10%]" />
+      <GlowingOrb color="#D4AF37" size="w-[500px] h-[500px]" position="top-[-100px] left-[-100px]" />
+      <GlowingOrb color="#B8860B" size="w-[400px] h-[400px]" position="bottom-[10%] right-[-100px]" />
 
       {/* Navigation */}
-      <nav className="relative z-50 glass-nav border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 md:h-20">
-            {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="relative w-10 h-10 flex items-center justify-center">
-                <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-indigo-500 rounded-xl blur-lg animate-pulse" />
-                <div className="relative bg-gradient-to-br from-violet-500 to-indigo-500 text-white p-2 rounded-xl shadow-lg">
-                  <Building2 size={22} />
-                </div>
-              </div>
-              <div>
-                <h1 className="text-lg font-serif font-bold text-white leading-none">AG Associates</h1>
-                <span className="text-[10px] uppercase font-mono tracking-wider text-white/50">Legal Excellence</span>
-              </div>
-            </div>
-
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-2">
-              <a href="#features" className="px-4 py-2 text-sm text-white/70 hover:text-white transition-colors rounded-lg hover:bg-white/5">Features</a>
-              <a href="#process" className="px-4 py-2 text-sm text-white/70 hover:text-white transition-colors rounded-lg hover:bg-white/5">Process</a>
-              <a href="#testimonials" className="px-4 py-2 text-sm text-white/70 hover:text-white transition-colors rounded-lg hover:bg-white/5">Testimonials</a>
-              <a href="#pricing" className="px-4 py-2 text-sm text-white/70 hover:text-white transition-colors rounded-lg hover:bg-white/5">Pricing</a>
-              <Link to="/login" className="ml-4 px-6 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-medium rounded-xl hover:from-violet-500 hover:to-indigo-500 transition-all duration-300 shadow-lg shadow-violet-500/25">
-                Get Started
-              </Link>
-            </div>
-
-            {/* Mobile menu button */}
-            <button
-              className="md:hidden p-2 text-white/70 hover:text-white"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
-              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
+      <nav className="relative z-50 glass-nav mx-6 mt-6 px-6 py-4 rounded-2xl flex items-center justify-between border border-white/5 bg-black/40 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 border border-white flex items-center justify-center text-white">
+            <Building2 size={20} />
+          </div>
+          <div>
+            <h2 className="text-white font-bold leading-tight uppercase tracking-tighter text-sm">{config.app.name}</h2>
+            <span className="text-[9px] uppercase text-amber-500 font-mono tracking-widest mt-0.5 block">Legal Excellence</span>
           </div>
         </div>
 
-        {/* Mobile menu */}
-        {isMenuOpen && (
-          <div className="md:hidden glass-card mx-4 my-2 p-4 rounded-xl">
-            <div className="flex flex-col space-y-2">
-              <a href="#features" className="px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 rounded-lg">Features</a>
-              <a href="#process" className="px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 rounded-lg">Process</a>
-              <a href="#testimonials" className="px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 rounded-lg">Testimonials</a>
-              <a href="#pricing" className="px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 rounded-lg">Pricing</a>
-              <Link to="/login" className="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-center font-medium rounded-lg mt-2">
-                Get Started
-              </Link>
-            </div>
-          </div>
-        )}
+        <div className="hidden md:flex items-center gap-10">
+          {['Features', 'Process', 'Testimonials'].map((item) => (
+            <a key={item} href={`#${item.toLowerCase()}`} className="text-white/50 hover:text-white transition-colors text-[10px] font-bold uppercase tracking-widest">
+              {item}
+            </a>
+          ))}
+          <Link to="/login" className="px-6 py-2 border border-white text-white text-[10px] font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all">
+            Enter Portal
+          </Link>
+        </div>
+
+        <button className="md:hidden text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+          {isMenuOpen ? <X /> : <Menu />}
+        </button>
       </nav>
 
       {/* Hero Section */}
-      <section className="relative z-10 min-h-[90vh] flex items-center">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Left Content */}
-            <div className="text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 px-4 py-2 glass-badge mb-6">
-                <Sparkles size={14} className="text-violet-400" />
-                <span className="text-sm">#1 NOI Processing Platform in India</span>
-              </div>
-              
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
-                <span className="bg-gradient-to-r from-white via-violet-200 to-white bg-clip-text text-transparent">
-                  File Your NOI
-                </span>
-                <br />
-                <span className="bg-gradient-to-r from-violet-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                  With Confidence
-                </span>
-              </h1>
-              
-              <p className="text-lg md:text-xl text-white/70 mb-8 max-w-xl mx-auto lg:mx-0">
-                Experience the future of property registration. Our intelligent platform transforms complex NOI filings into simple, paperless processes.
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Link 
-                  to="/login"
-                  className="group px-8 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold rounded-2xl shadow-xl shadow-violet-500/30 hover:shadow-violet-500/50 transition-all duration-300 flex items-center justify-center gap-2"
-                >
-                  Start Filing Now
-                  <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </Link>
-                <button 
-                  onClick={() => setShowVideo(true)}
-                  className="px-8 py-4 glass-button flex items-center justify-center gap-2"
-                >
-                  <Play size={18} />
-                  Watch Demo
-                </button>
-              </div>
-
-              {/* Trust indicators */}
-              <div className="flex items-center gap-6 mt-10 justify-center lg:justify-start">
-                <div className="flex -space-x-3">
-                  {['https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=40&h=40&fit=crop&crop=face',
-                    'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=40&h=40&fit=crop&crop=face',
-                    'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=40&h=40&fit=crop&crop=face'
-                  ].map((src, i) => (
-                    <img key={i} src={src} alt="" className="w-10 h-10 rounded-full border-2 border-white/20 object-cover" />
-                  ))}
-                </div>
-                <div className="text-sm text-white/70">
-                  <span className="text-white font-semibold">2,500+</span> happy users
-                </div>
-              </div>
+      <header className="relative z-10 pt-40 pb-24 px-6">
+        <div className="max-w-7xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            <span className="inline-block px-4 py-1.5 border border-amber-500/20 text-amber-500 text-[9px] font-bold uppercase tracking-[0.3em] mb-12">
+              <Sparkles size={12} className="inline mr-2" />
+              Autonomous Legal Operations
+            </span>
+            <h1 className="text-5xl md:text-9xl font-bold text-white mb-10 tracking-tighter leading-[0.9]">
+              Precision <br />
+              <span className="text-gray-600">at Scale.</span>
+            </h1>
+            <p className="text-gray-400 text-sm md:text-base max-w-xl mx-auto mb-16 leading-relaxed font-light tracking-wide">
+              AG Associates provides an autonomous operating system for property law firms and bank panel advocates.
+              Eliminate human overhead and blitzscale your operations with luxurious restraint.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
+              <Link to="/login" className="px-10 py-4 bg-white text-black font-bold text-[11px] uppercase tracking-widest hover:bg-gray-200 transition-all">
+                Access Dashboard
+              </Link>
+              <a href="mailto:partnerships@agassociates.in" className="px-10 py-4 border border-[#1F1F1F] text-white font-bold text-[11px] uppercase tracking-widest hover:bg-white/5 transition-all">
+                Request Integration
+              </a>
             </div>
-
-            {/* Right - Hero Visual */}
-            <div className="relative hidden lg:block">
-              <div className="relative">
-                {/* Main card */}
-                <div className="relative z-10 glass-card p-8 rounded-3xl">
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-indigo-500 rounded-xl flex items-center justify-center">
-                      <FileCheck size={24} className="text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-white font-semibold">NOI Filed Successfully</h3>
-                      <p className="text-sm text-white/50">Property Registration Complete</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-                      <span className="text-white/70">Status</span>
-                      <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm">Verified</span>
-                    </div>
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-                      <span className="text-white/70">Challan Amount</span>
-                      <span className="text-white font-semibold">₹45,280</span>
-                    </div>
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-                      <span className="text-white/70">Processing Time</span>
-                      <span className="text-white font-semibold">24 Hours</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 pt-6 border-t border-white/10">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
-                        <CheckCircle size={20} className="text-white" />
-                      </div>
-                      <div>
-                        <p className="text-white font-medium">All Documents Verified</p>
-                        <p className="text-xs text-white/50">Ready for final submission</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Floating badges */}
-                <div className="absolute -top-4 -right-4 glass-card px-4 py-2 rounded-xl animate-bounce" style={{ animationDuration: '3s' }}>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle size={16} className="text-green-400" />
-                    <span className="text-sm text-white">Instant Approval</span>
-                  </div>
-                </div>
-
-                <div className="absolute -bottom-4 -left-4 glass-card px-4 py-2 rounded-xl animate-bounce" style={{ animationDuration: '4s', animationDelay: '1s' }}>
-                  <div className="flex items-center gap-2">
-                    <Shield size={16} className="text-violet-400" />
-                    <span className="text-sm text-white">100% Secure</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          </motion.div>
         </div>
-      </section>
+      </header>
 
       {/* Stats Section */}
-      <section className="relative z-10 py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="glass-card p-8 md:p-12 rounded-3xl">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              {stats.map((stat, i) => (
-                <div key={i} className="text-center">
-                  <div className="w-14 h-14 mx-auto mb-4 bg-gradient-to-br from-violet-500/20 to-indigo-500/20 rounded-2xl flex items-center justify-center">
-                    <stat.icon size={28} className="text-violet-400" />
-                  </div>
-                  <div className="text-3xl md:text-4xl font-bold text-white mb-1">
-                    <AnimatedCounter end={stat.value} suffix={stat.suffix} />
-                  </div>
-                  <div className="text-sm text-white/50">{stat.label}</div>
+      <section className="relative z-10 py-32 border-y border-[#1F1F1F] bg-[#0A0A0A]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+            {stats.map((stat, i) => (
+              <div key={i} className="text-center">
+                <div className="text-4xl md:text-6xl font-bold text-white mb-4 tracking-tighter">
+                  <AnimatedCounter end={stat.value} suffix={stat.suffix} />
                 </div>
-              ))}
-            </div>
+                <div className="text-gray-600 text-[10px] font-bold uppercase tracking-widest">{stat.label}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="relative z-10 py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <span className="inline-block px-4 py-2 glass-badge mb-4">
-              <Zap size={14} className="inline mr-1 text-yellow-400" />
-              Powerful Features
-            </span>
-            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
-              Everything You Need for{' '}
-              <span className="bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">
-                NOI Filing
-              </span>
-            </h2>
-            <p className="text-lg text-white/60 max-w-2xl mx-auto">
-              Our comprehensive platform handles every aspect of Notice of Intimation filing, 
-              from document collection to final acknowledgment.
-            </p>
+      <section id="features" className="relative z-10 py-40 bg-obsidian">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-32">
+            <h2 className="text-4xl md:text-7xl font-bold text-white mb-8 tracking-tighter">The Operating System.</h2>
+            <p className="text-gray-500 text-sm max-w-lg mx-auto font-light tracking-wide">Every module designed for zero human intervention. Rigid, precise, autonomous.</p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-px bg-[#1F1F1F] border border-[#1F1F1F]">
             {features.map((feature, i) => (
-              <FloatingCard3D key={i} delay={i * 100}>
-                <div 
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6"
-                  style={{ backgroundColor: `${feature.color}20` }}
-                >
-                  <feature.icon size={28} style={{ color: feature.color }} />
+              <div key={i} className="bg-obsidian p-12 hover:bg-white/5 transition-all group">
+                <div className="w-12 h-12 border border-[#1F1F1F] flex items-center justify-center mb-12 group-hover:border-white transition-colors">
+                  <feature.icon size={20} className="text-white" />
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-3">{feature.title}</h3>
-                <p className="text-white/60">{feature.description}</p>
-              </FloatingCard3D>
+                <h3 className="text-white font-bold text-[11px] uppercase tracking-widest mb-4">{feature.title}</h3>
+                <p className="text-gray-500 text-xs font-light leading-relaxed tracking-wide">{feature.description}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Process Section */}
-      <section id="process" className="relative z-10 py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <span className="inline-block px-4 py-2 glass-badge mb-4">
-              <Timer size={14} className="inline mr-1 text-cyan-400" />
-              Simple Process
-            </span>
-            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
-              File Your NOI in{' '}
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                5 Easy Steps
-              </span>
-            </h2>
-            <p className="text-lg text-white/60 max-w-2xl mx-auto">
-              We've streamlined the entire process to get your Notice of Intimation filed quickly and efficiently.
-            </p>
-          </div>
-
-          <div className="relative">
-            {/* Connection line */}
-            <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-indigo-500 to-purple-500 transform -translate-y-1/2 rounded-full" />
-
-            <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6">
-              {processSteps.map((step, i) => (
-                <div key={i} className="relative">
-                  <div className="glass-card p-6 rounded-2xl text-center relative z-10">
-                    <div 
-                      className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold"
-                      style={{ backgroundColor: step.color }}
-                    >
-                      {step.step}
-                    </div>
-                    <div 
-                      className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4"
-                      style={{ backgroundColor: `${step.color}20` }}
-                    >
-                      <step.icon size={24} style={{ color: step.color }} />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
-                    <p className="text-sm text-white/60">{step.description}</p>
-                  </div>
-                </div>
-              ))}
+      {/* Testimonials */}
+      <section id="testimonials" className="relative z-10 py-40 border-t border-[#1F1F1F]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-24 gap-12">
+            <div className="max-w-2xl">
+              <span className="text-amber-500 font-bold uppercase tracking-widest text-[10px] mb-6 block">Verification</span>
+              <h2 className="text-4xl md:text-7xl font-bold text-white tracking-tighter">Trusted by Institutions.</h2>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section id="testimonials" className="relative z-10 py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <span className="inline-block px-4 py-2 glass-badge mb-4">
-              <Heart size={14} className="inline mr-1 text-pink-400" />
-              Testimonials
-            </span>
-            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
-              Loved by{' '}
-              <span className="bg-gradient-to-r from-pink-400 to-rose-400 bg-clip-text text-transparent">
-                Professionals
-              </span>
-            </h2>
+            <Link to="/login" className="px-10 py-4 border border-white text-white text-[10px] font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all">
+              View Case Studies
+            </Link>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, i) => (
-              <div key={i} className="glass-card p-8 rounded-2xl">
-                <div className="flex items-center gap-4 mb-4">
-                  <img 
-                    src={testimonial.image} 
-                    alt={testimonial.name}
-                    className="w-14 h-14 rounded-full object-cover border-2 border-violet-500/30"
-                  />
+          <div className="grid md:grid-cols-3 gap-px bg-[#1F1F1F] border border-[#1F1F1F]">
+            {testimonials.map((t, i) => (
+              <div key={i} className="bg-obsidian p-12 flex flex-col justify-between hover:bg-white/5 transition-all">
+                <div>
+                  <div className="flex gap-1 mb-8">
+                    {[...Array(t.rating)].map((_, i) => <Star key={i} size={12} className="fill-white text-white" />)}
+                  </div>
+                  <p className="text-gray-400 text-base italic font-light leading-relaxed mb-12">"{t.content}"</p>
+                </div>
+                <div className="flex items-center gap-5">
+                  <img src={t.image} alt={t.name} className="w-10 h-10 rounded-sm object-cover border border-[#1F1F1F]" />
                   <div>
-                    <h4 className="text-white font-semibold">{testimonial.name}</h4>
-                    <p className="text-sm text-white/50">{testimonial.role}</p>
+                    <h4 className="text-white font-bold text-[10px] uppercase tracking-widest">{t.name}</h4>
+                    <p className="text-gray-600 text-[9px] uppercase tracking-widest mt-1">{t.role}</p>
                   </div>
                 </div>
-                <div className="flex gap-1 mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} size={16} className="text-yellow-400 fill-yellow-400" />
-                  ))}
-                </div>
-                <p className="text-white/70 italic">"{testimonial.content}"</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="relative z-10 py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <span className="inline-block px-4 py-2 glass-badge mb-4">
-              <CreditCard size={14} className="inline mr-1 text-emerald-400" />
-              Transparent Pricing
-            </span>
-            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
-              Simple,{' '}
-              <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-                Affordable
-              </span>
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {/* Basic Plan */}
-            <div className="glass-card p-8 rounded-2xl">
-              <h3 className="text-xl font-semibold text-white mb-2">Starter</h3>
-              <p className="text-white/50 mb-6">For individual property owners</p>
-              <div className="text-4xl font-bold text-white mb-6">
-                ₹999<span className="text-lg text-white/50">/case</span>
-              </div>
-              <ul className="space-y-3 mb-8">
-                {['Document verification', 'Challan generation', 'Email support', 'Basic tracking'].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-white/70">
-                    <CheckCircle size={16} className="text-emerald-400" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Link to="/login" className="block w-full py-3 text-center glass-button">
-                Get Started
-              </Link>
-            </div>
-
-            {/* Pro Plan */}
-            <div className="relative glass-card p-8 rounded-2xl border-2 border-violet-500/50">
-              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                <span className="px-4 py-1 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-medium rounded-full">
-                  Most Popular
-                </span>
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-2">Professional</h3>
-              <p className="text-white/50 mb-6">For legal practitioners & agents</p>
-              <div className="text-4xl font-bold text-white mb-6">
-                ₹2,499<span className="text-lg text-white/50">/case</span>
-              </div>
-              <ul className="space-y-3 mb-8">
-                {['Everything in Starter', 'Priority processing', 'WhatsApp notifications', 'Bulk filing', 'API access'].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-white/70">
-                    <CheckCircle size={16} className="text-violet-400" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Link to="/login" className="block w-full py-3 text-center bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-violet-500 hover:to-indigo-500 transition-all">
-                Get Started
-              </Link>
-            </div>
-
-            {/* Enterprise Plan */}
-            <div className="glass-card p-8 rounded-2xl">
-              <h3 className="text-xl font-semibold text-white mb-2">Enterprise</h3>
-              <p className="text-white/50 mb-6">For banks & large organizations</p>
-              <div className="text-4xl font-bold text-white mb-6">
-                Custom<span className="text-lg text-white/50"> pricing</span>
-              </div>
-              <ul className="space-y-3 mb-8">
-                {['Everything in Professional', 'Dedicated account manager', 'Custom integration', 'SLA guarantee', '24/7 support'].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-2 text-white/70">
-                    <CheckCircle size={16} className="text-blue-400" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Link to="/login" className="block w-full py-3 text-center glass-button">
-                Contact Sales
+      {/* Contact Section */}
+      <footer className="relative z-10 pt-40 pb-20 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="p-16 md:p-32 border border-[#1F1F1F] text-center relative overflow-hidden mb-32 bg-[#0A0A0A]">
+            <h2 className="text-5xl md:text-8xl font-bold text-white mb-10 tracking-tighter">Decouple Growth.</h2>
+            <p className="text-gray-500 text-sm max-w-lg mx-auto mb-16 font-light tracking-wide">Join the future of legal operations today. Autonomous intelligence for the modern firm.</p>
+            <div className="flex flex-col sm:flex-row gap-6 justify-center">
+              <Link to="/login" className="px-12 py-5 bg-white text-black font-bold text-[11px] uppercase tracking-widest hover:bg-gray-200 transition-all">
+                Initialize System
               </Link>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* CTA Section */}
-      <section className="relative z-10 py-24">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-3xl blur-xl opacity-30" />
-            <div className="relative glass-card p-12 md:p-16 rounded-3xl text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-violet-500 to-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-8">
-                <Globe size={40} className="text-white" />
+          <div className="grid md:grid-cols-4 gap-16 mb-32 pt-24 border-t border-[#1F1F1F]">
+            <div className="col-span-2">
+              <div className="flex items-center gap-3 mb-10">
+                <div className="w-10 h-10 border border-white flex items-center justify-center text-white">
+                  <Building2 size={20} />
+                </div>
+                <h3 className="text-white text-xl font-bold uppercase tracking-tighter">AG ASSOCIATES</h3>
               </div>
-              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-                Ready to Transform Your NOI Process?
-              </h2>
-              <p className="text-lg text-white/70 mb-8 max-w-2xl mx-auto">
-                Join thousands of legal professionals and property owners who trust AG Associates for their NOI filing needs.
+              <p className="text-gray-600 text-sm max-w-sm leading-relaxed font-light tracking-wide">
+                India's premier digital workforce for legal and banking operations.
+                Architecting precision at scale through autonomous agentic workflows.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link 
-                  to="/login"
-                  className="group px-8 py-4 bg-white text-violet-900 font-semibold rounded-2xl hover:bg-white/90 transition-all flex items-center justify-center gap-2"
-                >
-                  Start Free Trial
-                  <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                </Link>
-                <a 
-                  href="https://wa.me/919876543210"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-8 py-4 glass-button flex items-center justify-center gap-2"
-                >
-                  <span>Talk to Us</span>
-                </a>
-              </div>
+            </div>
+            <div>
+              <h4 className="text-white font-bold uppercase tracking-widest text-[10px] mb-10">System</h4>
+              <ul className="space-y-6 text-gray-600 text-[10px] uppercase tracking-[0.2em] font-bold">
+                <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
+                <li><Link to="/login" className="hover:text-white transition-colors">Portal</Link></li>
+                <li><a href="https://dashboard.advadiityagade.com" className="hover:text-white transition-colors">AI Status</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-white font-bold uppercase tracking-widest text-[10px] mb-10">Command</h4>
+              <ul className="space-y-6 text-gray-600 text-[10px] font-bold tracking-widest">
+                <li>partnerships@agassociates.in</li>
+                <li>+91 96992 18421</li>
+                <li>Thane, Maharashtra</li>
+              </ul>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Footer */}
-      <footer className="relative z-10 glass-card mx-6 mb-6 p-8 rounded-2xl">
-        <div className="grid md:grid-cols-4 gap-12">
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-indigo-500 rounded-xl flex items-center justify-center">
-                <Building2 size={20} className="text-white" />
-              </div>
-              <div>
-                <h3 className="text-white font-semibold">AG Associates</h3>
-                <span className="text-[10px] uppercase text-white/50">Legal Excellence</span>
-              </div>
-            </div>
-            <p className="text-white/60 text-sm">
-              Your trusted partner for property registration and NOI filing services across India.
+          <div className="flex flex-col md:flex-row justify-between items-center gap-8 pt-12 border-t border-[#1F1F1F]">
+            <p className="text-gray-700 text-[9px] uppercase tracking-[0.4em] font-bold">
+              © {new Date().getFullYear()} AG ASSOCIATES · LUXORANOVA INTEL
             </p>
-          </div>
-          
-          <div>
-            <h4 className="text-white font-semibold mb-4">Quick Links</h4>
-            <ul className="space-y-2 text-white/60 text-sm">
-              <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
-              <li><a href="#process" className="hover:text-white transition-colors">Process</a></li>
-              <li><a href="#pricing" className="hover:text-white transition-colors">Pricing</a></li>
-              <li><Link to="/login" className="hover:text-white transition-colors">Login</Link></li>
-            </ul>
-          </div>
-          
-          <div>
-            <h4 className="text-white font-semibold mb-4">Legal</h4>
-            <ul className="space-y-2 text-white/60 text-sm">
-              <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
-              <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Refund Policy</a></li>
-            </ul>
-          </div>
-          
-          <div>
-            <h4 className="text-white font-semibold mb-4">Contact</h4>
-            <ul className="space-y-2 text-white/60 text-sm">
-              <li>contact@advadiityagade.com</li>
-              <li>+91 98765 43210</li>
-              <li>Mumbai, Maharashtra</li>
-            </ul>
-          </div>
-        </div>
-        
-        <div className="border-t border-white/10 mt-8 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-white/50 text-sm">
-            © 2024 AG Associates. All rights reserved.
-          </p>
-          <div className="flex items-center gap-4">
-            <a href="#" className="w-10 h-10 glass-button rounded-full flex items-center justify-center">
-              <Globe size={18} />
-            </a>
-            <a href="#" className="w-10 h-10 glass-button rounded-full flex items-center justify-center">
-              <Heart size={18} />
-            </a>
-            <a href="#" className="w-10 h-10 glass-button rounded-full flex items-center justify-center">
-              <Award size={18} />
-            </a>
+            <div className="flex gap-10">
+              <Link to="/privacy" className="text-gray-700 text-[9px] uppercase tracking-[0.4em] font-bold hover:text-white transition-colors">Privacy</Link>
+              <a href="#" className="text-gray-700 text-[9px] uppercase tracking-[0.4em] font-bold hover:text-white transition-colors">Legal</a>
+            </div>
           </div>
         </div>
       </footer>
-
-      {/* Scroll to top button */}
-      <button
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className="fixed bottom-6 right-6 w-12 h-12 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center z-50"
-      >
-        <ChevronDown size={20} className="transform rotate-180" />
-      </button>
     </div>
   );
 }

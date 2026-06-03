@@ -2,32 +2,29 @@
 
 import { useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
-import { Mail, MessageSquare, Linkedin, ArrowRight, ExternalLink } from 'lucide-react';
+import { Mail, MessageSquare, Linkedin, ArrowRight } from 'lucide-react';
 
 const contactLinks = [
   {
     icon: Mail,
     label: 'Email',
-    value: 'contact@advaditya.com',
-    href: 'mailto:contact@advaditya.com',
+    value: 'partnerships@agassociates.in',
+    href: 'mailto:partnerships@agassociates.in',
     primary: true,
-    placeholder: true, // TODO: replace with real address
   },
   {
     icon: MessageSquare,
     label: 'WhatsApp',
-    value: 'Message on WhatsApp',
-    href: null,
+    value: '+91 96992 18421',
+    href: 'https://wa.me/919699218421',
     primary: false,
-    placeholder: true, // TODO: set real wa.me link
   },
   {
     icon: Linkedin,
     label: 'LinkedIn',
     value: 'Adv. Aditya Gade',
-    href: null,
+    href: 'https://linkedin.com/in/adityagade',
     primary: false,
-    placeholder: true, // TODO: set real LinkedIn URL
   },
 ];
 
@@ -36,37 +33,28 @@ export default function ContactSection() {
   const isInView = useInView(ref, { once: true, margin: '-80px' });
 
   return (
-    <section id="contact" ref={ref} className="py-32 px-6 relative overflow-hidden">
-      {/* Blueprint grid */}
-      <div className="absolute inset-0 blueprint-grid opacity-20 pointer-events-none" />
-
-      {/* Ambient glow */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] orb bg-accent-blue/6" />
-      </div>
-
-      <div className="max-w-4xl mx-auto relative z-10 text-center">
+    <section id="contact" ref={ref} className="py-40 px-6 relative bg-obsidian">
+      <div className="max-w-4xl mx-auto text-center">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
         >
           {/* Label */}
-          <p className="text-accent-blue font-mono text-xs uppercase tracking-[0.25em] mb-6">
-            From Staffing to Orchestration
+          <p className="text-gray-500 text-[11px] uppercase tracking-[0.4em] font-bold mb-10">
+            Intelligent Orchestration
           </p>
 
           {/* Headline */}
-          <h2 className="text-5xl sm:text-6xl md:text-7xl font-bold text-white mb-6 leading-tight">
-            Stop managing tasks.{' '}
-            <span className="gradient-text">Start orchestrating intelligence.</span>
+          <h2 className="text-5xl sm:text-6xl md:text-8xl font-bold text-white mb-10 leading-[0.9] tracking-tighter">
+            Stop managing tasks. <br />
+            <span className="text-gray-600">Scale intelligence.</span>
           </h2>
 
           {/* Body */}
-          <p className="text-gray-400 text-base sm:text-lg mb-14 max-w-2xl mx-auto leading-relaxed">
-            Blitzscaling requires decoupling growth from headcount. By deploying a local, multi-agent
-            architecture, operations scale exponentially while maintaining mathematical precision and
-            absolute data privacy.
+          <p className="text-gray-500 text-sm sm:text-base mb-16 max-w-xl mx-auto leading-relaxed font-light tracking-wide">
+            Blitzscaling requires decoupling growth from headcount. By deploying local, multi-agent
+            architectures, operations scale exponentially with absolute precision.
           </p>
 
           {/* Contact links */}
@@ -76,21 +64,20 @@ export default function ContactSection() {
               return (
                 <motion.a
                   key={link.label}
-                  href={link.href ?? undefined}
-                  aria-disabled={!link.href ? 'true' : undefined}
-                  onClick={!link.href ? (e) => e.preventDefault() : undefined}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   initial={{ opacity: 0, y: 16 }}
                   animate={isInView ? { opacity: 1, y: 0 } : {}}
                   transition={{ delay: 0.3 + i * 0.08 }}
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  whileTap={{ scale: 0.97 }}
-                  className={`flex items-center gap-3 px-7 py-4 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                  whileTap={{ scale: 0.98 }}
+                  className={`flex items-center gap-3 px-8 py-4 text-[11px] font-bold uppercase tracking-widest transition-all duration-300 ${
                     link.primary
-                      ? 'bg-gradient-to-r from-accent-blue to-accent-purple text-white shadow-lg shadow-accent-blue/20'
-                      : 'glass border border-white/10 text-white hover:border-white/20'
-                  } ${!link.href ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      ? 'bg-white text-black'
+                      : 'border border-hairline text-white hover:bg-white/5'
+                  }`}
                 >
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-4 h-4" />
                   {link.value}
                 </motion.a>
               );
@@ -106,10 +93,10 @@ export default function ContactSection() {
           >
             <a
               href="/dashboard"
-              className="inline-flex items-center gap-2 text-gray-500 hover:text-accent-blue transition-colors duration-200 text-sm font-medium group"
+              className="inline-flex items-center gap-2 text-gray-600 hover:text-white transition-colors duration-300 text-[10px] font-bold uppercase tracking-widest group"
             >
-              View the live AG Associates AI Dashboard
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              Access AG Associates Dashboard
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </a>
           </motion.div>
         </motion.div>

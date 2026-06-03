@@ -16,14 +16,14 @@ const steps = [
     time: '00:16',
     label: 'Vyasa',
     agent: 'Verification',
-    desc: 'Reads uploaded Aadhaar, checks fraud, extracts JSON.',
+    desc: 'Reads uploaded Aadhaar, extracts JSON.',
     isEnd: false,
   },
   {
     time: '00:17',
     label: 'Drafter',
     agent: 'Drafting',
-    desc: 'Queries vector DB; generates 15-page legal document.',
+    desc: 'Generates 15-page legal document.',
     isEnd: false,
   },
   {
@@ -37,14 +37,14 @@ const steps = [
     time: '00:19',
     label: 'Executor',
     agent: 'Execution',
-    desc: 'Generates final PDF, triggers Aadhaar E-Sign OTP.',
+    desc: 'Triggers Aadhaar E-Sign OTP.',
     isEnd: false,
   },
   {
     time: '00:25',
     label: 'Done',
     agent: 'Filed ✓',
-    desc: 'Client enters OTP. NOI filed automatically. Zero human intervention.',
+    desc: 'NOI filed automatically. Zero human intervention.',
     isEnd: true,
   },
 ];
@@ -54,64 +54,41 @@ export default function WorkflowTimeline() {
   const isInView = useInView(ref, { once: true, margin: '-60px' });
 
   return (
-    <div ref={ref} className="py-20 px-6 max-w-7xl mx-auto">
+    <div ref={ref} className="max-w-7xl mx-auto px-6">
       <motion.div
         initial={{ opacity: 0, y: 28 }}
         animate={isInView ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 0.65 }}
-        className="text-center mb-16"
+        className="text-center mb-24"
       >
-        <p className="text-accent-green font-mono text-xs uppercase tracking-[0.25em] mb-3">
-          End-to-End Automation
+        <p className="text-gray-500 text-[11px] uppercase tracking-[0.4em] font-bold mb-10">
+          The Workflow
         </p>
-        <h3 className="text-3xl sm:text-4xl font-bold text-white">
-          25-Minute Intake-to-Filing Workflow
+        <h3 className="text-5xl sm:text-7xl font-bold text-white tracking-tighter">
+          Intake-to-Filing in 25 Minutes.
         </h3>
-        <p className="text-gray-500 mt-3 text-base">
+        <p className="text-gray-500 mt-8 text-sm max-w-xl mx-auto font-light tracking-wide leading-relaxed">
           WhatsApp message → legal PDF → government NeSL filing. Zero human involvement.
         </p>
       </motion.div>
 
-      {/* Timeline connector line (desktop) */}
       <div className="relative">
-        <motion.div
-          initial={{ scaleX: 0 }}
-          animate={isInView ? { scaleX: 1 } : {}}
-          transition={{ duration: 1.4, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="absolute top-11 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-blue/30 to-accent-green/30 origin-left hidden md:block"
-          style={{ top: '44px' }}
-        />
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-6 md:gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-px bg-[#1F1F1F] border border-[#1F1F1F]">
           {steps.map((step, i) => (
             <motion.div
               key={step.time}
-              initial={{ opacity: 0, y: 28 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, delay: 0.3 + i * 0.13, ease: [0.22, 1, 0.36, 1] }}
-              className="flex flex-col items-center text-center"
+              initial={{ opacity: 0 }}
+              animate={isInView ? { opacity: 1 } : {}}
+              transition={{ duration: 0.5, delay: i * 0.08 }}
+              className="bg-obsidian p-8 flex flex-col items-center text-center group hover:bg-white/5 transition-colors"
             >
-              {/* Node bubble */}
-              <motion.div
-                whileHover={{ scale: 1.12 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                className={`relative w-[88px] h-[88px] rounded-full flex flex-col items-center justify-center mb-4 z-10 ${
-                  step.isEnd
-                    ? 'bg-accent-green/15 border-2 border-accent-green shadow-lg shadow-accent-green/20'
-                    : 'glass border border-accent-blue/30'
-                }`}
-              >
-                {step.isEnd && (
-                  <CheckCircle className="w-4 h-4 text-accent-green absolute -top-1.5 -right-1.5" />
-                )}
-                <span className={`font-mono text-xs font-bold ${step.isEnd ? 'text-accent-green' : 'text-accent-blue'}`}>
-                  {step.time}
-                </span>
-                <span className="text-gray-300 text-[10px] mt-0.5 font-medium">{step.agent}</span>
-              </motion.div>
+              <div className={`w-12 h-12 mb-8 flex items-center justify-center border ${step.isEnd ? 'border-white bg-white text-black' : 'border-[#1F1F1F] text-white'}`}>
+                {step.isEnd ? <CheckCircle className="w-5 h-5" /> : <span className="text-[10px] font-bold font-mono">{step.time}</span>}
+              </div>
 
-              <h4 className="text-white font-semibold text-sm mb-1.5">{step.label}</h4>
-              <p className="text-gray-500 text-xs leading-relaxed px-1">{step.desc}</p>
+              <h4 className="text-white font-bold text-[11px] uppercase tracking-widest mb-3">{step.label}</h4>
+              <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-4 opacity-50">{step.agent}</p>
+              <p className="text-gray-500 text-[11px] font-light leading-relaxed tracking-wide">{step.desc}</p>
             </motion.div>
           ))}
         </div>

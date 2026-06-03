@@ -4,16 +4,16 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Premium Dark Theme - Corporate Banking */
+/* Premium Dark Theme - Stitch "Luxurious Restraint" */
 :root {
-  --color-bg-primary: #0a0a18;
-  --color-bg-secondary: #12122a;
+  --color-bg-primary: #0A0A0A;
+  --color-bg-secondary: #121212;
   --color-text-primary: #ffffff;
   --color-text-secondary: rgba(255, 255, 255, 0.6);
   --color-accent: #D4AF37; /* Gold */
   --color-accent-light: #F4D03F;
   --color-accent-dark: #B8860B;
-  --color-border: rgba(212, 175, 55, 0.15);
+  --color-border: #1F1F1F;
 }
 
 * {
@@ -28,7 +28,7 @@ html {
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #0a0a18 0%, #12122a 50%, #0d0d1a 100%);
+  background: var(--color-bg-primary);
   color: var(--color-text-primary);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
@@ -37,12 +37,11 @@ body {
 
 /* Typography */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
 
-/* Serif for elegant display */
 .font-serif {
   font-family: 'Playfair Display', Georgia, serif;
 }
@@ -52,226 +51,74 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-accent) !important;
 }
 
-.bg-amber-400, .bg-amber-500, .bg-amber-600 {
-  background-color: var(--color-accent) !important;
-}
-
-.from-amber-600, .from-amber-500 {
-  --tw-gradient-from: var(--color-accent) !important;
-  --tw-gradient-to: var(--color-accent-dark) !important;
-}
-
-.to-yellow-600, .to-yellow-500, .to-amber-600 {
-  --tw-gradient-to: var(--color-accent-dark) !important;
-}
-
-.hover\:from-amber-500:hover {
-  --tw-gradient-from: var(--color-accent-light) !important;
-}
-
-.hover\:to-yellow-500:hover {
-  --tw-gradient-to: var(--color-accent) !important;
-}
-
-.shadow-amber-500\/25, .shadow-amber-500\/40 {
-  --tw-shadow-color: rgba(212, 175, 55, 0.25) !important;
-}
-
-.hover\:shadow-amber-500\/40:hover {
-  --tw-shadow-color: rgba(212, 175, 55, 0.4) !important;
-}
-
-.ring-amber-500\/50 {
-  --tw-ring-color: rgba(212, 175, 55, 0.5) !important;
-}
-
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-bg-secondary);
+  background: var(--color-bg-primary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-accent);
-  border-radius: 4px;
+  background: #1F1F1F;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-accent-light);
+  background: #333;
 }
 
-/* Selection */
-::selection {
-  background: rgba(212, 175, 55, 0.3);
-  color: white;
-}
-
-/* Focus states */
-*:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-/* Transitions */
-* {
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Button hover effects */
-button:hover {
-  transform: translateY(-1px);
-}
-
-button:active {
-  transform: translateY(0);
-}
-
-/* Links */
-a {
-  text-decoration: none;
-}
-
-/* Animations */
-@keyframes pulse-gold {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 40px rgba(212, 175, 55, 0.6);
-  }
-}
-
-.animate-pulse-gold {
-  animation: pulse-gold 3s ease-in-out infinite;
-}
-
-/* Glass effect with gold border */
-.glass-gold {
-  background: rgba(20, 20, 40, 0.6);
+/* Utility classes */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(212, 175, 55, 0.15);
-  border-radius: 1rem;
+  border: 1px solid #1F1F1F;
 }
 
-/* Premium gradient text */
-.text-gradient-gold {
-  background: linear-gradient(135deg, #D4AF37, #F4D03F, #D4AF37);
+.glass-strong {
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid #1F1F1F;
+}
+
+.blueprint-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.orb {
+  border-radius: 9999px;
+  filter: blur(80px);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #ffffff, #888888);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Custom button styles */
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.875rem 1.75rem;
-  font-weight: 600;
-  font-size: 0.875rem;
-  letter-spacing: 0.025em;
-  color: white;
-  background: linear-gradient(135deg, #D4AF37, #B8860B);
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.25);
-  transition: all 0.3s ease;
+/* Stitch "Luxurious Restraint" Specifics */
+.border-hairline {
+  border: 1px solid #1F1F1F;
 }
 
-.btn-primary:hover {
-  background: linear-gradient(135deg, #F4D03F, #D4AF37);
-  box-shadow: 0 8px 24px rgba(212, 175, 55, 0.4);
-  transform: translateY(-2px);
+.bg-obsidian {
+  background-color: #0A0A0A;
 }
 
-.btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.875rem 1.75rem;
-  font-weight: 500;
-  font-size: 0.875rem;
-  color: #D4AF37;
-  background: rgba(212, 175, 55, 0.08);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(212, 175, 55, 0.2);
-  border-radius: 0.5rem;
-  transition: all 0.3s ease;
+.bg-surface-level-1 {
+  background-color: #121212;
 }
 
-.btn-secondary:hover {
-  background: rgba(212, 175, 55, 0.12);
-  border-color: rgba(212, 175, 55, 0.3);
+.btn-stitch-primary {
+  @apply bg-white text-black font-semibold py-3 px-8 rounded-sm hover:bg-gray-200 transition-all;
 }
 
-/* Card hover effects */
-.card-premium {
-  background: rgba(20, 20, 40, 0.5);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(212, 175, 55, 0.08);
-  border-radius: 1.5rem;
-  transition: all 0.5s ease;
-}
-
-.card-premium:hover {
-  transform: translateY(-4px);
-  border-color: rgba(212, 175, 55, 0.15);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
-}
-
-/* Section dividers */
-.divider-gold {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.3), transparent);
-}
-
-/* Status badges */
-.badge-success {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.badge-warning {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-/* Input focus states */
-input:focus, textarea:focus, select:focus {
-  border-color: rgba(212, 175, 55, 0.5);
-  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
-  outline: none;
-}
-
-/* Gradient backgrounds for premium sections */
-.bg-gradient-premium {
-  background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(184, 134, 11, 0.05) 100%);
-}
-
-/* Responsive utilities */
-@media (max-width: 768px) {
-  .text-4xl {
-    font-size: 2rem !important;
-  }
-  .text-5xl {
-    font-size: 2.5rem !important;
-  }
-  .text-6xl {
-    font-size: 3rem !important;
-  }
-}
-
-/* Performance optimizations */
-.transform {
-  will-change: transform;
-}
-
-.backdrop-blur {
-  will-change: backdrop-filter;
+.btn-stitch-secondary {
+  @apply border border-[#1F1F1F] text-white font-medium py-3 px-8 rounded-sm hover:bg-white/5 transition-all;
 }

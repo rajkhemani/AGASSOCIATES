@@ -166,7 +166,7 @@ IMPORTANT RULES:
 
 EXAMPLE OUTPUT:
 {
-    "tenant_name": "Rajesh Kumar Sharma",
+    "tenant_name": "Aditi Rao",
     "landlord_name": "Priya Deshmukh",
     "rent_amount": "₹25,000 per month",
     "property_address": "Flat No. 302, Shivaji Nagar, Pune, Maharashtra 411005",
