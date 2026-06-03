@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'AG Associates | Premium Financial Advisory',
-  description: 'India\'s premier financial advisory firm delivering excellence since 1999. Strategic guidance for institutions and corporations.',
+  description: 'India\'s premier financial advisory firm delivering strategic guidance for institutions and corporations. Portfolio management, risk mitigation, and corporate advisory services.',
   keywords: ['financial advisory', 'corporate finance', 'investment banking', 'portfolio management', 'risk advisory', 'AG Associates'],
   openGraph: {
     title: 'AG Associates | Premium Financial Advisory',

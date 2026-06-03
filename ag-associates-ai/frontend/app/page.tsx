@@ -267,7 +267,7 @@ export default function CorporateLanding() {
             <div className="text-center lg:text-left">
               <div className="inline-flex items-center gap-2 px-5 py-2.5 mb-8 rounded-full text-sm" style={{ background: 'rgba(212,175,55,0.08)', backdropFilter: 'blur(10px)', border: '1px solid rgba(212,175,55,0.2)' }}>
                 <Gem size={14} className="text-amber-400" />
-                <span className="text-amber-300 tracking-wide">Established 1999 · Trusted by Industry Leaders</span>
+                <span className="text-amber-300 tracking-wide">Trusted by Industry Leaders</span>
               </div>
               
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
@@ -532,8 +532,8 @@ export default function CorporateLanding() {
                   Request Consultation
                   <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                 </a>
-                <a href="tel:+919876543210" className="px-10 py-4 rounded-lg text-amber-300 font-medium flex items-center justify-center gap-3" style={{ background: 'rgba(212,175,55,0.05)', backdropFilter: 'blur(20px)', border: '1px solid rgba(212,175,55,0.2)' }}>
-                  +91 98765 43210
+                <a href="tel:+919699218421" className="px-10 py-4 rounded-lg text-amber-300 font-medium flex items-center justify-center gap-3" style={{ background: 'rgba(212,175,55,0.05)', backdropFilter: 'blur(20px)', border: '1px solid rgba(212,175,55,0.2)' }}>
+                  +91 96992 18421
                 </a>
               </div>
             </div>
@@ -555,7 +555,7 @@ export default function CorporateLanding() {
               </div>
             </div>
             <p className="text-white/50 text-sm leading-relaxed">
-              India's premier financial advisory firm, delivering excellence since 1999.
+              India's premier financial advisory firm delivering strategic guidance for institutions and corporations.
             </p>
           </div>
           
