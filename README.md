@@ -47,7 +47,7 @@ AG Associates is the result of a radical thesis: **what if a law firm had zero s
 **What makes this different:**
 - 🎯 **Domain-native** — Built for working advocates, not by a Silicon Valley startup guessing at legal workflows
 - ⚡ **72-hour sprint methodology** — Entire platform conceived and deployed in a single sprint
-- 🏦 **Bank-panel ready from day one** — ICICI, Kotak, Axis, Muthoot, Chola, Karur Vysya integration
+- 🏦 **Bank-panel ready from day one** — Kotak, Axis, Muthoot, Chola, Karur Vysya integration
 - 🇮🇳 **India-first** — Maharashtra SRO data, stamp duty engines, Marathi/Hindi support baked in
 - 🔄 **White-label DNA** — Multi-tenant from the first commit, not bolted on later
 
