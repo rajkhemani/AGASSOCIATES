@@ -13,7 +13,7 @@ export default function AGAssociatesLanding() {
       return;
     }
     setError('');
-    
+
     let duty = 0;
     if (amount <= 500000) {
       duty = amount * 0.001; // 0.1%
@@ -74,7 +74,7 @@ export default function AGAssociatesLanding() {
         <section className="relative py-24 lg:py-32 overflow-hidden">
           {/* Subtle glow effect behind hero */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-400/5 rounded-full blur-[120px] -z-10 pointer-events-none"></div>
-          
+
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8">
               Premier Legal Solutions in <br className="hidden md:block"/>
@@ -93,7 +93,7 @@ export default function AGAssociatesLanding() {
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Core Practice Areas</h2>
               <div className="w-20 h-1 bg-amber-400 mx-auto rounded-full"></div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {[
                 {
@@ -190,7 +190,7 @@ export default function AGAssociatesLanding() {
                 // Bento Grid Asymmetry Logic
                 let colSpan = "md:col-span-1";
                 let rowSpan = "md:row-span-1";
-                
+
                 // Make the 1st and 6th items wide
                 if (idx === 0 || idx === 5) {
                   colSpan = "md:col-span-2";
@@ -206,14 +206,14 @@ export default function AGAssociatesLanding() {
                 }
 
                 return (
-                  <div 
-                    key={idx} 
+                  <div
+                    key={idx}
                     className={`
-                      ${colSpan} ${rowSpan} 
-                      relative group overflow-hidden rounded-xl 
-                      bg-black/20 backdrop-blur-md 
-                      border border-amber-400/20 hover:border-amber-400/60 
-                      p-6 flex flex-col justify-between 
+                      ${colSpan} ${rowSpan}
+                      relative group overflow-hidden rounded-xl
+                      bg-black/20 backdrop-blur-md
+                      border border-amber-400/20 hover:border-amber-400/60
+                      p-6 flex flex-col justify-between
                       transition-all duration-500 hover:bg-[#0F0F11]/80
                     `}
                   >

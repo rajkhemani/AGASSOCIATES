@@ -4,6 +4,7 @@ A missing row means "use the static default from the in-process registry".
 Toggles are cached for 10 s to keep the hot path fast; admin UI bust via the
 ``invalidate()`` helper after writes.
 """
+
 from __future__ import annotations
 
 import logging
@@ -73,7 +74,11 @@ def check(tool_name: str, default_risk: str, caller_roles: List[str]) -> Dict:
         return {"allowed": True, "effective_risk": default_risk, "reason": "default"}
 
     if not cfg["enabled"]:
-        return {"allowed": False, "effective_risk": default_risk, "reason": "tool disabled by admin"}
+        return {
+            "allowed": False,
+            "effective_risk": default_risk,
+            "reason": "tool disabled by admin",
+        }
 
     allowed_roles = cfg["allowed_roles"]
     if allowed_roles and not any(r in allowed_roles for r in caller_roles):
@@ -90,7 +95,12 @@ def check(tool_name: str, default_risk: str, caller_roles: List[str]) -> Dict:
     }
 
 
-def upsert(tool_name: str, enabled: bool, risk_override: Optional[str], allowed_roles: List[str]) -> None:
+def upsert(
+    tool_name: str,
+    enabled: bool,
+    risk_override: Optional[str],
+    allowed_roles: List[str],
+) -> None:
     with _conn() as conn:
         with conn.cursor() as cur:
             cur.execute(

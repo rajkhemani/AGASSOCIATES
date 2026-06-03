@@ -12,42 +12,42 @@
   --domain-primary: #7c3aed;
   --domain-primary-light: #a78bfa;
   --domain-primary-dark: #5b21b6;
-  
+
   /* Secondary Domain */
   --domain-secondary: #4f46e5;
   --domain-secondary-light: #818cf8;
   --domain-secondary-dark: #3730a3;
-  
+
   /* Accent */
   --domain-accent: #06b6d4;
   --domain-accent-light: #22d3ee;
   --domain-accent-dark: #0891b2;
-  
+
   /* Glass Effects */
   --glass-background: rgba(255, 255, 255, 0.05);
   --glass-border: rgba(255, 255, 255, 0.1);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  
+
   /* Domain Gradient */
   --domain-gradient-start: #7c3aed;
   --domain-gradient-end: #4f46e5;
-  
+
   /* Text Colors */
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.7);
   --text-muted: rgba(255, 255, 255, 0.5);
-  
+
   /* Background */
   --bg-primary: #0f0f23;
   --bg-secondary: #1a1a2e;
   --bg-tertiary: #16213e;
-  
+
   /* Status Colors */
   --status-success: #10b981;
   --status-warning: #f59e0b;
   --status-error: #ef4444;
   --status-info: #3b82f6;
-  
+
   /* Border Radius */
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
@@ -88,33 +88,33 @@ body {
   .glass-card {
     @apply backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl shadow-lg;
   }
-  
+
   .glass-button {
-    @apply backdrop-blur-lg bg-white/10 border border-white/20 rounded-lg px-4 py-2 
+    @apply backdrop-blur-lg bg-white/10 border border-white/20 rounded-lg px-4 py-2
            text-white font-medium transition-all duration-300
            hover:bg-white/20 hover:border-white/30 hover:shadow-lg
            active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
   }
-  
+
   .glass-nav {
     @apply backdrop-blur-xl bg-black/20 border-b border-white/10;
   }
-  
+
   .glass-nav-link {
     @apply px-4 py-2 rounded-lg transition-all duration-200;
   }
-  
+
   .glass-input {
     @apply w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg
            text-white placeholder-white/40
            focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50
            transition-all duration-200;
   }
-  
+
   .glass-modal {
     @apply backdrop-blur-xl bg-black/60 border border-white/10 rounded-2xl shadow-2xl;
   }
-  
+
   .glass-badge {
     @apply inline-flex items-center px-3 py-1 text-xs font-medium rounded-full
            bg-white/10 border border-white/20 text-white/80;
@@ -157,10 +157,10 @@ body {
   content: '';
   position: absolute;
   inset: -2px;
-  background: linear-gradient(45deg, 
-    var(--domain-primary), 
-    var(--domain-secondary), 
-    var(--domain-accent), 
+  background: linear-gradient(45deg,
+    var(--domain-primary),
+    var(--domain-secondary),
+    var(--domain-accent),
     var(--domain-primary));
   background-size: 400% 400%;
   border-radius: inherit;
@@ -230,7 +230,7 @@ body {
 
 /* Tooltip styles */
 .glass-tooltip {
-  @apply absolute z-50 px-3 py-2 text-sm bg-black/80 backdrop-blur-xl 
+  @apply absolute z-50 px-3 py-2 text-sm bg-black/80 backdrop-blur-xl
          border border-white/10 rounded-lg shadow-xl
          text-white/90;
 }

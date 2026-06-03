@@ -4,8 +4,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Determine connection URL or use individual parameters
-const connectionString = 
-  process.env.DATABASE_URL || 
+const connectionString =
+  process.env.DATABASE_URL ||
   (process.env.DB_POSTGRESDB_USER && process.env.DB_POSTGRESDB_PASSWORD && process.env.DB_POSTGRESDB_HOST && process.env.DB_POSTGRESDB_DATABASE
     ? `postgres://${process.env.DB_POSTGRESDB_USER}:${process.env.DB_POSTGRESDB_PASSWORD}@${process.env.DB_POSTGRESDB_HOST}/${process.env.DB_POSTGRESDB_DATABASE}`
     : undefined);

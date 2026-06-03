@@ -9,6 +9,7 @@ Flow:
   5. Log action to Redis for dashboard visibility
 """
 
+import json
 import os
 import logging
 import asyncio
@@ -16,10 +17,7 @@ import imaplib
 import email
 import re
 from email.header import decode_header
-from typing import Optional, List, Dict, Any, Tuple
-import base64
-import io
-from PIL import Image
+from typing import Optional, Tuple
 
 import httpx
 from pydantic import BaseModel, Field
@@ -53,12 +51,16 @@ POLL_INTERVAL_SECONDS = int(os.environ.get("EMAIL_POLL_INTERVAL", "60"))
 INTAKE_PORT = int(os.environ.get("EMAIL_INTAKE_PORT", "3004"))
 
 KNOWN_BANK_DOMAINS = [
-    "hdfc.com", "hdfcbank.com",
+    "hdfc.com",
+    "hdfcbank.com",
     "icicibank.com",
     "axisbank.com",
-    "kotak.com", "kotakmahindra.com",
-    "muthoot.com", "muthootfinance.com",
-    "sbicard.com", "sbi.co.in",
+    "kotak.com",
+    "kotakmahindra.com",
+    "muthoot.com",
+    "muthootfinance.com",
+    "sbicard.com",
+    "sbi.co.in",
     "yesbank.in",
     "idfcfirstbank.com",
     "indusind.com",
@@ -66,18 +68,31 @@ KNOWN_BANK_DOMAINS = [
 
 # ── Schema ───────────────────────────────────────────────────────────────
 
+
 class LoanSanctionExtract(BaseModel):
     borrower_name: str = Field(description="Full name of the borrower")
     loan_amount: str = Field(description="Loan amount in INR (e.g., ₹45,00,000)")
     bank_name: str = Field(description="Name of the bank (e.g., HDFC, ICICI)")
-    loan_ref_number: Optional[str] = Field(None, description="Loan reference or application number")
-    property_address: Optional[str] = Field(None, description="Property address if mentioned")
+    loan_ref_number: Optional[str] = Field(
+        None, description="Loan reference or application number"
+    )
+    property_address: Optional[str] = Field(
+        None, description="Property address if mentioned"
+    )
     property_city: Optional[str] = Field(None, description="Property city/town")
-    case_type: str = Field(default="INTIMATION_MORTGAGE", description="Case type from enum")
-    confidence: float = Field(default=1.0, description="How confident the extraction is (0-1)")
-    raw_summary: str = Field(default="", description="Brief summary of the email content")
+    case_type: str = Field(
+        default="INTIMATION_MORTGAGE", description="Case type from enum"
+    )
+    confidence: float = Field(
+        default=1.0, description="How confident the extraction is (0-1)"
+    )
+    raw_summary: str = Field(
+        default="", description="Brief summary of the email content"
+    )
+
 
 # ── IMAP Poller ──────────────────────────────────────────────────────────
+
 
 def decode_str(s):
     """Decode email header string."""
@@ -98,7 +113,7 @@ def decode_str(s):
 
 def is_bank_email(sender_email: str) -> bool:
     """Check if sender domain matches known bank domains."""
-    match = re.search(r'@([\w.-]+)', sender_email)
+    match = re.search(r"@([\w.-]+)", sender_email)
     if not match:
         return False
     domain = match.group(1).lower()
@@ -136,7 +151,9 @@ async def fetch_new_emails() -> list[dict]:
                     date_str = decode_str(msg.get("Date", ""))
 
                     # Extract sender email
-                    sender_match = re.search(r'<([^>]+@[^>]+)>', sender) or re.search(r'([\w.-]+@[\w.-]+)', sender)
+                    sender_match = re.search(r"<([^>]+@[^>]+)>", sender) or re.search(
+                        r"([\w.-]+@[\w.-]+)", sender
+                    )
                     sender_email = sender_match.group(1) if sender_match else sender
 
                     if not is_bank_email(sender_email):
@@ -145,20 +162,30 @@ async def fetch_new_emails() -> list[dict]:
                     # Extract body and attachments
                     body = ""
                     attachments = []
-                    
+
                     if msg.is_multipart():
                         for part in msg.walk():
                             content_type = part.get_content_type()
                             disposition = part.get("Content-Disposition", "")
-                            
-                            if content_type == "text/plain" and "attachment" not in disposition:
+
+                            if (
+                                content_type == "text/plain"
+                                and "attachment" not in disposition
+                            ):
                                 try:
-                                    body += part.get_payload(decode=True).decode("utf-8", errors="replace")
+                                    body += part.get_payload(decode=True).decode(
+                                        "utf-8", errors="replace"
+                                    )
                                 except Exception:
                                     pass
-                            elif content_type == "text/html" and "attachment" not in disposition:
+                            elif (
+                                content_type == "text/html"
+                                and "attachment" not in disposition
+                            ):
                                 try:
-                                    body += part.get_payload(decode=True).decode("utf-8", errors="replace")
+                                    body += part.get_payload(decode=True).decode(
+                                        "utf-8", errors="replace"
+                                    )
                                 except Exception:
                                     pass
                             elif "attachment" in disposition:
@@ -167,25 +194,31 @@ async def fetch_new_emails() -> list[dict]:
                                 if filename:
                                     filename = decode_str(filename)
                                     payload = part.get_payload(decode=True)
-                                    attachments.append({
-                                        "filename": filename,
-                                        "content_type": content_type,
-                                        "payload": payload
-                                    })
+                                    attachments.append(
+                                        {
+                                            "filename": filename,
+                                            "content_type": content_type,
+                                            "payload": payload,
+                                        }
+                                    )
                     else:
                         try:
-                            body = msg.get_payload(decode=True).decode("utf-8", errors="replace")
+                            body = msg.get_payload(decode=True).decode(
+                                "utf-8", errors="replace"
+                            )
                         except Exception:
                             body = str(msg.get_payload())
 
                     seen_uids.add(num)
-                    emails_raw.append({
-                        "sender": sender_email,
-                        "subject": subject,
-                        "date": date_str,
-                        "body": body[:5000],  # truncate for LLM
-                        "attachments": attachments
-                    })
+                    emails_raw.append(
+                        {
+                            "sender": sender_email,
+                            "subject": subject,
+                            "date": date_str,
+                            "body": body[:5000],  # truncate for LLM
+                            "attachments": attachments,
+                        }
+                    )
 
         return list(seen_uids)
 
@@ -201,37 +234,69 @@ async def fetch_new_emails() -> list[dict]:
 
 # ── LLM Extraction ───────────────────────────────────────────────────────
 
-async def extract_loan_details(email_text: str, sender: str, subject: str, attachments: list = None) -> Optional[LoanSanctionExtract]:
+
+async def extract_loan_details(
+    email_text: str, sender: str, subject: str, attachments: list = None
+) -> Optional[LoanSanctionExtract]:
     """Extract loan sanction details from bank email and attachments."""
     attachment_descriptions = []
-    payment_info = None
-    
+
     if attachments:
         for att in attachments:
-            filename = att.get('filename', '').lower()
-            content_type = att.get('content_type', '')
-            
+            filename = att.get("filename", "").lower()
+            content_type = att.get("content_type", "")
+
             # Check for payment-related attachments
-            if any(keyword in filename for keyword in ['payment', 'receipt', 'utr', 'screenshot', 'scan', 'photo']):
-                if content_type.startswith('image/') or filename.endswith(('.png', '.jpg', '.jpeg', '.pdf')):
+            if any(
+                keyword in filename
+                for keyword in [
+                    "payment",
+                    "receipt",
+                    "utr",
+                    "screenshot",
+                    "scan",
+                    "photo",
+                ]
+            ):
+                if content_type.startswith("image/") or filename.endswith(
+                    (".png", ".jpg", ".jpeg", ".pdf")
+                ):
                     attachment_descriptions.append(f"PAYMENT_ATTACHMENT: {filename}")
                     # For payment screenshots, we'll do OCR later
-                    
+
             # Check for document attachments
-            elif any(keyword in filename for keyword in ['sanction', 'noc', 'approval', 'loan', 'property', 'kyc', 'pan', 'aadhar']):
-                if content_type.startswith('image/') or filename.endswith(('.png', '.jpg', '.jpeg', '.pdf')):
+            elif any(
+                keyword in filename
+                for keyword in [
+                    "sanction",
+                    "noc",
+                    "approval",
+                    "loan",
+                    "property",
+                    "kyc",
+                    "pan",
+                    "aadhar",
+                ]
+            ):
+                if content_type.startswith("image/") or filename.endswith(
+                    (".png", ".jpg", ".jpeg", ".pdf")
+                ):
                     attachment_descriptions.append(f"DOCUMENT_ATTACHMENT: {filename}")
-                elif content_type == 'application/pdf':
+                elif content_type == "application/pdf":
                     attachment_descriptions.append(f"PDF_DOCUMENT: {filename}")
-            
+
             # Generic attachment description
-            if filename not in [desc.split(': ', 1)[-1] for desc in attachment_descriptions if ': ' in desc]:
+            if filename not in [
+                desc.split(": ", 1)[-1]
+                for desc in attachment_descriptions
+                if ": " in desc
+            ]:
                 attachment_descriptions.append(f"ATTACHMENT: {filename}")
-    
+
     attachment_text = ""
     if attachment_descriptions:
         attachment_text = "\n\nAttachments: " + "; ".join(attachment_descriptions)
-    
+
     prompt = f"""Extract loan sanction details from this bank email and attachments.
 
 Sender: {sender}
@@ -261,10 +326,10 @@ Use INTIMATION_MORTGAGE as default case_type.
                         {
                             "role": "system",
                             "content": "You extract structured loan sanction data from bank emails. "
-                                       "Return JSON only with fields: borrower_name, loan_amount, bank_name, "
-                                       "loan_ref_number, property_address, property_city, case_type, confidence, raw_summary. "
-                                       "Use INTIMATION_MORTGAGE as default case_type. "
-                                       "Set confidence low (0.3-0.5) if unsure about any field."
+                            "Return JSON only with fields: borrower_name, loan_amount, bank_name, "
+                            "loan_ref_number, property_address, property_city, case_type, confidence, raw_summary. "
+                            "Use INTIMATION_MORTGAGE as default case_type. "
+                            "Set confidence low (0.3-0.5) if unsure about any field.",
                         },
                         {"role": "user", "content": prompt},
                     ],
@@ -278,7 +343,8 @@ Use INTIMATION_MORTGAGE as default case_type.
             content = data["choices"][0]["message"]["content"]
             # Try to extract JSON from response
             import re as regex
-            json_match = regex.search(r'\{.*\}', content, regex.DOTALL)
+
+            json_match = regex.search(r"\{.*\}", content, regex.DOTALL)
             if json_match:
                 return LoanSanctionExtract.model_validate_json(json_match.group(0))
             else:
@@ -292,7 +358,10 @@ Use INTIMATION_MORTGAGE as default case_type.
 
 # ── Supabase Case Creation ───────────────────────────────────────────────
 
-async def create_case(extract: LoanSanctionExtract, sender_email: str, attachments: list = None) -> Optional[str]:
+
+async def create_case(
+    extract: LoanSanctionExtract, sender_email: str, attachments: list = None
+) -> Optional[str]:
     """Create a new case in Supabase with NOI workflow initialization."""
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         logger.warning("Supabase not configured — skipping case creation")
@@ -301,36 +370,42 @@ async def create_case(extract: LoanSanctionExtract, sender_email: str, attachmen
     # Determine initial case type and status based on email content
     case_type = extract.case_type
     initial_status = "PENDING_INTAKE"
-    
+
     # Check attachments for NOI-related documents
     noi_related = False
     payment_related = False
     document_types = []
-    
+
     if attachments:
         for att in attachments:
-            filename = att.get('filename', '').lower()
-            content_type = att.get('content_type', '')
-            
+            filename = att.get("filename", "").lower()
+            att.get("content_type", "")
+
             # Check for NOI/document attachments
-            if any(keyword in filename for keyword in ['sanction', 'noc', 'approval', 'loan', 'property']):
+            if any(
+                keyword in filename
+                for keyword in ["sanction", "noc", "approval", "loan", "property"]
+            ):
                 noi_related = True
-                if 'sanction' in filename:
-                    document_types.append('SANCTION_LETTER')
-                elif 'noc' in filename:
-                    document_types.append('NOC')
-                elif 'property' in filename:
-                    document_types.append('PROPERTY_DOCS')
-                    
+                if "sanction" in filename:
+                    document_types.append("SANCTION_LETTER")
+                elif "noc" in filename:
+                    document_types.append("NOC")
+                elif "property" in filename:
+                    document_types.append("PROPERTY_DOCS")
+
             # Check for payment attachments
-            if any(keyword in filename for keyword in ['payment', 'receipt', 'utr', 'screenshot', 'scan']):
+            if any(
+                keyword in filename
+                for keyword in ["payment", "receipt", "utr", "screenshot", "scan"]
+            ):
                 payment_related = True
-                document_types.append('PAYMENT_RECEIPT')
-    
+                document_types.append("PAYMENT_RECEIPT")
+
     # If we have sanction letter or property docs, we might be further along
     if noi_related:
         initial_status = "DOCUMENTS_RECEIVED"  # NOI state
-    
+
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
@@ -351,7 +426,7 @@ async def create_case(extract: LoanSanctionExtract, sender_email: str, attachmen
                         "noi_related": noi_related,
                         "payment_related": payment_related,
                         "document_types": document_types,
-                        "attachments_count": len(attachments) if attachments else 0
+                        "attachments_count": len(attachments) if attachments else 0,
                     },
                 },
                 headers={
@@ -363,8 +438,18 @@ async def create_case(extract: LoanSanctionExtract, sender_email: str, attachmen
             )
             resp.raise_for_status()
             result = resp.json()
-            case_id = result[0]["id"] if isinstance(result, list) and len(result) > 0 else result.get("id")
-            logger.info("Created case %s for %s (%s) with status %s", case_id, extract.borrower_name, extract.bank_name, initial_status)
+            case_id = (
+                result[0]["id"]
+                if isinstance(result, list) and len(result) > 0
+                else result.get("id")
+            )
+            logger.info(
+                "Created case %s for %s (%s) with status %s",
+                case_id,
+                extract.borrower_name,
+                extract.bank_name,
+                initial_status,
+            )
             return str(case_id)
     except Exception as e:
         logger.error("Supabase case creation failed: %s", e)
@@ -372,6 +457,7 @@ async def create_case(extract: LoanSanctionExtract, sender_email: str, attachmen
 
 
 # ── Main Polling Loop ────────────────────────────────────────────────────
+
 
 async def poll_once() -> int:
     """Fetch new emails, extract, create cases. Returns count of cases created."""
@@ -381,9 +467,13 @@ async def poll_once() -> int:
 
     created = 0
     for mail in emails:
-        extract = await extract_loan_details(mail["body"], mail["sender"], mail["subject"])
+        extract = await extract_loan_details(
+            mail["body"], mail["sender"], mail["subject"]
+        )
         if extract is None or extract.confidence < 0.3:
-            logger.info("Low confidence extraction for email from %s — skipping", mail["sender"])
+            logger.info(
+                "Low confidence extraction for email from %s — skipping", mail["sender"]
+            )
             continue
 
         case_id = await create_case(extract, mail["sender"], mail.get("attachments"))
@@ -391,9 +481,13 @@ async def poll_once() -> int:
             # Process payment attachments if any
             attachments = mail.get("attachments", [])
             if attachments:
-                payment_found, payment_info = await process_payment_attachments(case_id, attachments)
+                payment_found, payment_info = await process_payment_attachments(
+                    case_id, attachments
+                )
                 if payment_found and payment_info:
-                    logger.info("Payment info extracted for case %s: %s", case_id, payment_info)
+                    logger.info(
+                        "Payment info extracted for case %s: %s", case_id, payment_info
+                    )
                     # Update case with payment info
                     try:
                         async with httpx.AsyncClient() as client:
@@ -404,7 +498,7 @@ async def poll_once() -> int:
                                     "payment_amount": payment_info.get("amount"),
                                     "payment_date": payment_info.get("date"),
                                     "payment_status": "RECEIVED",
-                                    "payment_metadata": payment_info
+                                    "payment_metadata": payment_info,
                                 },
                                 headers={
                                     "apikey": SUPABASE_SERVICE_KEY,
@@ -414,65 +508,94 @@ async def poll_once() -> int:
                                 },
                             )
                     except Exception as e:
-                        logger.warning("Failed to update payment info for case %s: %s", case_id, e)
-            
+                        logger.warning(
+                            "Failed to update payment info for case %s: %s", case_id, e
+                        )
+
             created += 1
-            
+
             # Trigger NOI workflow if we have enough info
             try:
                 # If we received documents or payment, verify docs next
-                if noi_related or payment_found:
+                # Re-check if any attachments are noi-related
+                noi_related_in_poll = False
+                if attachments:
+                    for att in attachments:
+                        fname = att.get("filename", "").lower()
+                        if any(
+                            k in fname
+                            for k in ["sanction", "noc", "approval", "loan", "property"]
+                        ):
+                            noi_related_in_poll = True
+                            break
+
+                if noi_related_in_poll or payment_found:
                     workflow_result = await noi_agent.run_workflow(
-                        case_id=case_id,
-                        action="verify_docs"
+                        case_id=case_id, action="verify_docs"
                     )
                     if workflow_result.get("success"):
-                        logger.info("Triggered NOI doc verification for case %s", case_id)
+                        logger.info(
+                            "Triggered NOI doc verification for case %s", case_id
+                        )
                     else:
-                        logger.warning("Failed to trigger NOI verification for case %s: %s", case_id, workflow_result.get("error"))
+                        logger.warning(
+                            "Failed to trigger NOI verification for case %s: %s",
+                            case_id,
+                            workflow_result.get("error"),
+                        )
             except Exception as e:
-                logger.warning("NOI workflow trigger failed for case %s: %s", case_id, e)
+                logger.warning(
+                    "NOI workflow trigger failed for case %s: %s", case_id, e
+                )
 
     return created
 
 
-async def process_payment_attachments(case_id: str, attachments: list) -> Tuple[bool, Optional[dict]]:
+async def process_payment_attachments(
+    case_id: str, attachments: list
+) -> Tuple[bool, Optional[dict]]:
     """Process payment-related attachments (screenshots, receipts) using OCR."""
     if not attachments:
         return False, None
-    
+
     payment_info = None
-    
+
     for att in attachments:
-        filename = att.get('filename', '').lower()
-        content_type = att.get('content_type', '')
-        payload = att.get('payload')
-        
+        filename = att.get("filename", "").lower()
+        content_type = att.get("content_type", "")
+        payload = att.get("payload")
+
         # Check if this looks like a payment receipt/screenshot
-        if any(keyword in filename for keyword in ['payment', 'receipt', 'utr', 'screenshot', 'scan']) and \
-           (content_type.startswith('image/') or filename.endswith(('.png', '.jpg', '.jpeg', '.pdf'))):
-            
+        if any(
+            keyword in filename
+            for keyword in ["payment", "receipt", "utr", "screenshot", "scan"]
+        ) and (
+            content_type.startswith("image/")
+            or filename.endswith((".png", ".jpg", ".jpeg", ".pdf"))
+        ):
             try:
                 # Process image with OCR using LLM (Gemini Vision)
-                if content_type.startswith('image/'):
+                if content_type.startswith("image/"):
                     # Convert payload to base64 for LLM
                     import base64
-                    image_base64 = base64.b64encode(payload).decode('utf-8')
-                    
+
+                    image_base64 = base64.b64encode(payload).decode("utf-8")
+
                     # Use LLM to extract payment info from image
                     payment_info = await extract_payment_from_image(image_base64)
                     if payment_info:
                         break  # Found payment info, no need to check other attachments
-                elif filename.endswith('.pdf'):
+                elif filename.endswith(".pdf"):
                     # For PDF, we'd need to extract text first - simplified for now
                     logger.info("PDF payment attachment found: %s", filename)
                     # TODO: Implement PDF text extraction + OCR
-                    
+
             except Exception as e:
                 logger.warning("OCR processing failed for %s: %s", filename, e)
                 continue
-    
+
     return payment_info is not None, payment_info
+
 
 async def extract_payment_from_image(image_base64: str) -> Optional[dict]:
     """Extract payment details from image using LLM vision capabilities."""
@@ -486,39 +609,43 @@ async def extract_payment_from_image(image_base64: str) -> Optional[dict]:
                     "messages": [
                         {
                             "role": "system",
-                            "content": "You are a payment OCR specialist. Extract payment details from screenshots or receipts. Return JSON with: utr_number, amount, date, sender_account, recipient, payment_mode. If unsure about any field, set value to null."
+                            "content": "You are a payment OCR specialist. Extract payment details from screenshots or receipts. Return JSON with: utr_number, amount, date, sender_account, recipient, payment_mode. If unsure about any field, set value to null.",
                         },
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": "Extract payment details from this image:"},
+                                {
+                                    "type": "text",
+                                    "text": "Extract payment details from this image:",
+                                },
                                 {
                                     "type": "image_url",
                                     "image_url": {
                                         "url": f"data:image/jpeg;base64,{image_base64}"
-                                    }
-                                }
-                            ]
-                        }
+                                    },
+                                },
+                            ],
+                        },
                     ],
                     "temperature": 0.1,
-                    "max_tokens": 500
+                    "max_tokens": 500,
                 },
-                headers={"Authorization": f"Bearer {LLM_API_KEY}"}
+                headers={"Authorization": f"Bearer {LLM_API_KEY}"},
             )
             resp.raise_for_status()
             data = resp.json()
             content = data["choices"][0]["message"]["content"]
-            
+
             # Try to extract JSON from response
             import re as regex
-            json_match = regex.search(r'\{.*\}', content, regex.DOTALL)
+
+            json_match = regex.search(r"\{.*\}", content, regex.DOTALL)
             if json_match:
                 return json.loads(json_match.group(0))
             else:
                 logger.warning("No JSON in payment OCR response: %s", content[:200])
                 return None
-                
+
     except Exception as e:
         logger.error("Payment OCR extraction failed: %s", e)
         return None
@@ -539,6 +666,7 @@ async def run_poller():
 
 # ── Health endpoint (for Docker HEALTHCHECK) ─────────────────────────────
 
+
 async def health_server():
     import http.server
     import socketserver
@@ -554,6 +682,7 @@ async def health_server():
 
 
 # ── Entry ────────────────────────────────────────────────────────────────
+
 
 async def main():
     asyncio.create_task(health_server())

@@ -14,7 +14,7 @@ export function AdvisorCockpit() {
         const res = await fetch('/api/cases');
         if (!res.ok) throw new Error('Failed to load case pipeline');
         const data = await res.json();
-        
+
         if (Array.isArray(data)) {
           setCases(data);
         } else if (data && data.data) {
@@ -80,8 +80,8 @@ export function AdvisorCockpit() {
         <AlertCircle className="text-rose-500 mb-4" size={48} aria-hidden="true" />
         <h2 className="text-xl font-bold text-slate-900 mb-2">Connection Error</h2>
         <p className="text-slate-600 mb-6 max-w-md">{error}</p>
-        <button 
-          onClick={() => window.location.reload()} 
+        <button
+          onClick={() => window.location.reload()}
           className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition"
         >
           Retry Connection
@@ -93,7 +93,7 @@ export function AdvisorCockpit() {
   return (
     <main className="flex h-full bg-slate-50 relative p-6 w-full">
       <div className="w-full flex flex-col space-y-6">
-        
+
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-serif font-bold text-slate-900">Legal Ops Pipeline (Banker's Eye)</h1>
@@ -117,7 +117,7 @@ export function AdvisorCockpit() {
                  {getCasesByStatus([CaseStatus.RECEIVED]).length}
                </span>
              </header>
-             
+
              <div className="space-y-3" role="list" aria-label="Intake Cases">
                {getCasesByStatus([CaseStatus.RECEIVED]).map(c => (
                  <CaseCard key={c.id} kase={c} onUpdateStatus={updateCaseStatus} />
@@ -155,7 +155,7 @@ export function AdvisorCockpit() {
                  {getCasesByStatus([CaseStatus.IN_PROGRESS, CaseStatus.PENDING_REGISTRATION]).length}
                </span>
              </header>
-             
+
              <div className="space-y-3" role="list" aria-label="Validation Cases">
                {getCasesByStatus([CaseStatus.IN_PROGRESS, CaseStatus.PENDING_REGISTRATION]).map(c => (
                  <CaseCard key={c.id} kase={c} onUpdateStatus={updateCaseStatus} />
@@ -174,7 +174,7 @@ export function AdvisorCockpit() {
                  {getCasesByStatus([CaseStatus.QUALITY_CHECK]).length}
                </span>
              </header>
-             
+
              <div className="space-y-3" role="list" aria-label="Awaiting Human Review Cases">
                {getCasesByStatus([CaseStatus.QUALITY_CHECK]).map(c => (
                  <CaseCard key={c.id} kase={c} onUpdateStatus={updateCaseStatus} />
@@ -259,7 +259,7 @@ function CaseCard({ kase, onUpdateStatus }: { kase: Case, onUpdateStatus: (id: s
         </span>
       </header>
       <p className="text-xs text-slate-500 mb-4">{kase.case_type.replace(/_/g, ' ')}</p>
-      
+
       {isUrgent && (
         <div className="flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 p-2 rounded-md mb-3" role="alert">
           <AlertCircle size={14} aria-hidden="true" /> Delayed SLA
@@ -269,17 +269,17 @@ function CaseCard({ kase, onUpdateStatus }: { kase: Case, onUpdateStatus: (id: s
       <footer className="flex items-center justify-between border-t border-slate-100 pt-3">
         <span className="text-xs text-slate-500 line-clamp-1">{kase.status.replace(/_/g, ' ')}</span>
         <div className="flex gap-2">
-          <button 
+          <button
             onClick={() => setShowTimeline(!showTimeline)}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-md transition" 
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-md transition"
             aria-label="View timeline"
             title="View Timeline"
           >
             {showTimeline ? <X size={14} /> : <History size={14} />}
           </button>
-          <button 
+          <button
             onClick={handleNextStatus}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white p-1.5 rounded-md transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" 
+            className="bg-indigo-600 hover:bg-indigo-700 text-white p-1.5 rounded-md transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             aria-label={`Advance status for ${kase.borrower_name}`}
             title="Advance Status"
           >

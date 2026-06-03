@@ -149,10 +149,10 @@ async function startServer() {
   // Step 5: Global Structured Error Handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error(`System Error: ${err.message} | Request ID: ${req.headers['x-request-id']}`);
-    
+
     const statusCode = err.status || 500;
     const isClientError = statusCode >= 400 && statusCode < 500;
-    
+
     res.status(statusCode).json({
       error: {
         code: isClientError ? err.code || 'BAD_REQUEST' : 'SYSTEM_ERROR',

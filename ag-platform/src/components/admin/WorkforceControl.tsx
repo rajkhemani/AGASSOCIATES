@@ -131,7 +131,7 @@ export function WorkforceControl() {
                 </div>
 
                 <div className="pt-4 border-t border-slate-50">
-                  <button 
+                  <button
                     onClick={() => handleAssignTask(agent.id)}
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold uppercase tracking-widest hover:bg-slate-800 transition"
                   >
@@ -186,7 +186,7 @@ export function WorkforceControl() {
 
               <div className="space-y-4">
                 <div className="flex gap-2">
-                  <button 
+                  <button
                     onClick={() => handleAssignTask(member.id)}
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition"
                   >

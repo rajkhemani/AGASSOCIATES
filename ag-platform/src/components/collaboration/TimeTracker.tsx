@@ -14,11 +14,11 @@ export const TimeTracker: React.FC = () => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [timeElapsed, setTimeElapsed] = useState(0); // in seconds
   const [startTime, setStartTime] = useState<Date | null>(null);
-  
+
   const [selectedCase, setSelectedCase] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
   const [isBillable, setIsBillable] = useState(true);
-  
+
   // State Discipline: Loading & Error States
   const [submitState, setSubmitState] = useState<SubmissionState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -66,10 +66,10 @@ export const TimeTracker: React.FC = () => {
       // Stop timer and log
       setIsActive(false);
       setSubmitState('loading');
-      
+
       const endTime = new Date();
       const durationMinutes = Math.max(1, Math.ceil(timeElapsed / 60)); // Minimum 1 minute
-      
+
       try {
         const response = await fetch('/api/timesheets', {
           method: 'POST',
@@ -90,13 +90,13 @@ export const TimeTracker: React.FC = () => {
         if (!response.ok) {
             throw new Error(`HTTP Error ${response.status}`);
         }
-        
+
         // Success state
         setSubmitState('success');
         setTimeElapsed(0);
         setStartTime(null);
         setTaskDescription('');
-        
+
         // Reset success state after 3s
         setTimeout(() => setSubmitState('idle'), 3000);
       } catch (err: any) {
@@ -109,7 +109,7 @@ export const TimeTracker: React.FC = () => {
   return (
     <aside aria-label="Time Tracker" className={`fixed bottom-6 right-6 bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl overflow-hidden transition-all duration-300 z-50 ${isMinimized ? 'w-48 h-14' : 'w-80'}`}>
       {/* Header */}
-      <button 
+      <button
         aria-expanded={!isMinimized}
         aria-controls="tracker-body"
         className="w-full bg-slate-800 px-4 py-3 flex items-center justify-between cursor-pointer border-b border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -138,7 +138,7 @@ export const TimeTracker: React.FC = () => {
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); toggleTimer(); }}>
             <div>
               <label htmlFor="case-select" className="sr-only">Select Case</label>
-              <select 
+              <select
                 id="case-select"
                 disabled={isActive || submitState === 'loading'}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
@@ -155,7 +155,7 @@ export const TimeTracker: React.FC = () => {
 
             <div>
               <label htmlFor="task-desc" className="sr-only">Task Description</label>
-              <input 
+              <input
                 id="task-desc"
                 type="text"
                 disabled={isActive || submitState === 'loading'}
@@ -168,8 +168,8 @@ export const TimeTracker: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2 px-1">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 id="billable"
                 disabled={isActive || submitState === 'loading'}
                 checked={isBillable}
@@ -195,12 +195,12 @@ export const TimeTracker: React.FC = () => {
               </div>
             )}
 
-            <button 
+            <button
               type="submit"
               disabled={submitState === 'loading'}
               className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-emerald-500 ${
-                isActive 
-                  ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/50' 
+                isActive
+                  ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 border border-rose-500/50'
                   : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
               } disabled:opacity-70`}
             >

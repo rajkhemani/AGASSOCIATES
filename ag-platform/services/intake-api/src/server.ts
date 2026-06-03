@@ -27,7 +27,7 @@ fastify.setSerializerCompiler(serializerCompiler);
 async function start() {
   try {
     await fastify.register(cors);
-    
+
     // Connect to Redis
     await connectRedis();
 

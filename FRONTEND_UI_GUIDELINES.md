@@ -1,8 +1,8 @@
 # Frontend UI Engineering Guidelines
 
-**Category**: frontend, engineering  
-**Applies to**: claude, gemini, cursor, copilot, any  
-**Version**: 1.0.0  
+**Category**: frontend, engineering
+**Applies to**: claude, gemini, cursor, copilot, any
+**Version**: 1.0.0
 
 **Overview**
 Frontend code touches every user. Poor UI engineering causes accessibility barriers, performance degradation, and broken experiences on non-standard devices. This skill enforces the discipline of building UI that works for everyone.

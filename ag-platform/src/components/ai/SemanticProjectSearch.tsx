@@ -9,7 +9,7 @@ export function SemanticProjectSearch({ orgId }: { orgId: string }) {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query) return;
-    
+
     setIsLoading(true);
     try {
       const res = await fetch("/api/ai/search-projects", {
@@ -32,15 +32,15 @@ export function SemanticProjectSearch({ orgId }: { orgId: string }) {
       </div>
 
       <form onSubmit={handleSearch} className="flex gap-2 mb-4">
-        <input 
-          type="text" 
+        <input
+          type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="e.g. E-commerce redesign for retail client..."
           className="flex-1 border p-2 rounded-md text-sm"
         />
-        <button 
-           type="submit" 
+        <button
+           type="submit"
            disabled={isLoading || !query}
            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 flex items-center gap-2 transition"
         >

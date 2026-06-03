@@ -138,7 +138,7 @@ export function BrainstormHub({ caseId = '00000000-0000-0000-0000-000000000000' 
       </div>
 
       {/* Messages Area */}
-      <div 
+      <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent"
       >
@@ -160,8 +160,8 @@ export function BrainstormHub({ caseId = '00000000-0000-0000-0000-000000000000' 
                 </span>
               </div>
               <div className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed transition-all ${
-                msg.sender_type === 'human' 
-                  ? 'bg-indigo-600 text-white rounded-tr-none border border-indigo-500/50 shadow-lg shadow-indigo-600/10' 
+                msg.sender_type === 'human'
+                  ? 'bg-indigo-600 text-white rounded-tr-none border border-indigo-500/50 shadow-lg shadow-indigo-600/10'
                   : 'bg-slate-800 text-slate-200 rounded-tl-none border border-slate-700 shadow-xl'
               }`}>
                 {msg.content}

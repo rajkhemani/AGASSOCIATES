@@ -38,11 +38,14 @@ def send_message(text: str, chat_id: Optional[str] = None) -> bool:
         return False
     try:
         with httpx.Client(timeout=10.0) as client:
-            resp = client.post(_bot_url("sendMessage"), json={
-                "chat_id": chat_id or TELEGRAM_CHAT_ID,
-                "text": text,
-                "parse_mode": "Markdown",
-            })
+            resp = client.post(
+                _bot_url("sendMessage"),
+                json={
+                    "chat_id": chat_id or TELEGRAM_CHAT_ID,
+                    "text": text,
+                    "parse_mode": "Markdown",
+                },
+            )
             resp.raise_for_status()
         return True
     except Exception as exc:
@@ -99,7 +102,13 @@ def set_webhook(url: str) -> bool:
 
 
 __all__ = [
-    "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_WEBHOOK_SECRET",
-    "configured", "send_message", "send_otp_request", "send_otp_received",
-    "send_otp_timeout", "set_webhook",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_CHAT_ID",
+    "TELEGRAM_WEBHOOK_SECRET",
+    "configured",
+    "send_message",
+    "send_otp_request",
+    "send_otp_received",
+    "send_otp_timeout",
+    "set_webhook",
 ]

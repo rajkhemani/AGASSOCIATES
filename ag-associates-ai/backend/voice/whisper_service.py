@@ -6,10 +6,14 @@ logger = logging.getLogger(__name__)
 # For this scaffold, we'll use a mock or a placeholder that can be easily replaced.
 try:
     from faster_whisper import WhisperModel
+
     HAS_WHISPER = True
 except ImportError:
     HAS_WHISPER = False
-    logger.warning("faster-whisper not installed. WhisperService will run in MOCK mode.")
+    logger.warning(
+        "faster-whisper not installed. WhisperService will run in MOCK mode."
+    )
+
 
 class WhisperService:
     def __init__(self, model_size: str = "base"):
@@ -21,10 +25,11 @@ class WhisperService:
     def transcribe(self, audio_path: str) -> str:
         if not self.model:
             logger.info("MOCK STT: Transcribing audio...")
-            return "show me the status of case MHR-123" # Mock response
+            return "show me the status of case MHR-123"  # Mock response
 
         segments, info = self.model.transcribe(audio_path, beam_size=5)
         transcript = " ".join([segment.text for segment in segments])
         return transcript.strip()
+
 
 whisper_service = WhisperService()

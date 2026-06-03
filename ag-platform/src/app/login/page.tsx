@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React from "react"; // @ts-ignore;
 
 const API = process.env.NEXT_PUBLIC_AG_API || "http://localhost:8000";
 

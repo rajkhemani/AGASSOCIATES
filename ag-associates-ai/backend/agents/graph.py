@@ -14,10 +14,10 @@ from .state import AgentState
 
 def should_revise(state: AgentState) -> str:
     """After auditor: revise (loop back to drafter), or finish."""
-    if state['audit_passed']:
+    if state["audit_passed"]:
         print("✅ Audit passed - proceeding to finish")
         return "finish"
-    if state['revision_count'] > 3:
+    if state["revision_count"] > 3:
         print("⚠️ Max revisions reached - finishing anyway")
         return "finish"
     print(f"🔄 Audit failed - revising (attempt {state['revision_count'] + 1})")
@@ -25,15 +25,17 @@ def should_revise(state: AgentState) -> str:
 
 
 def _check_guardrail(state: AgentState) -> str:
-    if not state.get('guardrail_passed', False):
+    if not state.get("guardrail_passed", False):
         print("🛑 Guardrail blocked execution. Ending workflow early.")
         return "finish"
     return "continue"
 
 
 def _check_bouncer(state: AgentState) -> str:
-    if not state.get('bouncer_passed', False):
-        print("🛑 Bouncer blocked execution: Stamp duty mismatch. Ending workflow early.")
+    if not state.get("bouncer_passed", False):
+        print(
+            "🛑 Bouncer blocked execution: Stamp duty mismatch. Ending workflow early."
+        )
         return "finish"
     return "continue"
 
@@ -132,9 +134,9 @@ def process_rental_request(
         return {
             "success": True,
             "state": final_state,
-            "document_path": final_state.get('pdf_path'),
-            "audit_passed": final_state.get('audit_passed'),
-            "extracted_data": final_state.get('extracted_json'),
+            "document_path": final_state.get("pdf_path"),
+            "audit_passed": final_state.get("audit_passed"),
+            "extracted_data": final_state.get("extracted_json"),
         }
 
     except Exception as e:

@@ -28,7 +28,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({ projectId, taskId 
   useEffect(() => {
     let isMounted = true;
     let channel: ReturnType<typeof supabase.channel> | null = null;
-    
+
     const init = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) setUserId(session.user.id);
@@ -56,7 +56,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({ projectId, taskId 
 
               // Need to get the user email for UI
               const { data: uData } = await supabase.from('users').select('email').eq('id', newRecord.user_id).single();
-              
+
               setComments(prev => [...prev, { ...newRecord, users: uData ? { email: uData.email } : { email: 'Unknown' } }]);
           })
           .subscribe();
@@ -134,7 +134,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({ projectId, taskId 
                  </div>
                  {/* Primitive rich text logic handling mentions visually */}
                  <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                    {comment.content.split(' ').map((word, i) => 
+                    {comment.content.split(' ').map((word, i) =>
                         word.startsWith('@') ? <span key={i} className="text-blue-600 font-medium bg-blue-50 px-1 rounded">{word} </span> : word + ' '
                     )}
                  </p>
@@ -145,7 +145,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({ projectId, taskId 
 
       <div className="p-4 border-t border-gray-100 bg-white rounded-b-xl">
         <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
-            <textarea 
+            <textarea
                value={inputValue}
                onChange={(e) => setInputValue(e.target.value)}
                placeholder="Write a comment... (use @ to mention)"
@@ -158,7 +158,7 @@ export const CommentThread: React.FC<CommentThreadProps> = ({ projectId, taskId 
                    }
                }}
             />
-            <button 
+            <button
                type="submit"
                disabled={!inputValue.trim()}
                className="absolute right-2 bottom-2 p-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition"

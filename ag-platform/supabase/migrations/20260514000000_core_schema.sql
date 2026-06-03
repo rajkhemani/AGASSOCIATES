@@ -81,5 +81,5 @@ USING (
   org_id = public.get_app_org_id()
 );
 
--- Note: Similar policies should be added for INSERT/UPDATE/DELETE 
+-- Note: Similar policies should be added for INSERT/UPDATE/DELETE
 -- depending on the user's role (e.g., 'Bank Viewer' might only have SELECT access).

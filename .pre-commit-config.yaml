@@ -23,8 +23,13 @@ repos:
       - id: eslint
         files: \.[jt]sx?$
         types: [file]
+        args: [ --no-error-on-unmatched-pattern ]
         additional_dependencies:
           - eslint@8.56.0
           - typescript@5.3.3
           - "@typescript-eslint/parser@7.0.0"
           - "@typescript-eslint/eslint-plugin@7.0.0"
+          - eslint-config-next@14.2.3
+          - eslint-plugin-react@7.34.1
+          - eslint-plugin-react-hooks@4.6.0
+          - eslint-plugin-jsx-a11y@6.8.0

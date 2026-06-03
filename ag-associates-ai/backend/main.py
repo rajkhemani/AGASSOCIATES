@@ -1,3 +1,4 @@
+from nesl_client import NeslClient
 import os
 import re
 import json
@@ -11,19 +12,26 @@ import redis.asyncio as aioredis
 sentry_sdk = None
 if importlib.util.find_spec("sentry_sdk"):
     import sentry_sdk
-from fastapi import FastAPI, Header, HTTPException, status, Response, Request, Depends, Cookie
-from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Any, Optional
-from pydantic import BaseModel, Field
-from voice.voice_api import router as voice_router
-from workforce import workforce_router
-from auth import oauth_router, require_permission, AuthContext
-from playground import playground_router, session_manager as _playground_sm
-from payment.router import router as payment_router
-from controller_agent import UnifiedController
-from aisha_core import handle_message as aisha_handle_message, ensure_tables
-from nesl_client import NeslClient
-
+from fastapi import (  # noqa: E402
+    FastAPI,
+    Header,
+    HTTPException,
+    status,
+    Response,
+    Request,
+    Depends,
+    Cookie,
+)
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from typing import Dict, Any, Optional  # noqa: E402
+from pydantic import BaseModel, Field  # noqa: E402
+from voice.voice_api import router as voice_router  # noqa: E402
+from workforce import workforce_router  # noqa: E402
+from auth import oauth_router, require_permission, AuthContext  # noqa: E402
+from playground import playground_router, session_manager as _playground_sm  # noqa: E402
+from payment.router import router as payment_router  # noqa: E402
+from controller_agent import UnifiedController  # noqa: E402
+from aisha_core import handle_message as aisha_handle_message, ensure_tables  # noqa: E402
 
 
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")
@@ -36,8 +44,12 @@ if SENTRY_DSN:
     _default_profiles = 0.01 if IS_PRODUCTION else 1.0
     sentry_sdk.init(
         dsn=SENTRY_DSN,
-        traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", _default_traces)),
-        profiles_sample_rate=float(os.environ.get("SENTRY_PROFILES_SAMPLE_RATE", _default_profiles)),
+        traces_sample_rate=float(
+            os.environ.get("SENTRY_TRACES_SAMPLE_RATE", _default_traces)
+        ),
+        profiles_sample_rate=float(
+            os.environ.get("SENTRY_PROFILES_SAMPLE_RATE", _default_profiles)
+        ),
         environment=ENVIRONMENT,
     )
 
@@ -45,7 +57,7 @@ if SENTRY_DSN:
 app = FastAPI(
     title="AG Associates - Luxor9 LegalOS API",
     version="2.0.0",
-    description="Deterministic Multi-Agent Legal Infrastructure"
+    description="Deterministic Multi-Agent Legal Infrastructure",
 )
 
 # 3. CORS Configuration (Strictly for Next.js Frontend)
@@ -72,6 +84,23 @@ app.include_router(playground_router)
 app.include_router(payment_router)
 
 
+_nesl_client = None
+
+
+def _get_nesl_client() -> NeslClient:
+    global _nesl_client
+    if _nesl_client is None:
+        _nesl_client = NeslClient()
+    return _nesl_client
+
+
+async def shutdown_nesl_client():
+    global _nesl_client
+    if _nesl_client:
+        await _nesl_client.close()
+        _nesl_client = None
+
+
 @app.on_event("shutdown")
 async def _shutdown_playground():
     await _playground_sm.shutdown()
@@ -81,13 +110,18 @@ async def _shutdown_playground():
 async def _shutdown_nesl():
     await shutdown_nesl_client()
 
+
 # 4. Health Check Endpoint (For Vercel/Docker probing)
 @app.on_event("startup")
 async def _startup_store():
     ensure_tables()
 
+
 @app.post("/webhooks/whatsapp", tags=["Ingestion"])
-async def whatsapp_webhook(payload: Dict[str, Any], x_api_key: Optional[str] = Header(default=None, alias="x-api-key")):
+async def whatsapp_webhook(
+    payload: Dict[str, Any],
+    x_api_key: Optional[str] = Header(default=None, alias="x-api-key"),
+):
     """
     Entry point for n8n WhatsApp triggers — routes through unified Aisha.
     Expects payload with 'message', 'sender', and optional 'org_id' and 'conversation_id'.
@@ -104,6 +138,7 @@ async def whatsapp_webhook(payload: Dict[str, Any], x_api_key: Optional[str] = H
 
     import asyncio
     import logging
+
     logger = logging.getLogger("uvicorn.error")
 
     try:
@@ -121,20 +156,22 @@ async def whatsapp_webhook(payload: Dict[str, Any], x_api_key: Optional[str] = H
         return {
             "success": False,
             "error": "Internal server error during processing",
-            "detail": str(e) if not IS_PRODUCTION else "An unexpected error occurred"
+            "detail": str(e) if not IS_PRODUCTION else "An unexpected error occurred",
         }
+
 
 class AgreementRequest(BaseModel):
     message: str
     sender: Optional[str] = "api_user"
     conversation_id: Optional[str] = None
 
+
 @app.post("/api/generate-agreement", tags=["AI"])
 async def generate_agreement(
     request: AgreementRequest,
     auth: AuthContext = Depends(require_permission("agreement.generate")),
     x_org_id: Optional[str] = Header(default=None, alias="X-Org-ID"),
-    x_api_key: Optional[str] = Header(default=None, alias="x-api-key")
+    x_api_key: Optional[str] = Header(default=None, alias="x-api-key"),
 ):
     """
     Direct API entry for generating rental agreements — routes through unified Aisha.
@@ -145,6 +182,7 @@ async def generate_agreement(
 
     import asyncio
     import logging
+
     logger = logging.getLogger("uvicorn.error")
 
     try:
@@ -161,49 +199,71 @@ async def generate_agreement(
         return {
             "success": False,
             "error": "Internal server error during agreement generation",
-            "detail": str(e) if not IS_PRODUCTION else "An unexpected error occurred"
+            "detail": str(e) if not IS_PRODUCTION else "An unexpected error occurred",
         }
+
 
 @app.get("/health", tags=["System"])
 async def health_check():
     """Returns 200 OK if the system is fully operational."""
     return {"status": "ok", "agent_pool": "ready", "version": "2.0.0"}
 
+
 # 5. Core Webhook Entrypoint for n8n (Asynchronous)
 N8N_WEBHOOK_KEY = os.environ.get("N8N_WEBHOOK_KEY", "")
 
 
-def _verify_n8n_key(x_api_key: Optional[str] = Header(default=None, alias="x-api-key")) -> None:
+def _verify_n8n_key(
+    x_api_key: Optional[str] = Header(default=None, alias="x-api-key"),
+) -> None:
     if not N8N_WEBHOOK_KEY:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="webhook auth not configured")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="webhook auth not configured",
+        )
     if not x_api_key or not secrets.compare_digest(x_api_key, N8N_WEBHOOK_KEY):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid api key")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid api key"
+        )
 
 
 @app.post("/webhooks/n8n/intake", tags=["Ingestion"])
-async def n8n_intake_webhook(payload: Dict[str, Any], x_api_key: Optional[str] = Header(default=None, alias="x-api-key")):
+async def n8n_intake_webhook(
+    payload: Dict[str, Any],
+    x_api_key: Optional[str] = Header(default=None, alias="x-api-key"),
+):
     """
     Stub webhook for n8n intake. Acknowledges receipt only — the LangGraph/CrewAI
     pipeline is not yet wired in here. Requires the X-Api-Key header to match
     N8N_WEBHOOK_KEY.
     """
     _verify_n8n_key(x_api_key)
-    return {"status": "accepted", "message": "Payload received (pipeline dispatch not yet implemented)"}
+    return {
+        "status": "accepted",
+        "message": "Payload received (pipeline dispatch not yet implemented)",
+    }
+
 
 # 6. Sentry Error Testing Endpoint (dev only)
 if not IS_PRODUCTION:
+
     @app.get("/debug-sentry", tags=["System"])
     async def trigger_error():
         """Explicitly triggers a zero division error for Sentry testing."""
-        raise ZeroDivisionError("Sentry debug error: division by zero triggered intentionally.")
+        raise ZeroDivisionError(
+            "Sentry debug error: division by zero triggered intentionally."
+        )
 
 
 # ============================================================================
 # DASHBOARD ENDPOINTS
 # ============================================================================
 
+
 @app.get("/dashboard/status", tags=["Dashboard"])
-async def dashboard_status(auth: AuthContext = Depends(require_permission("dashboard.view"))):
+async def dashboard_status(
+    auth: AuthContext = Depends(require_permission("dashboard.view")),
+):
     """Returns dashboard metrics: template count, active agents, recent activities."""
     import psycopg2
     from config import get_database_url
@@ -223,15 +283,31 @@ async def dashboard_status(auth: AuthContext = Depends(require_permission("dashb
         "active_agents": 3,
         "system_status": "operational",
         "recent_activities": [
-            {"action": "AISHA_INTAKE", "timestamp": "2025-01-15T10:30:00Z", "details": "Processed new rental agreement request"},
-            {"action": "DRAFT_COMPLETE", "timestamp": "2025-01-15T10:31:00Z", "details": "Generated legal document #1024"},
-            {"action": "AUDIT_PASSED", "timestamp": "2025-01-15T10:32:00Z", "details": "Quality check passed with score 92"},
+            {
+                "action": "AISHA_INTAKE",
+                "timestamp": "2025-01-15T10:30:00Z",
+                "details": "Processed new rental agreement request",
+            },
+            {
+                "action": "DRAFT_COMPLETE",
+                "timestamp": "2025-01-15T10:31:00Z",
+                "details": "Generated legal document #1024",
+            },
+            {
+                "action": "AUDIT_PASSED",
+                "timestamp": "2025-01-15T10:32:00Z",
+                "details": "Quality check passed with score 92",
+            },
         ],
     }
 
 
 @app.get("/templates", tags=["Dashboard"])
-async def list_templates(auth: AuthContext = Depends(require_permission("dashboard.view")), template_type: Optional[str] = None, language: Optional[str] = None):
+async def list_templates(
+    auth: AuthContext = Depends(require_permission("dashboard.view")),
+    template_type: Optional[str] = None,
+    language: Optional[str] = None,
+):
     """List legal templates with optional filters."""
     import psycopg2
     from config import get_database_url
@@ -262,12 +338,18 @@ async def list_templates(auth: AuthContext = Depends(require_permission("dashboa
 # CROSS-PLATFORM AISHA ADAPTER ENDPOINTS
 # ============================================================================
 
+
 class AishaChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="The user's message")
-    conversation_id: Optional[str] = Field(None, description="Resume an existing conversation")
+    conversation_id: Optional[str] = Field(
+        None, description="Resume an existing conversation"
+    )
     platform: Optional[str] = Field("web", description="Source platform identifier")
-    platform_identity: Optional[str] = Field(None, description="Platform user ID (defaults to API key hash)")
+    platform_identity: Optional[str] = Field(
+        None, description="Platform user ID (defaults to API key hash)"
+    )
     display_name: Optional[str] = Field(None, description="User's display name")
+
 
 class AishaChatResponse(BaseModel):
     conversation_id: str
@@ -275,6 +357,7 @@ class AishaChatResponse(BaseModel):
     response: str
     intent: str
     data: Optional[Dict[str, Any]] = None
+
 
 @app.post("/api/aisha/chat", tags=["Aisha"])
 async def aisha_chat(
@@ -298,10 +381,15 @@ async def aisha_chat(
     # 1. API key takes priority (Telegram bot, n8n, etc.)
     if x_api_key:
         _verify_n8n_key(x_api_key)
-        identity = x_user_id or request.platform_identity or f"api_{hashlib.md5(x_api_key.encode()).hexdigest()[:8]}"
+        identity = (
+            x_user_id
+            or request.platform_identity
+            or f"api_{hashlib.sha256(x_api_key.encode()).hexdigest()[:8]}"
+        )
     # 2. Session cookie (web dashboard users)
     elif ag_session:
         from auth.google_oauth import _decode_session
+
         try:
             user = _decode_session(ag_session)
             identity = user.get("sub", "")
@@ -334,9 +422,13 @@ async def aisha_sms_webhook(
     Return TwiML to reply via SMS.
     """
     if not Body:
-        return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response/>', media_type="text/xml")
+        return Response(
+            content='<?xml version="1.0" encoding="UTF-8"?><Response/>',
+            media_type="text/xml",
+        )
 
     import asyncio
+
     phone = From or "unknown"
 
     result = await asyncio.to_thread(
@@ -377,6 +469,7 @@ async def aisha_voice_call_webhook(
         return Response(content=twiml, media_type="text/xml")
 
     import asyncio
+
     phone = From or "unknown"
 
     result = await asyncio.to_thread(
@@ -401,11 +494,20 @@ async def aisha_voice_call_webhook(
 
 def _escape_twiml(text: str) -> str:
     """Escape text for TwiML (entities that break XML)."""
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("'", "&apos;")
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&apos;")
+    )
 
 
 @app.post("/api/aisha/voice-text", tags=["Aisha"])
-async def aisha_voice_text(payload: Dict[str, Any], auth: AuthContext = Depends(require_permission("aisha.chat"))):
+async def aisha_voice_text(
+    payload: Dict[str, Any],
+    auth: AuthContext = Depends(require_permission("aisha.chat")),
+):
     """
     Accept transcribed text from voice platforms (V.O.X., web mic, Twilio Voice
     STT, WhatsApp voice notes) and return a response with optional TTS audio.
@@ -423,6 +525,7 @@ async def aisha_voice_text(payload: Dict[str, Any], auth: AuthContext = Depends(
         raise HTTPException(status_code=400, detail="Missing 'text' in payload")
 
     import asyncio
+
     result = await asyncio.to_thread(
         aisha_handle_message,
         text,
@@ -434,6 +537,7 @@ async def aisha_voice_text(payload: Dict[str, Any], auth: AuthContext = Depends(
     audio = None
     if payload.get("tts", True):
         from voice.piper_service import synthesize
+
         audio = synthesize(result.get("response", ""))
 
     return {
@@ -472,17 +576,25 @@ async def sms_ingest(request: Request):
                 form = await request.form()
                 body = dict(form)
             except Exception:
-                return {"status": "error", "message": "Unsupported content-type. Use JSON or form-encoded."}
+                return {
+                    "status": "error",
+                    "message": "Unsupported content-type. Use JSON or form-encoded.",
+                }
 
     sms_from = (
-        body.get("from") or body.get("From")
-        or body.get("sender") or body.get("Sender")
+        body.get("from")
+        or body.get("From")
+        or body.get("sender")
+        or body.get("Sender")
         or "unknown"
     )
     sms_text = (
-        body.get("text") or body.get("Text")
-        or body.get("body") or body.get("Body")
-        or body.get("message") or body.get("Message")
+        body.get("text")
+        or body.get("Text")
+        or body.get("body")
+        or body.get("Body")
+        or body.get("message")
+        or body.get("Message")
         or ""
     ).strip()
 
@@ -493,17 +605,19 @@ async def sms_ingest(request: Request):
     redis_password = os.environ.get("REDIS_PASSWORD", "")
     r = aioredis.from_url(redis_url, password=redis_password, decode_responses=True)
 
-    payload = json.dumps({
-        "from": sms_from,
-        "text": sms_text,
-        "received_at": datetime.now(timezone.utc).isoformat(),
-    })
+    payload = json.dumps(
+        {
+            "from": sms_from,
+            "text": sms_text,
+            "received_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
 
     await r.rpush("sms:incoming", payload)
     await r.expire("sms:incoming", 86400)
     await r.aclose()
 
-    otp_detected = bool(re.search(r'\b(\d{4,8})\b', sms_text))
+    otp_detected = bool(re.search(r"\b(\d{4,8})\b", sms_text))
 
     return {
         "status": "ok",
@@ -512,10 +626,15 @@ async def sms_ingest(request: Request):
     }
 
 
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse  # noqa: E402
+
 
 @app.get("/api/aisha/chat/{conversation_id}/stream", tags=["Aisha"])
-async def aisha_chat_stream(conversation_id: str, after_id: int = 0, auth: AuthContext = Depends(require_permission("aisha.chat"))):
+async def aisha_chat_stream(
+    conversation_id: str,
+    after_id: int = 0,
+    auth: AuthContext = Depends(require_permission("aisha.chat")),
+):
     """SSE endpoint for web chat widget — streams new messages."""
     from conversation_store import get_messages
     import asyncio
@@ -526,7 +645,13 @@ async def aisha_chat_stream(conversation_id: str, after_id: int = 0, auth: AuthC
             messages = get_messages(conversation_id, limit=10)
             for msg in messages:
                 if msg["id"] > last_id:
-                    data = json.dumps({"role": msg["role"], "content": msg["content"], "id": msg["id"]})
+                    data = json.dumps(
+                        {
+                            "role": msg["role"],
+                            "content": msg["content"],
+                            "id": msg["id"],
+                        }
+                    )
                     yield f"data: {data}\n\n"
                     last_id = msg["id"]
             await asyncio.sleep(2)
@@ -540,24 +665,29 @@ async def aisha_chat_stream(conversation_id: str, after_id: int = 0, auth: AuthC
 
 unified_controller = UnifiedController()
 
+
 class UnifiedChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
 
+
 @app.post("/api/unified/chat", tags=["AI"])
-async def unified_chat(request: UnifiedChatRequest, auth: AuthContext = Depends(require_permission("ai.chat"))):
+async def unified_chat(
+    request: UnifiedChatRequest,
+    auth: AuthContext = Depends(require_permission("ai.chat")),
+):
     """
     Experimental endpoint for the Unified Workforce Controller.
     Uses OpenAI Conversations API and MCP tools.
     """
     try:
         result = await unified_controller.handle_request(
-            user_input=request.message,
-            conversation_id=request.conversation_id
+            user_input=request.message, conversation_id=request.conversation_id
         )
         return result
     except Exception as e:
         import logging
+
         logging.getLogger(__name__).error(f"Unified Controller error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -568,11 +698,6 @@ async def unified_chat(request: UnifiedChatRequest, auth: AuthContext = Depends(
 
 _nesl_client = None
 
-def _get_nesl_client() -> NeslClient:
-    global _nesl_client
-    if _nesl_client is None:
-        _nesl_client = NeslClient()
-    return _nesl_client
 
 class NeslExecuteResponse(BaseModel):
     success: bool
@@ -582,8 +707,11 @@ class NeslExecuteResponse(BaseModel):
     error: Optional[str] = None
     mode: Optional[str] = None
 
+
 @app.post("/api/nesl/execute", tags=["NeSL"])
-async def nesl_execute(request: Request, auth: AuthContext = Depends(require_permission("nesl.execute"))):
+async def nesl_execute(
+    request: Request, auth: AuthContext = Depends(require_permission("nesl.execute"))
+):
     """File document with NeSL government registry.
 
     Accepts empty body (frontend legacy /dashboard cycles) or JSON with
@@ -615,6 +743,7 @@ async def nesl_execute(request: Request, auth: AuthContext = Depends(require_per
         )
     except Exception as e:
         import logging
+
         logging.getLogger(__name__).error(f"NeSL execution error: {e}")
         return NeslExecuteResponse(success=False, error=str(e))
 
@@ -623,17 +752,25 @@ async def nesl_execute(request: Request, auth: AuthContext = Depends(require_per
 # NOI WORKFLOW ENDPOINTS (Notice of Intimation)
 # ============================================================================
 
-from noi_agent import noi_agent
+from noi_agent import noi_agent  # noqa: E402
+
 
 class NOIWorkflowRequest(BaseModel):
     case_id: str = Field(..., description="Case ID to process")
-    action: str = Field(..., description="Action: generate_challan, verify_docs, file_noi, acknowledge, status")
-    acknowledgment_number: Optional[str] = Field(None, description="Required for acknowledge action")
+    action: str = Field(
+        ...,
+        description="Action: generate_challan, verify_docs, file_noi, acknowledge, status",
+    )
+    acknowledgment_number: Optional[str] = Field(
+        None, description="Required for acknowledge action"
+    )
+
 
 class NOIWorkflowResponse(BaseModel):
     success: bool
     error: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
+
 
 class NOIWebhookPayload(BaseModel):
     case_id: str
@@ -650,23 +787,28 @@ class NOISeedRequest(BaseModel):
 
 
 @app.post("/api/noi/seed", tags=["NOI"])
-async def noi_seed(request: NOISeedRequest, auth: AuthContext = Depends(require_permission("noi.initiate"))):
+async def noi_seed(
+    request: NOISeedRequest,
+    auth: AuthContext = Depends(require_permission("noi.initiate")),
+):
     """Seed a test case in the in-memory store (dev only, no Supabase needed)."""
     try:
         case_data = request.model_dump(exclude_none=True)
         case_id = await noi_agent.seed_test_case(case_data)
         return NOIWorkflowResponse(
-            success=True,
-            data={"case_id": case_id, "noi_status": "DOCUMENTS_RECEIVED"}
+            success=True, data={"case_id": case_id, "noi_status": "DOCUMENTS_RECEIVED"}
         )
     except Exception as e:
         return NOIWorkflowResponse(success=False, error=str(e))
 
 
 @app.post("/api/noi/workflow", tags=["NOI"])
-async def noi_workflow(request: NOIWorkflowRequest, auth: AuthContext = Depends(require_permission("noi.initiate"))):
+async def noi_workflow(
+    request: NOIWorkflowRequest,
+    auth: AuthContext = Depends(require_permission("noi.initiate")),
+):
     """Trigger a NOI workflow action for a case.
-    
+
     Actions:
     - generate_challan: Generate GRAS challan (0.3% stamp duty)
     - verify_docs: Verify documents against NOI checklist
@@ -683,11 +825,15 @@ async def noi_workflow(request: NOIWorkflowRequest, auth: AuthContext = Depends(
         return NOIWorkflowResponse(success=result.get("success", False), data=result)
     except Exception as e:
         import logging
+
         logging.getLogger(__name__).error(f"NOI workflow error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
 
+
 @app.get("/api/noi/status/{case_id}", tags=["NOI"])
-async def noi_status(case_id: str, auth: AuthContext = Depends(require_permission("noi.view_progress"))):
+async def noi_status(
+    case_id: str, auth: AuthContext = Depends(require_permission("noi.view_progress"))
+):
     """Get current NOI status and workflow state for a case."""
     try:
         case = await noi_agent.get_case(case_id)
@@ -703,12 +849,14 @@ async def noi_status(case_id: str, auth: AuthContext = Depends(require_permissio
                 "noi_status": case.get("noi_status", "NOT_STARTED"),
                 "grn_number": case.get("grn_number"),
                 "acknowledgment_number": case.get("acknowledgment_number"),
-            }
+            },
         )
     except Exception as e:
         import logging
+
         logging.getLogger(__name__).error(f"NOI status error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
+
 
 @app.post("/api/noi/webhook", tags=["NOI"])
 async def noi_webhook(payload: NOIWebhookPayload):
@@ -724,7 +872,7 @@ async def noi_webhook(payload: NOIWebhookPayload):
         if payload.status not in valid_statuses:
             return NOIWorkflowResponse(
                 success=False,
-                error=f"Invalid status '{payload.status}'. Valid: {', '.join(valid_statuses)}"
+                error=f"Invalid status '{payload.status}'. Valid: {', '.join(valid_statuses)}",
             )
 
         success = await noi_agent.update_noi_status(
@@ -736,17 +884,20 @@ async def noi_webhook(payload: NOIWebhookPayload):
         if not success:
             return NOIWorkflowResponse(success=False, error="Failed to update status")
 
-        return NOIWorkflowResponse(success=True, data={"case_id": payload.case_id, "status": payload.status})
+        return NOIWorkflowResponse(
+            success=True, data={"case_id": payload.case_id, "status": payload.status}
+        )
     except Exception as e:
         import logging
+
         logging.getLogger(__name__).error(f"NOI webhook error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
 
 
 # ── HITL (Human-in-the-Loop) Queue API ─────────────────────────────────────
 
-from hitl_queue import hitl_queue
-from circuit_breaker import breakers
+from hitl_queue import hitl_queue  # noqa: E402
+from circuit_breaker import breakers  # noqa: E402
 
 
 class HITLClaimRequest(BaseModel):
@@ -765,7 +916,11 @@ async def hitl_list_tasks(auth: AuthContext = Depends(require_permission("hitl.v
 
 
 @app.post("/api/hitl/tasks/{task_id}/claim", tags=["HITL"])
-async def hitl_claim_task(task_id: str, req: HITLClaimRequest, auth: AuthContext = Depends(require_permission("hitl.manage"))):
+async def hitl_claim_task(
+    task_id: str,
+    req: HITLClaimRequest,
+    auth: AuthContext = Depends(require_permission("hitl.manage")),
+):
     """Claim a HITL task for manual processing."""
     task = await hitl_queue.claim_task(task_id, req.claimed_by)
     if task is None:
@@ -774,7 +929,11 @@ async def hitl_claim_task(task_id: str, req: HITLClaimRequest, auth: AuthContext
 
 
 @app.post("/api/hitl/tasks/{task_id}/complete", tags=["HITL"])
-async def hitl_complete_task(task_id: str, req: HITLCompleteRequest, auth: AuthContext = Depends(require_permission("hitl.manage"))):
+async def hitl_complete_task(
+    task_id: str,
+    req: HITLCompleteRequest,
+    auth: AuthContext = Depends(require_permission("hitl.manage")),
+):
     """Mark a HITL task as completed."""
     task = await hitl_queue.complete_task(task_id, req.notes)
     if task is None:
@@ -783,14 +942,17 @@ async def hitl_complete_task(task_id: str, req: HITLCompleteRequest, auth: AuthC
 
 
 @app.get("/api/circuit-breakers", tags=["HITL"])
-async def circuit_breaker_status(auth: AuthContext = Depends(require_permission("hitl.view"))):
+async def circuit_breaker_status(
+    auth: AuthContext = Depends(require_permission("hitl.view")),
+):
     """Get status of all RPA circuit breakers."""
     results = {}
     for name, breaker in breakers.items():
         results[name] = await breaker.status()
     return {"success": True, "breakers": results}
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

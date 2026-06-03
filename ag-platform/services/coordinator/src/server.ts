@@ -16,13 +16,13 @@ app.get('/health', (c) => c.json({ status: 'healthy' }));
 
 app.post('/agent', async (c) => {
   const { query, userId, context } = await c.req.json();
-  
+
   const pool = new SpecialistAgentPool(3);
   const aggregator = new ResultAggregator();
-  
+
   const results = pool.execute(query, context || {});
   const aggregated = aggregator.aggregate(results);
-  
+
   return c.json({
     response: aggregated.finalResponse,
     confidence: aggregated.confidence,
@@ -32,17 +32,17 @@ app.post('/agent', async (c) => {
 
 app.post('/telegram/webhook', async (c) => {
   const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN || '');
-  
+
   bot.on('text', async (ctx) => {
     const text = ctx.message.text;
-    
+
     if (text.startsWith('/agent')) {
       const query = text.replace('/agent', '').trim();
       const pool = new SpecialistAgentPool(3);
       const aggregator = new ResultAggregator();
       const results = pool.execute(query, {});
       const aggregated = aggregator.aggregate(results);
-      
+
       await ctx.reply(aggregated.finalResponse);
     } else if (text.startsWith('/status')) {
       await ctx.reply('Coordinator service is running. Use /agent <query> to process.');
@@ -52,7 +52,7 @@ app.post('/telegram/webhook', async (c) => {
       await ctx.reply('Unknown command. Use /help for available commands.');
     }
   });
-  
+
   return c.json({ ok: true });
 });
 

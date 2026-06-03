@@ -11,7 +11,7 @@ export const NotificationBell: React.FC = () => {
 
   return (
     <div className="relative">
-      <button 
+      <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 rounded-full hover:bg-gray-100 transition text-gray-600"
       >
@@ -28,7 +28,7 @@ export const NotificationBell: React.FC = () => {
           <div className="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
             <h3 className="font-semibold text-gray-900">Notifications</h3>
             {unreadCount > 0 && (
-              <button 
+              <button
                 onClick={markAllAsRead}
                 className="text-xs text-blue-600 hover:text-blue-800 font-medium"
               >
@@ -36,7 +36,7 @@ export const NotificationBell: React.FC = () => {
               </button>
             )}
           </div>
-          
+
           <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="p-6 text-center text-sm text-gray-500">
@@ -45,8 +45,8 @@ export const NotificationBell: React.FC = () => {
             ) : (
               <ul className="divide-y divide-gray-50">
                 {notifications.map((notif) => (
-                  <li 
-                    key={notif.id} 
+                  <li
+                    key={notif.id}
                     className={`p-3 hover:bg-gray-50 cursor-pointer flex gap-3 relative ${!notif.is_read ? 'bg-blue-50/30' : ''}`}
                     onClick={() => {
                         if (!notif.is_read) markAsRead(notif.id);
@@ -65,7 +65,7 @@ export const NotificationBell: React.FC = () => {
                       </p>
                     </div>
                     {!notif.is_read && (
-                       <button 
+                       <button
                          onClick={(e) => { e.stopPropagation(); markAsRead(notif.id); }}
                          className="flex-shrink-0 text-blue-500 hover:bg-blue-100 p-1 rounded-full h-fit mt-1"
                          title="Mark as read"

@@ -92,6 +92,7 @@ def ensure_tables():
 
 # ── User identity mapping ────────────────────────────────────────────────
 
+
 def resolve_user(
     platform: str,
     platform_identity: str,
@@ -125,8 +126,13 @@ def resolve_user(
                     """INSERT INTO user_identity_map
                        (user_id, platform, platform_identity, display_name, metadata)
                        VALUES (%s, %s, %s, %s, %s)""",
-                    (user_id, platform, platform_identity, display_name or platform_identity,
-                     json.dumps(metadata or {})),
+                    (
+                        user_id,
+                        platform,
+                        platform_identity,
+                        display_name or platform_identity,
+                        json.dumps(metadata or {}),
+                    ),
                 )
                 conn.commit()
                 return user_id
@@ -152,6 +158,7 @@ def get_user_identities(user_id: str) -> List[Dict[str, Any]]:
 
 # ── Conversation management ──────────────────────────────────────────────
 
+
 def create_conversation(
     user_id: str,
     platform: str,
@@ -168,8 +175,14 @@ def create_conversation(
                     """INSERT INTO conversations
                        (id, user_id, platform, platform_identity, title, metadata)
                        VALUES (%s, %s, %s, %s, %s, %s)""",
-                    (conv_id, user_id, platform, platform_identity, title,
-                     json.dumps(metadata or {})),
+                    (
+                        conv_id,
+                        user_id,
+                        platform,
+                        platform_identity,
+                        title,
+                        json.dumps(metadata or {}),
+                    ),
                 )
             conn.commit()
         return conv_id
@@ -222,7 +235,9 @@ def list_conversations(user_id: str, limit: int = 20) -> List[Dict[str, Any]]:
         return []
 
 
-def update_conversation_metadata(conversation_id: str, metadata: Dict[str, Any]) -> None:
+def update_conversation_metadata(
+    conversation_id: str, metadata: Dict[str, Any]
+) -> None:
     try:
         with _conn() as conn:
             with conn.cursor() as cur:
@@ -236,6 +251,7 @@ def update_conversation_metadata(conversation_id: str, metadata: Dict[str, Any])
 
 
 # ── Message management ───────────────────────────────────────────────────
+
 
 def add_message(
     conversation_id: str,
@@ -253,8 +269,13 @@ def add_message(
                        (conversation_id, role, content, platform, metadata)
                        VALUES (%s, %s, %s, %s, %s)
                        RETURNING id""",
-                    (conversation_id, role, content, platform,
-                     json.dumps(metadata or {})),
+                    (
+                        conversation_id,
+                        role,
+                        content,
+                        platform,
+                        json.dumps(metadata or {}),
+                    ),
                 )
                 row = cur.fetchone()
                 cur.execute(
@@ -314,6 +335,7 @@ def get_conversation_context_window(
 
 
 # ── Context persistence ──────────────────────────────────────────────────
+
 
 def set_context(conversation_id: str, key: str, value: Any) -> None:
     """Store arbitrary JSON context scoped to a conversation."""

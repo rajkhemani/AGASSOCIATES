@@ -5,6 +5,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 try:
     from workforce.ledger import record_activity as record_activity
 except Exception:  # workforce schema may not be migrated in some envs
+
     def record_activity(**_kwargs):  # type: ignore
         return None
 

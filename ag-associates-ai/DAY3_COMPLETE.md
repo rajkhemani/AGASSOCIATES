@@ -16,7 +16,7 @@ Day 3 completes the 72-hour roadmap by connecting external systems (WhatsApp via
 
 **Key Components:**
 1. **n8n Docker Service**: Self-hosted automation platform running on port 5678
-2. **WhatsApp Webhook Flow**: 
+2. **WhatsApp Webhook Flow**:
    - Catch incoming WhatsApp messages
    - Parse message content and sender
    - POST to FastAPI `/webhook/whatsapp` endpoint
@@ -48,16 +48,16 @@ async def nesl_execute():
     """
     Mock NeSL (National e-Services Ltd) filing endpoint
     Simulates filing the generated agreement with the government registry
-    
+
     Returns a transaction ID after a simulated delay
     """
     try:
         # Simulate processing delay (3 seconds as per roadmap)
         await asyncio.sleep(3)
-        
+
         # Generate a random transaction ID
         transaction_id = f"NESL-{uuid.uuid4().hex[:12].upper()}"
-        
+
         return {
             "success": True,
             "transaction_id": transaction_id,
@@ -162,7 +162,7 @@ useEffect(() => {
       setStatus(data);
     }
   };
-  
+
   fetchStatus();
   const interval = setInterval(fetchStatus, 3000);
   return () => clearInterval(interval);
@@ -171,8 +171,8 @@ useEffect(() => {
 // NeSL filing trigger
 const simulateNeslFiling = async () => {
   setNeslStatus('processing');
-  const response = await fetch(`${API_BASE_URL}/api/nesl/execute`, { 
-    method: 'POST' 
+  const response = await fetch(`${API_BASE_URL}/api/nesl/execute`, {
+    method: 'POST'
   });
   if (response.ok) {
     const data = await response.json();
@@ -387,7 +387,7 @@ When you open http://localhost:3000, you'll see:
 
 1. **Header**: "AG Associates AI" title with subtitle
 2. **Top Row**: 4 glowing glass cards showing metrics
-3. **Middle Section**: 
+3. **Middle Section**:
    - Progress bar filling from 0% to 100%
    - 5 step indicators lighting up sequentially
    - Current agent name changing (Aisha → Drafter → Auditor)

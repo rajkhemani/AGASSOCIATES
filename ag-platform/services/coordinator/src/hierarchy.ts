@@ -271,10 +271,10 @@ export class HierarchicalCoordinator {
     this.pool = new SpecialistAgentPool(apiKey);
     this.aggregator = new ResultAggregator();
   }
-  
+
   /**
    * Execute a user request through the full hierarchy
-   * 
+   *
    * Flow:
    * 1. COORDINATOR: Plan decomposition
    * 2. SPECIALISTS: Parallel execution by dependency groups

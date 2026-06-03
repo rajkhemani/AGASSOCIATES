@@ -23,7 +23,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ currentFile, his
         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             <Clock className="w-4 h-4 text-gray-500"/> Version History
         </h3>
-        <button 
+        <button
            onClick={() => setIsUploadingNew(!isUploadingNew)}
            className="px-3 py-1.5 text-sm bg-black text-white rounded-md font-medium flex items-center gap-2 hover:bg-gray-800"
         >
@@ -33,7 +33,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ currentFile, his
 
       {isUploadingNew && (
         <div className="p-4 bg-blue-50/30 border-b border-gray-100">
-           <FileUploader 
+           <FileUploader
               organizationId={currentFile.organization_id}
               projectId={currentFile.project_id}
               bucketId={currentFile.bucket_id as any}
@@ -71,7 +71,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({ currentFile, his
               </div>
               <p className="text-xs text-gray-500 mt-1">Uploaded {format(new Date(version.created_at), 'MMM d, yyyy h:mm a')} • {(version.size_bytes / 1024).toFixed(1)} KB</p>
             </div>
-            <button 
+            <button
                 onClick={() => onRestored(version)}
                 className="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 hover:bg-blue-50 rounded-md transition"
             >
