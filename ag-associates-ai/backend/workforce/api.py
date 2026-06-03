@@ -156,11 +156,17 @@ def list_activity(
     where = ["TRUE"]
     params: list = []
     if staff_id:
-        where.append("a.staff_id = %s"); params.append(staff_id)
+        where.append("a.staff_id = %s")
+    if staff_id:
+        params.append(staff_id)
     if case_id:
-        where.append("a.case_id = %s"); params.append(case_id)
+        where.append("a.case_id = %s")
+    if case_id:
+        params.append(case_id)
     if source:
-        where.append("a.source = %s"); params.append(source)
+        where.append("a.source = %s")
+    if source:
+        params.append(source)
 
     sql = f"""
         SELECT a.id, a.source, a.capability_code, a.case_id, a.summary,
@@ -242,7 +248,7 @@ def assign_task(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     
     staff_id = payload["staff_id"]
     description = payload["description"]
-    priority = payload.get("priority", "med")
+    # priority = payload.get("priority", "med")
     case_id = payload.get("case_id")
     
     # 1. Log the task assignment in the database (staff_activity)

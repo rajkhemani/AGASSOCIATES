@@ -17,7 +17,7 @@ export function ProjectBriefGenerator({ orgId }: ProjectBriefGeneratorProps) {
 
   const { completion, complete, isLoading, stop, error } = useCompletion({
     api: '/api/ai/generate-brief',
-    onError: (err) => {
+    onError: (err: any) => {
       console.error(err);
     }
   });

@@ -25,6 +25,8 @@ export interface AgentResult {
   output?: string;
   error?: string;
   duration?: number;
+  startedAt?: number;
+  completedAt?: number;
 }
 
 export interface OrchestrationPlan {
@@ -46,7 +48,7 @@ export class CoordinatorAgent {
   private model: string;
 
   constructor(apiKey: string) {
-    this.genAI = new GoogleGenAI(apiKey);
+    this.genAI = new (GoogleGenAI as any)(apiKey);
     this.model = 'gemini-2.0-flash-exp';  // Use flash for speed
   }
 
@@ -154,7 +156,7 @@ export class SpecialistAgentPool {
   private genAI: GoogleGenAI;
 
   constructor(apiKey: string) {
-    this.genAI = new GoogleGenAI(apiKey);
+    this.genAI = new (GoogleGenAI as any)(apiKey);
   }
 
   /**
@@ -162,6 +164,7 @@ export class SpecialistAgentPool {
    */
   async execute(task: AgentTask): Promise<AgentResult> {
     const startTime = Date.now();
+    const startedAt = startTime;
 
     try {
       const output = await this.runInWorker(task);
@@ -283,6 +286,7 @@ export class HierarchicalCoordinator {
    */
   async execute(userRequest: string): Promise<{ finalAnswer: string; report: string; results: AgentResult[] }> {
     const startTime = Date.now();
+    const startedAt = startTime;
 
     // ─── Step 1: COORDINATOR plans ────────────────────────────
     const plan = await this.coordinator.plan(userRequest);

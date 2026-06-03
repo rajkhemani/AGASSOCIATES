@@ -26,7 +26,7 @@ class GrasRPAExecutor:
         logger.info(f"🚀 [EXECUTOR] Starting GRAS RPA for case: {case_id}")
         
         # 1. We trust the input strictly (Validated by Agent 3: The Bouncer)
-        tenant_name = extracted_data.get('tenant_name')
+        # tenant_name = extracted_data.get('tenant_name')
         rent_amount_str = str(extracted_data.get('rent_amount', '0'))
 
         # Sanitize while preserving the decimal point so values like "50000.50" stay intact.

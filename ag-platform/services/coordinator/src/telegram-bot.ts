@@ -25,7 +25,7 @@ if (!BOT_TOKEN || !GEMINI_API_KEY) {
 }
 
 // ─── Initialize Services ───────────────────────────────────────────────────
-const bot = new Telegraf(BOT_TOKEN);
+const bot = new (Telegraf as any)(BOT_TOKEN);
 const coordinator = new HierarchicalCoordinator(GEMINI_API_KEY);
 const dbPool = new Pool(DB_CONFIG);
 
@@ -111,7 +111,7 @@ function formatExecutionTime(ms: number): string {
 }
 
 // ─── Command Handlers ─────────────────────────────────────────────────────
-bot.start(async (ctx) => {
+bot.start(async (ctx: any) => {
   await ctx.reply(
     `🤖 <b>Hierarchical Multi-Agent AI System</b>\n\n` +
     `Welcome! I coordinate a team of specialized AI agents to handle complex tasks.\n\n` +
@@ -128,7 +128,7 @@ bot.start(async (ctx) => {
   );
 });
 
-bot.command('agent', async (ctx) => {
+bot.command('agent', async  (ctx: any) => {
   const commandText = ctx.message?.text?.replace('/agent', '').trim();
   
   if (!commandText) {
@@ -222,7 +222,7 @@ bot.command('agent', async (ctx) => {
         { parse_mode: 'HTML' }
       );
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Execution failed:', error);
     await ctx.telegram.editMessageText(
       ctx.chat!.id,
@@ -236,7 +236,7 @@ bot.command('agent', async (ctx) => {
   }
 });
 
-bot.command('status', async (ctx) => {
+bot.command('status', async  (ctx: any) => {
   try {
     const client = await dbPool.connect();
     try {
@@ -267,13 +267,13 @@ bot.command('status', async (ctx) => {
     } finally {
       client.release();
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Status query failed:', error);
     await ctx.reply('❌ Failed to fetch status from database.');
   }
 });
 
-bot.command('help', (ctx) => {
+bot.command('help',  (ctx: any) => {
   ctx.reply(
     `🤖 <b>Hierarchical Multi-Agent AI System</b>\n\n` +
     `<b>Architecture:</b>\n` +
@@ -302,7 +302,7 @@ bot.command('help', (ctx) => {
 });
 
 // ─── Error Handling ───────────────────────────────────────────────────────
-bot.catch((err, ctx) => {
+bot.catch((err: any, ctx: any) => {
   console.error(`Telegram error for ${ctx.updateType}:`, err);
   ctx.reply('❌ An internal error occurred. Please try again.');
 });

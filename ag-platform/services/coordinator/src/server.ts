@@ -2,9 +2,9 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import { Router } from './router';
+import { createRouter } from './router';
 import { Telegraf } from 'telegraf';
-import { CoordinatorAgent, SpecialistAgentPool, ResultAggregator } from './hierarchy';
+import { HierarchicalCoordinator } from './hierarchy';
 
 const app = new Hono();
 
@@ -15,18 +15,14 @@ app.get('/', (c) => c.json({ status: 'ok', service: 'coordinator' }));
 app.get('/health', (c) => c.json({ status: 'healthy' }));
 
 app.post('/agent', async (c) => {
-  const { query, userId, context } = await c.req.json();
-  
-  const pool = new SpecialistAgentPool(3);
-  const aggregator = new ResultAggregator();
-  
-  const results = pool.execute(query, context || {});
-  const aggregated = aggregator.aggregate(results);
+  const { query } = await c.req.json();
+  const coordinator = new HierarchicalCoordinator(process.env.GEMINI_API_KEY || '');
+  const result = await coordinator.execute(query);
   
   return c.json({
-    response: aggregated.finalResponse,
-    confidence: aggregated.confidence,
-    specialists: results.length
+    response: result.finalAnswer,
+    report: result.report,
+    specialists: result.results.length
   });
 });
 
@@ -34,16 +30,13 @@ app.post('/telegram/webhook', async (c) => {
   const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN || '');
   
   bot.on('text', async (ctx) => {
-    const text = ctx.message.text;
+    const text = (ctx.message as any).text;
     
     if (text.startsWith('/agent')) {
       const query = text.replace('/agent', '').trim();
-      const pool = new SpecialistAgentPool(3);
-      const aggregator = new ResultAggregator();
-      const results = pool.execute(query, {});
-      const aggregated = aggregator.aggregate(results);
-      
-      await ctx.reply(aggregated.finalResponse);
+      const coordinator = new HierarchicalCoordinator(process.env.GEMINI_API_KEY || '');
+      const result = await coordinator.execute(query);
+      await ctx.reply(result.finalAnswer);
     } else if (text.startsWith('/status')) {
       await ctx.reply('Coordinator service is running. Use /agent <query> to process.');
     } else if (text.startsWith('/help')) {

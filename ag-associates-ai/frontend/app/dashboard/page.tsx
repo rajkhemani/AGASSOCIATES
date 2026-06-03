@@ -58,6 +58,7 @@ export default function Dashboard() {
     fetchStatus();
     const interval = setInterval(fetchStatus, 3000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Poll workflow status every second
@@ -87,7 +88,9 @@ export default function Dashboard() {
     fetchWorkflow();
     const interval = setInterval(fetchWorkflow, 1000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
 
   const triggerNeslFiling = async () => {
     if (neslStatus !== 'idle') return;

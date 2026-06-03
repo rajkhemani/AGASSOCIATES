@@ -30,7 +30,7 @@ export default function ManifestoSection() {
               model. Our systems are designed to decouple output from staffing.
             </p>
             <p>
-              Luxurious restraint isn't just an aesthetic; it's an operational mandate. We strip away
+              Luxurious restraint isn&apos;t just an aesthetic; it&apos;s an operational mandate. We strip away
               the non-essential, leaving only precise, high-performance intelligence that works
               24/7 with zero drift.
             </p>

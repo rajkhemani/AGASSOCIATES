@@ -3,14 +3,8 @@ import re
 import json
 import base64
 import secrets
-import importlib.util
 from datetime import datetime, timezone
 import redis.asyncio as aioredis
-
-# Dynamic import to silence IDE warnings when module is not in the system path
-sentry_sdk = None
-if importlib.util.find_spec("sentry_sdk"):
-    import sentry_sdk
 from fastapi import FastAPI, Header, HTTPException, status, Response, Request, Depends, Cookie
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any, Optional
@@ -23,6 +17,26 @@ from payment.router import router as payment_router
 from controller_agent import UnifiedController
 from aisha_core import handle_message as aisha_handle_message, ensure_tables
 from nesl_client import NeslClient
+from integrations.nesl import shutdown_nesl_client
+import asyncio
+import logging
+import psycopg2
+from config import get_database_url
+import hashlib
+from auth.google_oauth import _decode_session
+from voice.piper_service import synthesize
+from fastapi.responses import StreamingResponse
+from conversation_store import get_messages
+from noi_agent import noi_agent
+from hitl_queue import hitl_queue
+from circuit_breaker import breakers
+import uvicorn
+try:
+    import sentry_sdk
+except ImportError:
+    sentry_sdk = None
+
+# Dynamic import to silence IDE warnings when module is not in the system path
 
 
 
@@ -102,8 +116,6 @@ async def whatsapp_webhook(payload: Dict[str, Any], x_api_key: Optional[str] = H
     if not raw_input:
         raise HTTPException(status_code=400, detail="Missing 'message' in payload")
 
-    import asyncio
-    import logging
     logger = logging.getLogger("uvicorn.error")
 
     try:
@@ -143,8 +155,6 @@ async def generate_agreement(
     """
     _verify_n8n_key(x_api_key)
 
-    import asyncio
-    import logging
     logger = logging.getLogger("uvicorn.error")
 
     try:
@@ -205,8 +215,6 @@ if not IS_PRODUCTION:
 @app.get("/dashboard/status", tags=["Dashboard"])
 async def dashboard_status(auth: AuthContext = Depends(require_permission("dashboard.view"))):
     """Returns dashboard metrics: template count, active agents, recent activities."""
-    import psycopg2
-    from config import get_database_url
 
     template_count = 0
     try:
@@ -233,8 +241,6 @@ async def dashboard_status(auth: AuthContext = Depends(require_permission("dashb
 @app.get("/templates", tags=["Dashboard"])
 async def list_templates(auth: AuthContext = Depends(require_permission("dashboard.view")), template_type: Optional[str] = None, language: Optional[str] = None):
     """List legal templates with optional filters."""
-    import psycopg2
-    from config import get_database_url
 
     templates = []
     try:
@@ -290,7 +296,6 @@ async def aisha_chat(
 
     Auth: either x-api-key header (service-to-service) or ag_session cookie (web).
     """
-    import hashlib
 
     identity = None
     display_name = request.display_name or ""
@@ -301,7 +306,6 @@ async def aisha_chat(
         identity = x_user_id or request.platform_identity or f"api_{hashlib.md5(x_api_key.encode()).hexdigest()[:8]}"
     # 2. Session cookie (web dashboard users)
     elif ag_session:
-        from auth.google_oauth import _decode_session
         try:
             user = _decode_session(ag_session)
             identity = user.get("sub", "")
@@ -311,7 +315,6 @@ async def aisha_chat(
     else:
         raise HTTPException(status_code=401, detail="not signed in")
 
-    import asyncio
 
     result = await asyncio.to_thread(
         aisha_handle_message,
@@ -336,7 +339,6 @@ async def aisha_sms_webhook(
     if not Body:
         return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response/>', media_type="text/xml")
 
-    import asyncio
     phone = From or "unknown"
 
     result = await asyncio.to_thread(
@@ -376,7 +378,6 @@ async def aisha_voice_call_webhook(
 </Response>"""
         return Response(content=twiml, media_type="text/xml")
 
-    import asyncio
     phone = From or "unknown"
 
     result = await asyncio.to_thread(
@@ -422,7 +423,6 @@ async def aisha_voice_text(payload: Dict[str, Any], auth: AuthContext = Depends(
     if not text:
         raise HTTPException(status_code=400, detail="Missing 'text' in payload")
 
-    import asyncio
     result = await asyncio.to_thread(
         aisha_handle_message,
         text,
@@ -433,7 +433,6 @@ async def aisha_voice_text(payload: Dict[str, Any], auth: AuthContext = Depends(
 
     audio = None
     if payload.get("tts", True):
-        from voice.piper_service import synthesize
         audio = synthesize(result.get("response", ""))
 
     return {
@@ -512,13 +511,10 @@ async def sms_ingest(request: Request):
     }
 
 
-from fastapi.responses import StreamingResponse
 
 @app.get("/api/aisha/chat/{conversation_id}/stream", tags=["Aisha"])
 async def aisha_chat_stream(conversation_id: str, after_id: int = 0, auth: AuthContext = Depends(require_permission("aisha.chat"))):
     """SSE endpoint for web chat widget — streams new messages."""
-    from conversation_store import get_messages
-    import asyncio
 
     async def event_stream():
         last_id = after_id
@@ -557,7 +553,6 @@ async def unified_chat(request: UnifiedChatRequest, auth: AuthContext = Depends(
         )
         return result
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"Unified Controller error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -614,7 +609,6 @@ async def nesl_execute(request: Request, auth: AuthContext = Depends(require_per
             mode=result.get("mode", "mock"),
         )
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"NeSL execution error: {e}")
         return NeslExecuteResponse(success=False, error=str(e))
 
@@ -623,7 +617,6 @@ async def nesl_execute(request: Request, auth: AuthContext = Depends(require_per
 # NOI WORKFLOW ENDPOINTS (Notice of Intimation)
 # ============================================================================
 
-from noi_agent import noi_agent
 
 class NOIWorkflowRequest(BaseModel):
     case_id: str = Field(..., description="Case ID to process")
@@ -682,7 +675,6 @@ async def noi_workflow(request: NOIWorkflowRequest, auth: AuthContext = Depends(
         )
         return NOIWorkflowResponse(success=result.get("success", False), data=result)
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"NOI workflow error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
 
@@ -706,7 +698,6 @@ async def noi_status(case_id: str, auth: AuthContext = Depends(require_permissio
             }
         )
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"NOI status error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
 
@@ -738,15 +729,12 @@ async def noi_webhook(payload: NOIWebhookPayload):
 
         return NOIWorkflowResponse(success=True, data={"case_id": payload.case_id, "status": payload.status})
     except Exception as e:
-        import logging
         logging.getLogger(__name__).error(f"NOI webhook error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
 
 
 # ── HITL (Human-in-the-Loop) Queue API ─────────────────────────────────────
 
-from hitl_queue import hitl_queue
-from circuit_breaker import breakers
 
 
 class HITLClaimRequest(BaseModel):
@@ -792,5 +780,4 @@ async def circuit_breaker_status(auth: AuthContext = Depends(require_permission(
 
 if __name__ == "__main__":
 
-    import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

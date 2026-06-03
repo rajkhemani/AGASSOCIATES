@@ -103,7 +103,7 @@ class AgreementPDFGenerator:
         flowables = []
         lines = content.split('\n')
         
-        current_section = None
+        # current_section = None
         current_paragraph = []
         
         for line in lines:
@@ -127,7 +127,7 @@ class AgreementPDFGenerator:
                 
                 section_title = self._clean_markdown(line[3:].strip())
                 flowables.append(Paragraph(section_title, self.styles['SectionHeader']))
-                current_section = section_title
+                # current_section = section_title
                 continue
             
             if line.startswith('##'):
@@ -138,7 +138,7 @@ class AgreementPDFGenerator:
                 
                 section_title = self._clean_markdown(line[2:].strip())
                 flowables.append(Paragraph(section_title, self.styles['SectionHeader']))
-                current_section = section_title
+                # current_section = section_title
                 continue
             
             if line.startswith('#'):

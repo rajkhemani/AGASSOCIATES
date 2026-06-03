@@ -560,7 +560,7 @@ async def voice_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not voice:
         return
 
-    cid = update.effective_chat.id
+    # cid = update.effective_chat.id
     await update.message.reply_chat_action("typing")
 
     f = await ctx.bot.get_file(voice.file_id)
@@ -878,6 +878,7 @@ async def noi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def task_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    from .db import update_task_status
     if not ctx.args or len(ctx.args) < 2:
         await update.message.reply_text(
             "📋 <b>Task Management</b>\n\n"

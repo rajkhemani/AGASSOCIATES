@@ -58,7 +58,7 @@ Guidelines:
 // ─── Worker Execution ──────────────────────────────────────────────────────
 
 async function executeTask() {
-  const genAI = new GoogleGenAI(apiKey);
+  const genAI = new (GoogleGenAI as any)(apiKey);
   const prompt = AGENT_PROMPTS[task.role] || AGENT_PROMPTS.writer;
 
   const result = await genAI.models.generateContent({

@@ -9,6 +9,7 @@ Flow:
   5. Log action to Redis for dashboard visibility
 """
 
+import json
 import os
 import logging
 import asyncio
@@ -16,10 +17,7 @@ import imaplib
 import email
 import re
 from email.header import decode_header
-from typing import Optional, List, Dict, Any, Tuple
-import base64
-import io
-from PIL import Image
+from typing import Optional, Tuple
 
 import httpx
 from pydantic import BaseModel, Field
@@ -204,7 +202,7 @@ async def fetch_new_emails() -> list[dict]:
 async def extract_loan_details(email_text: str, sender: str, subject: str, attachments: list = None) -> Optional[LoanSanctionExtract]:
     """Extract loan sanction details from bank email and attachments."""
     attachment_descriptions = []
-    payment_info = None
+    # payment_info = None
     
     if attachments:
         for att in attachments:
@@ -310,7 +308,7 @@ async def create_case(extract: LoanSanctionExtract, sender_email: str, attachmen
     if attachments:
         for att in attachments:
             filename = att.get('filename', '').lower()
-            content_type = att.get('content_type', '')
+            # content_type = att.get('content_type', '')
             
             # Check for NOI/document attachments
             if any(keyword in filename for keyword in ['sanction', 'noc', 'approval', 'loan', 'property']):
@@ -381,6 +379,8 @@ async def poll_once() -> int:
 
     created = 0
     for mail in emails:
+        noi_related = False
+        payment_found = False
         extract = await extract_loan_details(mail["body"], mail["sender"], mail["subject"])
         if extract is None or extract.confidence < 0.3:
             logger.info("Low confidence extraction for email from %s — skipping", mail["sender"])
