@@ -284,7 +284,7 @@ fun AgosDashboardConsole(viewModel: VibeViewModel) {
     val tasks = viewModel.agosTasks
     val notifications = viewModel.agosNotifications
     val activeUser = viewModel.currentUserName
-    
+
     var showAiTriggerDialog by remember { mutableStateOf(false) }
     var selectedCaseForAgentRun by remember { mutableStateOf<AgosCase?>(null) }
     var selectedAgentForRun by remember { mutableStateOf<AIEmployee?>(null) }
@@ -372,7 +372,7 @@ fun AgosDashboardConsole(viewModel: VibeViewModel) {
                         )
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
@@ -562,7 +562,7 @@ fun AgosDashboardConsole(viewModel: VibeViewModel) {
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
-                    
+
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(text = "Target Case Folder:", color = CyberTextSecondary, fontSize = 11.sp, modifier = Modifier.align(Alignment.Start))
@@ -790,7 +790,7 @@ fun AgosAiTeamBoard(viewModel: VibeViewModel) {
         ) {
             items(columns) { col ->
                 val workersInCol = employees.filter { it.column == col }
-                
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = SleekContainer.copy(alpha = 0.5f)),
@@ -998,7 +998,7 @@ fun AIEmployeeKanbanCard(emp: AIEmployee, onTriggerClicked: () -> Unit) {
                     Text(text = emp.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Text(text = emp.purpose, color = CyberTextSecondary, fontSize = 10.sp)
                 }
-                
+
                 // Trigger button
                 IconButton(
                     onClick = onTriggerClicked,
@@ -1069,7 +1069,7 @@ fun AIEmployeeKanbanCard(emp: AIEmployee, onTriggerClicked: () -> Unit) {
 @Composable
 fun AgosWorkspacesCenter(viewModel: VibeViewModel) {
     var workspaceTab by remember { mutableStateOf(0) } // 0 = Clients Directory, 1 = Case Vault Folder
-    
+
     // Clients state
     val clients = viewModel.agosClients
     var showAddClientDialog by remember { mutableStateOf(false) }
@@ -1365,7 +1365,7 @@ fun ClientProfileCard(client: AgosClient) {
                     Text(text = "Entity: " + client.companyName, color = CyberTextSecondary, fontSize = 11.sp)
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(12.dp))
             Divider(color = CyberBorder.copy(alpha = 0.4f), thickness = 1.dp)
             Spacer(modifier = Modifier.height(12.dp))
@@ -1414,7 +1414,7 @@ fun CaseWorkspaceDetailsPanel(viewModel: VibeViewModel, caseItem: AgosCase) {
             Text(text = "Case #${caseItem.caseNumber}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
             Text(text = "${caseItem.serviceType} • Owner: ${caseItem.assignedTo}", color = CyberTextSecondary, fontSize = 10.sp)
         }
-        
+
         // Priority Badge glow design
         Box(
             modifier = Modifier
@@ -1624,7 +1624,7 @@ fun CaseWorkspaceDetailsPanel(viewModel: VibeViewModel, caseItem: AgosCase) {
                                         Text(text = doc.fileName, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                         Text(text = "Type: ${doc.fileType} • Uploaded by: ${doc.uploadedBy}", color = CyberTextSecondary, fontSize = 8.5.sp)
                                     }
-                                    
+
                                     // Trigger OCR action
                                     val isRunningThis = viewModel.isDocOcrRunning && viewModel.activeOcrDocId == doc.id
                                     Button(

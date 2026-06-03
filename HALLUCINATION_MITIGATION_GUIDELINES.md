@@ -1,8 +1,8 @@
 # Hallucination Detection and Mitigation Guidelines
 
-**Category**: ai, reliability  
-**Applies to**: claude, gemini, cursor, copilot, any  
-**Version**: 1.0.0  
+**Category**: ai, reliability
+**Applies to**: claude, gemini, cursor, copilot, any
+**Version**: 1.0.0
 
 **Overview**
 LLMs hallucinate — they generate plausible-sounding but factually incorrect content with high confidence. In production systems, hallucinations cause incorrect medical advice, broken code, wrong legal citations, fabricated API calls, and erroneous financial data.

@@ -55,10 +55,10 @@ async function checkAndTrackTokens(orgId: string, tokensToConsume: number = 0) {
 router.post("/generate-brief", async (req, res) => {
   try {
     const { project_name, client_name, scope_description, deliverables, orgId } = req.body;
-    
+
     await checkAndTrackTokens(orgId); // Basic quota check
 
-    const systemPrompt = `You are a senior consultant writing professional project briefs. 
+    const systemPrompt = `You are a senior consultant writing professional project briefs.
 Structure the output using Markdown with the following sections exactly:
 - Executive Summary
 - Scope
@@ -72,7 +72,7 @@ Scope Description: ${scope_description}
 Deliverables: ${deliverables ? deliverables.join(', ') : 'Not specified'}`;
 
     const result = await streamText({
-      model: google("gemini-3.1-pro-preview"),
+      model: (google as any)("gemini-3.1-pro-preview"),
       system: systemPrompt,
       prompt: prompt,
     });
@@ -96,7 +96,7 @@ router.post("/suggest-tasks", async (req, res) => {
     await checkAndTrackTokens(orgId);
 
     const result = await generateObject({
-      model: google("gemini-3.1-pro-preview"),
+      model: (google as any)("gemini-3.1-pro-preview"),
       system: "You are an expert project manager. Based on the provided project brief and any existing tasks, suggest an array of new detailed tasks.",
       prompt: `Brief:\n${brief}\n\nExisting Tasks:\n${JSON.stringify(existingTasks)}`,
       schema: z.object({
@@ -123,7 +123,7 @@ router.post("/draft-email", async (req, res) => {
     await checkAndTrackTokens(orgId);
 
     const result = await generateText({
-      model: google("gemini-3.1-pro-preview"),
+      model: (google as any)("gemini-3.1-pro-preview"),
       system: "You are an elite client relations manager. Write a professional email draft based on the provided context.",
       prompt: `Type: ${email_type}\nContext: ${JSON.stringify(context_data)}`
     });
@@ -162,7 +162,7 @@ router.post("/invoice-line-item", async (req, res) => {
     await checkAndTrackTokens(orgId);
 
     const result = await generateObject({
-      model: google("gemini-3.1-pro-preview"),
+      model: (google as any)("gemini-3.1-pro-preview"),
       system: "Create succinct, professional invoice line item descriptions consolidating these time entries.",
       prompt: `Project: ${project_name}\Entries: ${JSON.stringify(time_entries)}`,
       schema: z.object({
@@ -187,7 +187,7 @@ router.post("/summarize-document", async (req, res) => {
     await checkAndTrackTokens(orgId);
 
     const result = await generateObject({
-      model: google("gemini-3.1-pro-preview"),
+      model: (google as any)("gemini-3.1-pro-preview"),
       system: "You are a fast, precise business analyst. Summarize the document.",
       prompt: extracted_text,
       schema: z.object({
@@ -209,10 +209,10 @@ router.post("/summarize-document", async (req, res) => {
 router.post("/search-projects", async (req, res) => {
   try {
     const { query, orgId } = req.body;
-    
+
     // Create query embedding
     const { embedding } = await embed({
-      model: google.textEmbeddingModel('text-embedding-004'),
+      model: (google as any).textEmbeddingModel('text-embedding-004'),
       value: query,
     });
 
@@ -236,9 +236,9 @@ router.post("/ingest-project", async (req, res) => {
   try {
     const { projectId, content, orgId } = req.body;
     await checkAndTrackTokens(orgId); // Account for ingestion
-    
+
     const { embedding } = await embed({
-      model: google.textEmbeddingModel('text-embedding-004'),
+      model: (google as any).textEmbeddingModel('text-embedding-004'),
       value: content,
     });
 
@@ -260,7 +260,7 @@ router.post("/ingest-project", async (req, res) => {
 router.post("/vet-document", async (req, res) => {
   try {
     const { documentText, documentType, orgId } = req.body;
-    
+
     await checkAndTrackTokens(orgId); // Account for tokens
 
     if (!documentText) {
@@ -275,7 +275,7 @@ Document Text:
 ${documentText}`;
 
     const result = await generateObject({
-      model: google("gemini-3.1-pro-preview"),
+      model: (google as any)("gemini-3.1-pro-preview"),
       system: systemPrompt,
       prompt: prompt,
       schema: z.object({

@@ -36,12 +36,12 @@ function LoadingScreen() {
 function Navigation() {
   const location = useLocation();
   const { user, signOut } = useAuthStore();
-  
+
   const getLinkStyle = (path: string) => {
     const isActive = location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
     return `flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 ${
-      isActive 
-        ? 'glass-nav-link active text-white' 
+      isActive
+        ? 'glass-nav-link active text-white'
         : 'glass-nav-link text-white/70 hover:text-white hover:bg-white/10'
     }`;
   };
@@ -74,7 +74,7 @@ function Navigation() {
           <Landmark size={16} /> Bank Portal
         </Link>
         {user ? (
-          <button 
+          <button
             onClick={() => signOut()}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-300"
           >
@@ -121,7 +121,7 @@ function App() {
             <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
             <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
           </div>
-          
+
           <Navigation />
           <main className="flex-1 flex flex-col w-full relative z-10">
             <Routes>

@@ -81,7 +81,7 @@ export function SmartTaskSuggestions({ brief, existingTasks, orgId, onAddTasks }
               </li>
             ))}
           </ul>
-          <button 
+          <button
             onClick={handleAddAll}
             className="w-full flex justify-center items-center gap-2 bg-gray-900 hover:bg-black text-white py-2 rounded-lg text-sm font-medium transition"
           >

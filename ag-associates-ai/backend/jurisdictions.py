@@ -1,5 +1,6 @@
 # jurisdictions.py
 
+
 class Jurisdiction:
     def __init__(self, name, compliance_rules, currency, template_mapping):
         self.name = name
@@ -9,10 +10,10 @@ class Jurisdiction:
 
     def get_info(self):
         return {
-            'name': self.name,
-            'compliance_rules': self.compliance_rules,
-            'currency': self.currency,
-            'template_mapping': self.template_mapping
+            "name": self.name,
+            "compliance_rules": self.compliance_rules,
+            "currency": self.currency,
+            "template_mapping": self.template_mapping,
         }
 
 
@@ -31,24 +32,24 @@ class JurisdictionRegistry:
 
 
 # Define compliance rules and currency mappings
-us_compliance_rules = {'tax_rate': '7%', 'data_protection': 'GDPR'}
-EU_compliance_rules = {'tax_rate': '20%', 'data_protection': 'GDPR'}
-indiastate_compliance_rules = {'tax_rate': '18%', 'data_protection': 'IT Act'}
+us_compliance_rules = {"tax_rate": "7%", "data_protection": "GDPR"}
+EU_compliance_rules = {"tax_rate": "20%", "data_protection": "GDPR"}
+indiastate_compliance_rules = {"tax_rate": "18%", "data_protection": "IT Act"}
 
 
 # Create a registry instance
 jurisdiction_registry = JurisdictionRegistry()
 
 # Register jurisdictions
-us = Jurisdiction('United States', us_compliance_rules, 'USD', 'template_us')
+us = Jurisdiction("United States", us_compliance_rules, "USD", "template_us")
 jurisdiction_registry.register_jurisdiction(us)
 
-eu = Jurisdiction('European Union', EU_compliance_rules, 'EUR', 'template_eu')
+eu = Jurisdiction("European Union", EU_compliance_rules, "EUR", "template_eu")
 jurisdiction_registry.register_jurisdiction(eu)
 
-india = Jurisdiction('India', indiastate_compliance_rules, 'INR', 'template_india')
+india = Jurisdiction("India", indiastate_compliance_rules, "INR", "template_india")
 jurisdiction_registry.register_jurisdiction(india)
 
 # List all registered jurisdictions
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(jurisdiction_registry.list_jurisdictions())

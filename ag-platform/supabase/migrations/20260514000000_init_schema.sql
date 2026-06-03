@@ -57,8 +57,8 @@ CREATE POLICY "Bank Viewer Isolation" ON cases
     FOR SELECT
     USING (
         auth.uid() IN (
-            SELECT user_id FROM user_roles WHERE role = 'BANK_VIEWER' 
-            AND org_id = cases.org_id 
+            SELECT user_id FROM user_roles WHERE role = 'BANK_VIEWER'
+            AND org_id = cases.org_id
             AND bank_access = cases.bank_name::text
         )
     );

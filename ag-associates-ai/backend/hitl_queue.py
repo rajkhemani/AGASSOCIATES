@@ -72,7 +72,9 @@ class HITLQueue:
         pipeline.set(self._task_key(task["id"]), json.dumps(task), ex=86400 * 7)
         pipeline.lpush(self._list_key(), task["id"])
         await pipeline.execute()
-        logger.warning("HITL task %s created: %s/%s — %s", task["id"], portal, case_id, reason)
+        logger.warning(
+            "HITL task %s created: %s/%s — %s", task["id"], portal, case_id, reason
+        )
         return task
 
     async def list_pending(self) -> List[dict]:
@@ -83,8 +85,15 @@ class HITLQueue:
             raw = await r.get(self._task_key(tid))
             if raw:
                 task = json.loads(raw)
-                if task.get("status") in (HITLTaskStatus.PENDING.value, HITLTaskStatus.CLAIMED.value):
-                    task["payload"] = json.loads(task["payload"]) if isinstance(task["payload"], str) else task["payload"]
+                if task.get("status") in (
+                    HITLTaskStatus.PENDING.value,
+                    HITLTaskStatus.CLAIMED.value,
+                ):
+                    task["payload"] = (
+                        json.loads(task["payload"])
+                        if isinstance(task["payload"], str)
+                        else task["payload"]
+                    )
                     tasks.append(task)
         return tasks
 
@@ -99,8 +108,14 @@ class HITLQueue:
         task["status"] = HITLTaskStatus.CLAIMED.value
         task["claimed_by"] = claimed_by
         task["claimed_at"] = datetime.now(timezone.utc).isoformat()
-        await r.set(self._task_key(task_id), json.dumps(task), ex=86400 * 7, keepttl=True)
-        task["payload"] = json.loads(task["payload"]) if isinstance(task["payload"], str) else task["payload"]
+        await r.set(
+            self._task_key(task_id), json.dumps(task), ex=86400 * 7, keepttl=True
+        )
+        task["payload"] = (
+            json.loads(task["payload"])
+            if isinstance(task["payload"], str)
+            else task["payload"]
+        )
         return task
 
     async def complete_task(self, task_id: str, notes: str = "") -> Optional[dict]:
@@ -114,7 +129,11 @@ class HITLQueue:
         task["notes"] = notes
         await r.set(self._task_key(task_id), json.dumps(task), ex=86400, keepttl=True)
         await r.lrem(self._list_key(), 0, task_id)
-        task["payload"] = json.loads(task["payload"]) if isinstance(task["payload"], str) else task["payload"]
+        task["payload"] = (
+            json.loads(task["payload"])
+            if isinstance(task["payload"], str)
+            else task["payload"]
+        )
         return task
 
     async def fail_task(self, task_id: str, error: str) -> Optional[dict]:

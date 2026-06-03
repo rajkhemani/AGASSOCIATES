@@ -8,6 +8,7 @@ class AgentState(TypedDict):
     State schema for the agent workflow. Tracks all variables through the
     pipeline: Aisha (intake) → Guardrail → Bouncer → Drafter → Auditor.
     """
+
     # Input from user
     raw_input: str
     sender: str

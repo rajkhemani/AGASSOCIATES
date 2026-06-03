@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { 
-  Building2, 
-  Shield, 
-  Clock, 
-  CheckCircle, 
-  Star, 
-  ArrowRight, 
+import {
+  Building2,
+  Shield,
+  Clock,
+  CheckCircle,
+  Star,
+  ArrowRight,
   ChevronDown,
   Users,
   TrendingUp,
@@ -68,7 +68,7 @@ function ParticleField() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -77,7 +77,7 @@ function ParticleField() {
     canvasEl.height = window.innerHeight;
 
     const particles: { x: number; y: number; vx: number; vy: number; size: number; opacity: number }[] = [];
-    
+
     for (let i = 0; i < 60; i++) {
       particles.push({
         x: Math.random() * canvasEl.width,
@@ -90,18 +90,18 @@ function ParticleField() {
     }
 
     let animationId: number;
-    
+
     function animate() {
       if (!ctx) return;
       ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-      
+
       particles.forEach(p => {
         p.x += p.vx;
         p.y += p.vy;
-        
+
         if (p.x < 0 || p.x > canvasEl.width) p.vx *= -1;
         if (p.y < 0 || p.y > canvasEl.height) p.vy *= -1;
-        
+
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(212, 175, 55, ${p.opacity})`;
@@ -110,16 +110,16 @@ function ParticleField() {
 
       animationId = requestAnimationFrame(animate);
     }
-    
+
     animate();
-    
+
     const handleResize = () => {
       canvasEl.width = window.innerWidth;
       canvasEl.height = window.innerHeight;
     };
-    
+
     window.addEventListener('resize', handleResize);
-    
+
     return () => {
       cancelAnimationFrame(animationId);
       window.removeEventListener('resize', handleResize);
@@ -141,27 +141,27 @@ export default function CorporateLanding() {
 
   // Premium Banking Services
   const services = [
-    { 
-      icon: Handshake, 
-      title: 'Corporate Advisory', 
+    {
+      icon: Handshake,
+      title: 'Corporate Advisory',
       description: 'Strategic financial guidance tailored to enterprise needs with measurable outcomes.',
       color: '#D4AF37' // Gold
     },
-    { 
-      icon: BarChart3, 
-      title: 'Portfolio Management', 
+    {
+      icon: BarChart3,
+      title: 'Portfolio Management',
       description: 'Sophisticated investment strategies designed for sustainable growth and risk optimization.',
       color: '#1E3A5F' // Deep Navy
     },
-    { 
-      icon: Shield, 
-      title: 'Risk Mitigation', 
+    {
+      icon: Shield,
+      title: 'Risk Mitigation',
       description: 'Enterprise-grade security protocols and compliance frameworks for institutional operations.',
       color: '#2C5F2D' // Forest Green
     },
-    { 
-      icon: Target, 
-      title: 'Strategic Planning', 
+    {
+      icon: Target,
+      title: 'Strategic Planning',
       description: 'Data-driven insights and actionable intelligence for informed decision-making.',
       color: '#4A1942' // Royal Purple
     }
@@ -269,7 +269,7 @@ export default function CorporateLanding() {
                 <Gem size={14} className="text-amber-400" />
                 <span className="text-amber-300 tracking-wide">Trusted by Industry Leaders</span>
               </div>
-              
+
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
                 <span className="bg-gradient-to-r from-white via-amber-100 to-white bg-clip-text text-transparent">
                   Excellence in
@@ -279,7 +279,7 @@ export default function CorporateLanding() {
                   Financial Advisory
                 </span>
               </h1>
-              
+
               <p className="text-lg md:text-xl text-white/60 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
                 Strategic financial guidance and investment advisory services for discerning institutions and corporations. Where precision meets prosperity.
               </p>
@@ -327,7 +327,7 @@ export default function CorporateLanding() {
                   </div>
                   <span className="px-3 py-1 rounded-full text-sm bg-emerald-500/20 text-emerald-400">+24.8%</span>
                 </div>
-                
+
                 {/* Mini chart visualization */}
                 <div className="flex items-end gap-2 h-32 mb-6">
                   {[40, 55, 45, 70, 60, 85, 75, 90, 80, 95, 88, 100].map((h, i) => (
@@ -558,7 +558,7 @@ export default function CorporateLanding() {
               India's premier financial advisory firm delivering strategic guidance for institutions and corporations.
             </p>
           </div>
-          
+
           <div>
             <h4 className="text-white font-semibold mb-4 tracking-wide">Services</h4>
             <ul className="space-y-2.5 text-white/50 text-sm">
@@ -568,7 +568,7 @@ export default function CorporateLanding() {
               <li><a href="#services" className="hover:text-amber-400 transition-colors">Strategic Planning</a></li>
             </ul>
           </div>
-          
+
           <div>
             <h4 className="text-white font-semibold mb-4 tracking-wide">Company</h4>
             <ul className="space-y-2.5 text-white/50 text-sm">
@@ -578,7 +578,7 @@ export default function CorporateLanding() {
               <li><a href="#contact" className="hover:text-amber-400 transition-colors">Contact</a></li>
             </ul>
           </div>
-          
+
           <div>
             <h4 className="text-white font-semibold mb-4 tracking-wide">Contact</h4>
             <ul className="space-y-2.5 text-white/50 text-sm">
@@ -590,7 +590,7 @@ export default function CorporateLanding() {
             </ul>
           </div>
         </div>
-        
+
         <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-white/40 text-sm">© 2024 AG Associates. All rights reserved. | SEBI Registered Investment Advisor</p>
           <div className="flex items-center gap-4">
@@ -611,4 +611,3 @@ export default function CorporateLanding() {
     </main>
   );
 }
-

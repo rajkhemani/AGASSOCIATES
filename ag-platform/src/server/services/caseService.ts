@@ -15,11 +15,11 @@ export const CaseService = {
   },
 
   async createCase(data: Partial<Case>): Promise<Case> {
-    const { 
-      org_id, bank_id, case_type, borrower_name, loan_amount, 
-      professional_fee, sla_deadline 
+    const {
+      org_id, bank_id, case_type, borrower_name, loan_amount,
+      professional_fee, sla_deadline
     } = data;
-    
+
     // Simple case number generator for now
     const randomValue = crypto.randomInt(100000);
     const caseNumber = `AGA-${new Date().getFullYear()}-${randomValue.toString().padStart(5, '0')}`;
@@ -45,7 +45,7 @@ export const CaseService = {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      
+
       const currentCase = await client.query('SELECT status FROM cases WHERE id = $1', [id]);
       if (!currentCase.rows[0]) {
         throw new Error('Case not found');
@@ -53,13 +53,13 @@ export const CaseService = {
       const oldStatus = currentCase.rows[0].status;
 
       await client.query('UPDATE cases SET status = $1 WHERE id = $2', [status, id]);
-      
+
       await client.query(
         `INSERT INTO case_timeline (case_id, status_from, status_to, notes, changed_by)
          VALUES ($1, $2, $3, $4, $5)`,
         [id, oldStatus, status, notes, userId]
       );
-      
+
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');

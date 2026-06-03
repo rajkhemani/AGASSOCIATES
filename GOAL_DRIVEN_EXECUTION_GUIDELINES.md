@@ -1,8 +1,8 @@
 # Goal-Driven Execution Guidelines
 
-**Category**: execution, ai-behavior  
-**Applies to**: claude, gemini, cursor, copilot, any  
-**Version**: 1.0.0  
+**Category**: execution, ai-behavior
+**Applies to**: claude, gemini, cursor, copilot, any
+**Version**: 1.0.0
 
 **Overview**
 Andrej Karpathy's key insight: "LLMs are exceptionally good at looping until they meet specific goals. Don't tell it what to do — give it success criteria and watch it go."

@@ -96,21 +96,34 @@ class CircuitBreaker:
         await self._prune_old_failures(r)
         count = await r.zcard(self._failure_key())
         if count >= self.config.failure_threshold:
-            await r.setex(self._state_key(), self.config.cooldown_seconds + 60, CircuitState.OPEN.value)
+            await r.setex(
+                self._state_key(),
+                self.config.cooldown_seconds + 60,
+                CircuitState.OPEN.value,
+            )
             await r.delete(self._half_open_key())
             self._local_state = CircuitState.OPEN
             logger.warning(
                 "Circuit [%s] OPEN after %d failures in %ds window",
-                self.config.name, count, self.config.window_seconds,
+                self.config.name,
+                count,
+                self.config.window_seconds,
             )
-        return {"failure_count": count, "state": CircuitState.OPEN.value if count >= self.config.failure_threshold else CircuitState.CLOSED.value}
+        return {
+            "failure_count": count,
+            "state": CircuitState.OPEN.value
+            if count >= self.config.failure_threshold
+            else CircuitState.CLOSED.value,
+        }
 
     async def record_success(self):
         r = await self._redis()
         pipeline = r.pipeline()
         pipeline.delete(self._failure_key())
         pipeline.delete(self._half_open_key())
-        pipeline.set(self._state_key(), CircuitState.CLOSED.value, ex=self.config.window_seconds)
+        pipeline.set(
+            self._state_key(), CircuitState.CLOSED.value, ex=self.config.window_seconds
+        )
         await pipeline.execute()
         self._local_state = CircuitState.CLOSED
         self._local_half_open_attempts = 0
@@ -169,10 +182,7 @@ class CircuitBreaker:
         }
 
 
-breakers = {
-    name: CircuitBreaker(cfg)
-    for name, cfg in DEFAULT_CONFIGS.items()
-}
+breakers = {name: CircuitBreaker(cfg) for name, cfg in DEFAULT_CONFIGS.items()}
 
 
 def get_breaker(portal: str) -> CircuitBreaker:

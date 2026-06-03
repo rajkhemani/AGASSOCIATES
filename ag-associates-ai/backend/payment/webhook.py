@@ -6,6 +6,7 @@ from .stripe_client import StripeClient
 
 logger = logging.getLogger(__name__)
 
+
 class PaymentWebhookHandler:
     """Handles asynchronous payment notifications from Stripe."""
 
@@ -31,8 +32,10 @@ class PaymentWebhookHandler:
             session = event["data"]["object"]
             case_id = session.get("client_reference_id")
             payment_id = session.get("id")
-            
-            logger.info("Payment completed for case %s, session %s", case_id, payment_id)
+
+            logger.info(
+                "Payment completed for case %s, session %s", case_id, payment_id
+            )
             await self._mark_payment_completed(case_id, payment_id)
         else:
             logger.info("Unhandled Stripe event type: %s", event["type"])
@@ -42,5 +45,9 @@ class PaymentWebhookHandler:
     async def _mark_payment_completed(self, case_id: str, payment_id: str):
         """Update payment status in Supabase/DB."""
         # TODO: Implement actual database update logic using the project's DB client
-        logger.info("Updating database for payment %s (case %s) to COMPLETED", payment_id, case_id)
+        logger.info(
+            "Updating database for payment %s (case %s) to COMPLETED",
+            payment_id,
+            case_id,
+        )
         # This will likely integrate with the existing Supabase client used in the project

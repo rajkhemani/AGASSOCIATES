@@ -205,7 +205,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-dark-bg p-8">
       {/* Header */}
-      <motion.header 
+      <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
@@ -285,7 +285,7 @@ export default function Dashboard() {
         className="glass p-8 rounded-xl mb-8"
       >
         <h2 className="text-2xl font-bold text-white mb-6">Current Workflow</h2>
-        
+
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex justify-between text-sm text-gray-400 mb-2">
@@ -308,7 +308,7 @@ export default function Dashboard() {
           {['intake', 'drafting', 'auditing', 'nesl', 'complete'].map((step, index) => {
             const isActive = workflow.current_step === step || (step === 'nesl' && neslStatus !== 'idle');
             const isCompleted = index < ['intake', 'drafting', 'auditing', 'nesl', 'complete'].indexOf(workflow.current_step);
-            
+
             return (
               <motion.div
                 key={step}

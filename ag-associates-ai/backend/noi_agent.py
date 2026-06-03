@@ -49,6 +49,7 @@ NOI_TERMINAL_STATES = ["COMPLETED", "REJECTED"]
 
 NOI_REDIS_PREFIX = "noi:case:"
 
+
 class NOIAgent:
     """Orchestrates the NOI workflow across RPA executors, OTP bridge,
     case database, and notification dispatch."""
@@ -59,11 +60,14 @@ class NOIAgent:
 
     def _use_local_store(self) -> bool:
         """Returns True if Supabase is not configured (fallback to Redis/in-memory)."""
-        return not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        return not os.environ.get("SUPABASE_URL") or not os.environ.get(
+            "SUPABASE_SERVICE_ROLE_KEY"
+        )
 
     async def _get_redis(self):
         if self._redis is None:
             import redis.asyncio as aioredis
+
             url = os.environ.get("REDIS_URL", "redis://localhost:6379")
             password = os.environ.get("REDIS_PASSWORD", "")
             if password and "redis://" in url:
@@ -100,6 +104,7 @@ class NOIAgent:
         supabase_url = os.environ.get("SUPABASE_URL", "")
         supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
         import httpx
+
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
@@ -117,7 +122,11 @@ class NOIAgent:
             return None
 
     async def update_noi_status(
-        self, case_id: str, new_status: str, notes: Optional[str] = None, force: bool = False
+        self,
+        case_id: str,
+        new_status: str,
+        notes: Optional[str] = None,
+        force: bool = False,
     ) -> bool:
         """Update the NOI status of a case in Supabase + record timeline.
 
@@ -141,7 +150,12 @@ class NOIAgent:
                 case["noi_status"] = new_status
                 case["updated_at"] = datetime.utcnow().isoformat()
                 await self._local_set_case(case_id, case)
-                logger.info("Local status update: %s → %s (%s)", case_id, new_status, notes or "")
+                logger.info(
+                    "Local status update: %s → %s (%s)",
+                    case_id,
+                    new_status,
+                    notes or "",
+                )
                 return True
             return False
 
@@ -149,6 +163,7 @@ class NOIAgent:
         supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
         import httpx
+
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.patch(
@@ -186,7 +201,9 @@ class NOIAgent:
     async def seed_test_case(self, case_data: Dict[str, Any]) -> str:
         """Seed a test case in Redis (shared across workers) for development/testing.
         Returns the case_id. Only works when Supabase is not configured."""
-        case_id = case_data.get("case_id", f"TEST-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}")
+        case_id = case_data.get(
+            "case_id", f"TEST-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        )
         case = {
             "id": case_id,
             "case_id": case_id,
@@ -196,7 +213,9 @@ class NOIAgent:
             "borrower_name": case_data.get("borrower_name", "Test Borrower"),
             "bank_name": case_data.get("bank_name", "Test Bank"),
             "loan_amount": case_data.get("loan_amount", "500000"),
-            "property_address": case_data.get("property_address", "123 Test Street, Mumbai"),
+            "property_address": case_data.get(
+                "property_address", "123 Test Street, Mumbai"
+            ),
             "property_city": case_data.get("property_city", "Mumbai"),
             "grn_number": case_data.get("grn_number", ""),
             "acknowledgment_number": case_data.get("acknowledgment_number", ""),
@@ -205,7 +224,9 @@ class NOIAgent:
         logger.info("Seeded test case: %s", case_id)
         return case_id
 
-    async def _log_timeline(self, case_id: str, field: str, new_value: str, notes: Optional[str] = None):
+    async def _log_timeline(
+        self, case_id: str, field: str, new_value: str, notes: Optional[str] = None
+    ):
         """Append to case_timeline table."""
         supabase_url = os.environ.get("SUPABASE_URL", "")
         supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -213,6 +234,7 @@ class NOIAgent:
             return
 
         import httpx
+
         try:
             async with httpx.AsyncClient() as client:
                 await client.post(
@@ -246,13 +268,23 @@ class NOIAgent:
             loan_amount_str = case.get("loan_amount", "0")
             bank_name = case.get("bank_name", "Unknown")
             borrower = case.get("borrower_name", "Unknown")
-            declared_duty = case.get("stamp_duty_paid") or case.get("declared_stamp_duty")
+            declared_duty = case.get("stamp_duty_paid") or case.get(
+                "declared_stamp_duty"
+            )
 
             bouncer = validate_stamp_duty(loan_amount_str, declared_duty)
             if not bouncer["passed"]:
-                await self.update_noi_status(case_id, "MISMATCH", notes=bouncer["feedback"])
-                logger.warning("Bouncer rejected challan for %s: %s", case_id, bouncer["feedback"])
-                return {"success": False, "error": bouncer["feedback"], "bouncer": bouncer}
+                await self.update_noi_status(
+                    case_id, "MISMATCH", notes=bouncer["feedback"]
+                )
+                logger.warning(
+                    "Bouncer rejected challan for %s: %s", case_id, bouncer["feedback"]
+                )
+                return {
+                    "success": False,
+                    "error": bouncer["feedback"],
+                    "bouncer": bouncer,
+                }
 
             logger.info("Bouncer passed for %s: %s", case_id, bouncer["feedback"])
 
@@ -266,13 +298,15 @@ class NOIAgent:
 
             if result.get("success"):
                 await self.update_noi_status(
-                    case_id, "CHALLAN_GENERATED",
+                    case_id,
+                    "CHALLAN_GENERATED",
                     notes=f"GRN: {result.get('grn_number')}, Amount: ₹{result.get('amount_paid')}",
                 )
                 await self._notify(
-                    case_id, "CHALLAN_GENERATED",
+                    case_id,
+                    "CHALLAN_GENERATED",
                     f"Challan generated for {borrower} — GRN: {result.get('grn_number')}, "
-                    f"Amount: ₹{result.get('amount_paid')}. Bank to pay and send NOI drop."
+                    f"Amount: ₹{result.get('amount_paid')}. Bank to pay and send NOI drop.",
                 )
 
             return result
@@ -302,7 +336,9 @@ class NOIAgent:
                 all_present = False
 
         if all_present:
-            await self.update_noi_status(case_id, "VERIFIED", notes="All documents verified")
+            await self.update_noi_status(
+                case_id, "VERIFIED", notes="All documents verified"
+            )
 
         return {
             "success": all_present,
@@ -319,6 +355,7 @@ class NOIAgent:
             return "UNCLEAR"
 
         import httpx
+
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
@@ -356,7 +393,7 @@ class NOIAgent:
             return {
                 "success": False,
                 "error": f"Cannot file NOI — current status is {noi_status}. "
-                         f"Requires NOI_DROP_RECEIVED or RECTIFY.",
+                f"Requires NOI_DROP_RECEIVED or RECTIFY.",
             }
 
         try:
@@ -374,11 +411,13 @@ class NOIAgent:
 
             if result.get("success"):
                 await self.update_noi_status(
-                    case_id, "NOI_FILED",
+                    case_id,
+                    "NOI_FILED",
                     notes=f"Acknowledgment: {result.get('acknowledgment_number')}",
                 )
                 await self._notify(
-                    case_id, "NOI_FILED",
+                    case_id,
+                    "NOI_FILED",
                     f"NOI filed successfully for {case.get('borrower_name')} — "
                     f"Acknowledgment: {result.get('acknowledgment_number')}",
                 )
@@ -388,23 +427,29 @@ class NOIAgent:
             logger.error("NOI filing failed for %s: %s", case_id, exc)
             return {"success": False, "error": str(exc)}
 
-    async def acknowledge(self, case_id: str, acknowledgment_number: str) -> Dict[str, Any]:
+    async def acknowledge(
+        self, case_id: str, acknowledgment_number: str
+    ) -> Dict[str, Any]:
         """Step 4: Mark NOI as acknowledged and case as completed."""
         success = await self.update_noi_status(
-            case_id, "ACKNOWLEDGED",
+            case_id,
+            "ACKNOWLEDGED",
             notes=f"Acknowledgment: {acknowledgment_number}",
         )
         if success:
             await self.update_noi_status(
-                case_id, "COMPLETED",
+                case_id,
+                "COMPLETED",
                 notes=f"NOI completed — Acknowledgment #{acknowledgment_number}",
             )
             await self._notify(
-                case_id, "ACKNOWLEDGED",
+                case_id,
+                "ACKNOWLEDGED",
                 f"NOI acknowledged — Acknowledgment #{acknowledgment_number}. Case completed.",
             )
             await self._notify(
-                case_id, "COMPLETED",
+                case_id,
+                "COMPLETED",
                 f"NOI workflow completed for case {case_id}. All steps done.",
             )
         return {"success": success}
@@ -413,6 +458,7 @@ class NOIAgent:
         """Dispatch notification via AutoComms."""
         try:
             from auto_comms import dispatcher
+
             await dispatcher.dispatch(case_id, event, message)
         except Exception as exc:
             logger.warning("Notification dispatch failed: %s", exc)

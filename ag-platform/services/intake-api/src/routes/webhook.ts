@@ -23,7 +23,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
 
       // Resolve Org ID from Bank Name
       const orgId = await getOrganizationByBank(validatedData.bank_name);
-      
+
       if (!orgId) {
         return reply.status(404).send({ status: 'error', message: 'Bank partner organization not found' });
       }
@@ -36,7 +36,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
         case_status: 'RECEIVED',
         noi_status: 'DOCUMENTS_RECEIVED',
       });
-      
+
       // Invalidate cache for this org
       await invalidateNOICache(orgId);
 
@@ -66,13 +66,13 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       const { case_id, otp_code, source } = request.body;
-      
+
       fastify.log.info({ case_id, source }, 'OTP Received for RPA processing');
 
       // Store in Redis with a 5-minute TTL
       // Key format: otp:case_id
       await redisClient.setEx(`otp:${case_id}`, 300, otp_code);
-      
+
       return reply.status(200).send({ status: 'success', message: 'OTP captured and stored in Redis' });
     }
   );
@@ -168,7 +168,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
         errors: error.validation
       });
     }
-    
+
     fastify.log.error(error);
     return reply.status(500).send({
       status: 'error',

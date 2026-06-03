@@ -1,8 +1,8 @@
 # RAG and Memory Systems Guidelines
 
-**Category**: architecture, ai  
-**Applies to**: claude, gemini, cursor, copilot, any  
-**Version**: 1.0.0  
+**Category**: architecture, ai
+**Applies to**: claude, gemini, cursor, copilot, any
+**Version**: 1.0.0
 
 **Overview**
 RAG (Retrieval-Augmented Generation) and memory systems are how AI agents work with knowledge that exceeds their context window. Done well: agents give accurate, grounded answers. Done poorly: context overflow, hallucination from stale retrieval, and performance degradation.

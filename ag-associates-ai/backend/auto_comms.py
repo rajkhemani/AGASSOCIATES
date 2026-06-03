@@ -137,11 +137,15 @@ class NotificationDispatcher:
                         "case_id": case_id,
                         "event": event,
                         "body": text,
-                        "priority": NOI_TEMPLATES.get(event, {}).get("priority", "info"),
+                        "priority": NOI_TEMPLATES.get(event, {}).get(
+                            "priority", "info"
+                        ),
                     },
                     headers={
                         "Content-Type": "application/json",
-                        "Authorization": f"Bearer {N8N_WHATSAPP_TOKEN}" if N8N_WHATSAPP_TOKEN else "",
+                        "Authorization": f"Bearer {N8N_WHATSAPP_TOKEN}"
+                        if N8N_WHATSAPP_TOKEN
+                        else "",
                     },
                 )
                 resp.raise_for_status()
@@ -177,7 +181,9 @@ class NotificationDispatcher:
                     if resp.status_code == 200:
                         success = True
                     else:
-                        logger.warning("Telegram send to %s returned %s", chat_id, resp.status_code)
+                        logger.warning(
+                            "Telegram send to %s returned %s", chat_id, resp.status_code
+                        )
             except Exception as exc:
                 logger.warning("Telegram send to %s failed: %s", chat_id, exc)
 
@@ -190,7 +196,7 @@ class NotificationDispatcher:
 
         template = NOI_TEMPLATES.get(event, {"title": event, "emoji": "🔔"})
         html = f"""<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-<h2>{template['emoji']} {template['title']}</h2>
+<h2>{template["emoji"]} {template["title"]}</h2>
 <p style="color: #333; line-height: 1.6;">{message}</p>
 <hr style="border: none; border-top: 1px solid #eee;">
 <p style="color: #999; font-size: 12px;">
@@ -217,7 +223,9 @@ class NotificationDispatcher:
                 if resp.status_code == 200:
                     logger.info("Email notification sent for %s: %s", case_id, event)
                     return True
-                logger.warning("Email send returned %s: %s", resp.status_code, resp.text[:200])
+                logger.warning(
+                    "Email send returned %s: %s", resp.status_code, resp.text[:200]
+                )
                 return False
         except Exception as exc:
             logger.warning("Email notification failed: %s", exc)

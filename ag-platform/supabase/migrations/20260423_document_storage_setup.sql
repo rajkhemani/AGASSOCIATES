@@ -2,12 +2,12 @@
 
 -- 1. Create Buckets
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES 
+VALUES
   ('org-assets', 'org-assets', true, 104857600, ARRAY['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml']),
   ('project-files', 'project-files', false, 104857600, ARRAY['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/png', 'image/jpeg', 'video/mp4']),
   ('invoice-pdfs', 'invoice-pdfs', false, 104857600, ARRAY['application/pdf']),
   ('profile-avatars', 'profile-avatars', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/webp'])
-ON CONFLICT (id) DO UPDATE SET 
+ON CONFLICT (id) DO UPDATE SET
   public = EXCLUDED.public,
   file_size_limit = EXCLUDED.file_size_limit,
   allowed_mime_types = EXCLUDED.allowed_mime_types;
@@ -64,7 +64,7 @@ USING (bucket_id = 'project-files' AND get_org_role(auth.uid(), (storage.foldern
 
 CREATE POLICY "Associates and Admins can upload project files" ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (
-  bucket_id = 'project-files' 
+  bucket_id = 'project-files'
   AND get_org_role(auth.uid(), (storage.foldername(name))[1]::uuid) IN ('admin', 'associate')
 );
 
@@ -76,7 +76,7 @@ CREATE POLICY "Public read for org-assets" ON storage.objects FOR SELECT USING (
 
 CREATE POLICY "Admins can upload org-assets" ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (
-  bucket_id = 'org-assets' 
+  bucket_id = 'org-assets'
   AND get_org_role(auth.uid(), (storage.foldername(name))[1]::uuid) = 'admin'
 );
 

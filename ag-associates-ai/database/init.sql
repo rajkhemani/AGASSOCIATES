@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS legal_templates (
 );
 
 -- Create index for vector similarity search
-CREATE INDEX IF NOT EXISTS legal_templates_embedding_idx 
+CREATE INDEX IF NOT EXISTS legal_templates_embedding_idx
 ON legal_templates USING ivfflat (embedding vector_cosine_ops)
 WITH (lists = 100);
 

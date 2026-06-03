@@ -21,9 +21,9 @@ BEGIN
     -- Example assumes a users or user_organizations table exists
     -- SELECT org_id INTO assigned_org_id FROM public.users WHERE id = user_id;
     -- For demonstration, let's assume we find their org_id.
-    
+
     -- In a real scenario, you handle if the user has no org assigned.
-    assigned_org_id := '00000000-0000-0000-0000-000000000000'::uuid; 
+    assigned_org_id := '00000000-0000-0000-0000-000000000000'::uuid;
 
     claims := event->'claims';
     IF claims IS NULL THEN
@@ -37,7 +37,7 @@ BEGIN
 
     -- Inject app_org_id into app_metadata
     claims := jsonb_set(claims, '{app_metadata, app_org_id}', to_jsonb(assigned_org_id));
-    
+
     -- Inject bank_allowed_access flag (example: could be true for bank partners)
     claims := jsonb_set(claims, '{app_metadata, bank_allowed_access}', 'true'::jsonb);
 
@@ -48,5 +48,5 @@ BEGIN
 END;
 $$;
 
--- Note: To fully enable this in Supabase, you must configure the Auth Hook via the Supabase Dashboard 
+-- Note: To fully enable this in Supabase, you must configure the Auth Hook via the Supabase Dashboard
 -- or CLI, pointing the "Custom Access Token" hook to this `public.custom_access_token_hook` function.

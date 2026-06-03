@@ -22,7 +22,7 @@ export const TaskBoard: React.FC<{ projectId: string }> = ({ projectId }) => {
   // Load and subscribe
   useEffect(() => {
     let isMounted = true;
-    
+
     // Load initial
     const loadTasks = async () => {
       const { data } = await supabase.from('tasks').select('*').eq('project_id', projectId).order('position');
@@ -130,7 +130,7 @@ export const TaskBoard: React.FC<{ projectId: string }> = ({ projectId }) => {
 
 function BoardColumn({ title, tasks }: { title: string, tasks: Task[] }) {
     const sortedTasks = [...tasks].sort((a,b) => a.position - b.position);
-    
+
     return (
       <div className="bg-gray-50 flex flex-col w-80 rounded-xl flex-shrink-0 border border-gray-200" id={title}>
         <div className="p-3 border-b border-gray-200 font-semibold text-gray-700 flex justify-between items-center bg-white rounded-t-xl">

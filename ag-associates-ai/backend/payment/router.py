@@ -6,6 +6,7 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 stripe_client = StripeClient()
 webhook_handler = PaymentWebhookHandler()
 
+
 @router.post("/create-intent")
 async def create_payment_intent(request: Request):
     """Start a payment flow for a specific case."""
@@ -23,13 +24,14 @@ async def create_payment_intent(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.post("/webhook")
 async def stripe_webhook(request: Request):
     """Stripe webhook endpoint for async notifications."""
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
-    
+
     if not sig_header:
         raise HTTPException(status_code=400, detail="Missing stripe-signature header")
-    
+
     return await webhook_handler.handle_webhook(payload, sig_header)

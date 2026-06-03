@@ -45,13 +45,13 @@ CREATE TABLE IF NOT EXISTS public.activities (
 BEGIN;
   -- Remove tables from publication if they exist to avoid errors then re-add
   -- In Supabase, the publication is called supabase_realtime
-  DO $$ 
-  BEGIN 
+  DO $$
+  BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
       CREATE PUBLICATION supabase_realtime;
     END IF;
   END $$;
-  
+
   ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;
   ALTER PUBLICATION supabase_realtime ADD TABLE public.comments;
   ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
@@ -72,4 +72,3 @@ CREATE POLICY "Allow users to read their notifications" ON public.notifications 
 CREATE POLICY "Allow users to update their notifications" ON public.notifications FOR UPDATE TO authenticated USING (user_id = auth.uid());
 CREATE POLICY "Allow authenticated to insert notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "Allow authenticated full access to activities" ON public.activities FOR ALL TO authenticated USING (true) WITH CHECK (true);
-

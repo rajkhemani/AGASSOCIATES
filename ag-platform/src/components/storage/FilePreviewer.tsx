@@ -39,7 +39,7 @@ export const FilePreviewer: React.FC<FilePreviewerProps> = ({ file }) => {
         </div>
       );
     }
-    
+
     if (file.content_type.startsWith("image/")) {
       return (
         <div className="relative w-full rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center min-h-[400px]">
@@ -67,7 +67,7 @@ export const FilePreviewer: React.FC<FilePreviewerProps> = ({ file }) => {
             <p className="font-medium text-gray-900">Preview not available</p>
             <p className="text-sm text-gray-500 mt-1">This file type ({file.content_type || 'unknown'}) cannot be previewed in the browser.</p>
         </div>
-        <button 
+        <button
            onClick={() => downloadFile(file.bucket_id, file.storage_path, file.name)}
            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
         >

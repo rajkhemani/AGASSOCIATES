@@ -130,7 +130,7 @@ bot.start(async (ctx) => {
 
 bot.command('agent', async (ctx) => {
   const commandText = ctx.message?.text?.replace('/agent', '').trim();
-  
+
   if (!commandText) {
     return ctx.reply('Usage: /agent &lt;your request&gt;\nExample: /agent Research current home loan rates in India and draft an email to a client');
   }
@@ -146,7 +146,7 @@ bot.command('agent', async (ctx) => {
   try {
     // Execute through hierarchy
     const { finalAnswer, report, results } = await coordinator.execute(commandText);
-    
+
     // Store execution in database
     const client = await dbPool.connect();
     try {
@@ -163,13 +163,13 @@ bot.command('agent', async (ctx) => {
           new Date()
         ]
       );
-      
+
       const executionId = executionResult.rows[0].id;
-      
+
       // Store individual task results
       for (const result of results) {
         await client.query(
-          `INSERT INTO agent_tasks 
+          `INSERT INTO agent_tasks
            (execution_id, task_id, role, status, output, error, started_at, completed_at, duration)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [
@@ -191,7 +191,7 @@ bot.command('agent', async (ctx) => {
 
     // Format response with hierarchy visualization
     const executionTime = Date.now() - parseInt((ctx.message?.date || 0) * 1000 + '');
-    
+
     let response = `✅ <b>Mission Complete</b>\n\n`;
     response += `⏱️ Execution time: ${formatExecutionTime(executionTime)}\n\n`;
     response += `📊 <b>Hierarchy Status:</b>\n`;
@@ -208,7 +208,7 @@ bot.command('agent', async (ctx) => {
         `✅ <b>Mission Complete</b>\n\n⏱️ Execution time: ${formatExecutionTime(executionTime)}\n\n📋 <b>Final Answer:</b>\n${finalAnswer.substring(0, 3500)}...`,
         { parse_mode: 'HTML' }
       );
-      
+
       await ctx.reply(
         `📊 <b>Execution Report:</b>\n${report}`,
         { parse_mode: 'HTML' }
@@ -241,28 +241,28 @@ bot.command('status', async (ctx) => {
     const client = await dbPool.connect();
     try {
       const result = await client.query(
-        `SELECT id, request, created_at, completed_at 
-         FROM agent_executions 
-         ORDER BY created_at DESC 
+        `SELECT id, request, created_at, completed_at
+         FROM agent_executions
+         ORDER BY created_at DESC
          LIMIT 5`
       );
-      
+
       if (result.rows.length === 0) {
         return ctx.reply('📊 No executions recorded yet.');
       }
-      
+
       let message = '📊 <b>Recent Executions</b>\n\n';
       result.rows.forEach((row: any, index: number) => {
-        const duration = row.completed_at 
+        const duration = row.completed_at
           ? `${formatExecutionTime((row.completed_at.getTime() - row.created_at.getTime()))}`
           : 'Running...';
-          
+
         message += `${index + 1}. <b>#${row.id}</b>\n`;
         message += `   📝 ${row.request.substring(0, 50)}...\n`;
         message += `   🕐 ${row.created_at.toLocaleString()}\n`;
         message += `   ⏱️ ${duration}\n\n`;
       });
-      
+
       await ctx.reply(message, { parse_mode: 'HTML' });
     } finally {
       client.release();
@@ -311,10 +311,10 @@ bot.catch((err, ctx) => {
 async function startBot() {
   await initDatabase();
   await bot.launch();
-  
+
   console.log('🤖 Hierarchical Coordinator Bot is running...');
   console.log('📡 Listening for commands in Telegram');
-  
+
   // Enable graceful shutdown
   process.once('SIGINT', () => bot.stop('SIGINT'));
   process.once('SIGTERM', () => bot.stop('SIGTERM'));

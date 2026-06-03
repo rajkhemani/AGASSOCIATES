@@ -43,12 +43,12 @@ TEMPLATE STRUCTURE TO FOLLOW:
 def drafter_node(state: AgentState) -> AgentState:
     """Find best template via similarity_search, inject extracted fields, save MD + PDF."""
     print("\n📝 [DRAFTER] Starting document drafting")
-    state['current_node'] = 'drafter'
-    state['timestamps']['drafter_start'] = datetime.now().isoformat()
-    state['revision_count'] = state.get('revision_count', 0) + 1
+    state["current_node"] = "drafter"
+    state["timestamps"]["drafter_start"] = datetime.now().isoformat()
+    state["revision_count"] = state.get("revision_count", 0) + 1
 
     try:
-        if not state.get('extracted_json'):
+        if not state.get("extracted_json"):
             raise ValueError("No extracted data available from Aisha")
 
         search_query = f"Maharashtra rent agreement {state.get('property_address', '')}"
@@ -60,11 +60,13 @@ def drafter_node(state: AgentState) -> AgentState:
                 raise ValueError("No suitable templates found in database")
 
         best_template = templates[0]
-        state['template_id'] = best_template['id']
-        template_content = best_template['content']
-        state['template_content'] = template_content
+        state["template_id"] = best_template["id"]
+        template_content = best_template["content"]
+        state["template_content"] = template_content
 
-        print(f"📄 [DRAFTER] Selected template: {best_template['title']} (ID: {best_template['id']})")
+        print(
+            f"📄 [DRAFTER] Selected template: {best_template['title']} (ID: {best_template['id']})"
+        )
 
         llm = ChatOpenAI(
             model=LLM_MODEL_NAME,
@@ -73,9 +75,12 @@ def drafter_node(state: AgentState) -> AgentState:
             temperature=0.3,
         )
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", DRAFTER_SYSTEM_PROMPT),
-            ("human", """
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", DRAFTER_SYSTEM_PROMPT),
+                (
+                    "human",
+                    """
 Extracted Data:
 {extracted_data}
 
@@ -83,35 +88,47 @@ Template Content:
 {template_content}
 
 Generate the complete rental agreement document:
-"""),
-        ])
+""",
+                ),
+            ]
+        )
         chain = prompt | llm
 
-        extracted_str = json.dumps(state['extracted_json'], indent=2, ensure_ascii=False)
-        result = invoke_llm_with_retry(chain, {
-            "extracted_data": extracted_str,
-            "template_content": template_content,
-        })
-        state['drafted_document'] = result.content
+        extracted_str = json.dumps(
+            state["extracted_json"], indent=2, ensure_ascii=False
+        )
+        result = invoke_llm_with_retry(
+            chain,
+            {
+                "extracted_data": extracted_str,
+                "template_content": template_content,
+            },
+        )
+        state["drafted_document"] = result.content
 
         _persist_outputs(state, result.content)
 
         record_activity(
-            source="agent", staff_kind="agent", staff_short_name="drafter",
+            source="agent",
+            staff_kind="agent",
+            staff_short_name="drafter",
             capability_code="case.draft",
             summary=f"Drafted document (revision {state.get('revision_count')})",
-            payload={"template_id": state.get("template_id"), "pdf_path": state.get("pdf_path")},
-            org_id=state.get('org_id'),
+            payload={
+                "template_id": state.get("template_id"),
+                "pdf_path": state.get("pdf_path"),
+            },
+            org_id=state.get("org_id"),
         )
         # Success — don't clear state['errors']; prior nodes may have added entries.
 
     except Exception as e:
         error_msg = f"Drafter failed: {str(e)}"
         print(f"❌ [DRAFTER] {error_msg}")
-        state['errors'].append(error_msg)
-        state['drafted_document'] = None
+        state["errors"].append(error_msg)
+        state["drafted_document"] = None
 
-    state['timestamps']['drafter_end'] = datetime.now().isoformat()
+    state["timestamps"]["drafter_end"] = datetime.now().isoformat()
     return state
 
 
@@ -140,22 +157,22 @@ def _persist_outputs(state: AgentState, document_md: str) -> None:
     """Write the Markdown and (best-effort) PDF to OUTPUT_DIR."""
     from pdf_generator import convert_to_pdf
 
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     pdf_filename = f"agreement_{state['sender']}_{timestamp}"
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     md_path = f"{OUTPUT_DIR}/{pdf_filename}.md"
-    with open(md_path, 'w', encoding='utf-8') as f:
+    with open(md_path, "w", encoding="utf-8") as f:
         f.write(document_md)
 
     try:
         pdf_path = convert_to_pdf(document_md, f"{state['sender']}_{timestamp}")
-        state['pdf_path'] = pdf_path
+        state["pdf_path"] = pdf_path
         print("✅ [DRAFTER] Document drafted and saved:")
         print(f"   Markdown: {md_path}")
         print(f"   PDF: {pdf_path}")
     except Exception as pdf_error:
         print(f"⚠️ [DRAFTER] PDF generation failed: {str(pdf_error)}")
         print(f"   Markdown saved: {md_path}")
-        state['pdf_path'] = md_path  # Fallback to markdown path
+        state["pdf_path"] = md_path  # Fallback to markdown path

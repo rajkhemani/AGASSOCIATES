@@ -54,9 +54,15 @@ Respond with ONLY a JSON object:
 def classify_intent(message: str) -> str:
     """Classify a user message into one of the known intents."""
     if LLM_MOCK_MODE:
-        if any(kw in message.lower() for kw in ["rent", "agreement", "draft", "lease", "tenant", "landlord"]):
+        if any(
+            kw in message.lower()
+            for kw in ["rent", "agreement", "draft", "lease", "tenant", "landlord"]
+        ):
             return "legal_draft"
-        if any(kw in message.lower() for kw in ["status", "case", "challan", "noi", "rpa", "report"]):
+        if any(
+            kw in message.lower()
+            for kw in ["status", "case", "challan", "noi", "rpa", "report"]
+        ):
             return "admin_cmd"
         if any(kw in message.lower() for kw in ["otp"]):
             return "otp_request"
@@ -66,13 +72,16 @@ def classify_intent(message: str) -> str:
         llm = ChatOpenAI(
             model=LLM_MODEL_NAME,
             openai_api_base=LLM_BASE_URL,
-            openai_api_key=os.environ.get("LLM_API_KEY", "") or os.environ.get("OPENAI_API_KEY", ""),
+            openai_api_key=os.environ.get("LLM_API_KEY", "")
+            or os.environ.get("OPENAI_API_KEY", ""),
             temperature=0,
         )
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", _INTENT_SYSTEM_PROMPT),
-            ("human", "{message}"),
-        ])
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", _INTENT_SYSTEM_PROMPT),
+                ("human", "{message}"),
+            ]
+        )
         parser = JsonOutputParser()
         chain = prompt | llm | parser
         result = chain.invoke({"message": message})
@@ -106,26 +115,41 @@ pipeline.
 Current time: {current_time}"""
 
 
-def _general_chat(message: str, context_messages: List[Dict[str, str]]) -> Dict[str, Any]:
+def _general_chat(
+    message: str, context_messages: List[Dict[str, str]]
+) -> Dict[str, Any]:
     """Handle general conversation using LLM with conversation history."""
     try:
         llm = ChatOpenAI(
             model=LLM_MODEL_NAME,
             openai_api_base=LLM_BASE_URL,
-            openai_api_key=os.environ.get("LLM_API_KEY", "") or os.environ.get("OPENAI_API_KEY", ""),
+            openai_api_key=os.environ.get("LLM_API_KEY", "")
+            or os.environ.get("OPENAI_API_KEY", ""),
             temperature=0.7,
         )
     except Exception as exc:
         logger.warning(f"Cannot initialise LLM for general chat, falling back: {exc}")
-        return {"success": True, "response": "Aisha is warming up. Could you ask again in a moment?"}
+        return {
+            "success": True,
+            "response": "Aisha is warming up. Could you ask again in a moment?",
+        }
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", _GENERAL_SYSTEM_PROMPT.format(
-            current_time=datetime.now().isoformat()
-        )),
-        *[{"role": m["role"], "content": m["content"].replace("{", "{{").replace("}", "}}")} for m in context_messages[-10:]],
-        ("human", "{message}"),
-    ])
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                _GENERAL_SYSTEM_PROMPT.format(current_time=datetime.now().isoformat()),
+            ),
+            *[
+                {
+                    "role": m["role"],
+                    "content": m["content"].replace("{", "{{").replace("}", "}}"),
+                }
+                for m in context_messages[-10:]
+            ],
+            ("human", "{message}"),
+        ]
+    )
 
     try:
         chain = prompt | llm
@@ -134,10 +158,14 @@ def _general_chat(message: str, context_messages: List[Dict[str, str]]) -> Dict[
         return {"success": True, "response": text}
     except Exception as exc:
         logger.error(f"General chat failed: {exc}")
-        return {"success": True, "response": "Aisha is warming up. Could you ask again in a moment?"}
+        return {
+            "success": True,
+            "response": "Aisha is warming up. Could you ask again in a moment?",
+        }
 
 
 # ── Legal drafting mode ──────────────────────────────────────────────────
+
 
 def _legal_draft(message: str) -> Dict[str, Any]:
     """Route to the LangGraph rental agreement pipeline."""
@@ -167,7 +195,9 @@ def _legal_draft(message: str) -> Dict[str, Any]:
             if audit_passed:
                 summary_parts.append("✅ The draft passed quality audit.")
             else:
-                summary_parts.append("⚠️ The draft needs review — it didn't pass the quality audit.")
+                summary_parts.append(
+                    "⚠️ The draft needs review — it didn't pass the quality audit."
+                )
 
             if pdf_path:
                 summary_parts.append(f"📄 Document generated at: {pdf_path}")
@@ -191,6 +221,7 @@ def _legal_draft(message: str) -> Dict[str, Any]:
 
 
 # ── Main handler ─────────────────────────────────────────────────────────
+
 
 def handle_message(
     message: str,
@@ -218,7 +249,9 @@ def handle_message(
     user_id = resolve_user(platform, platform_identity, display_name)
 
     conv_id = conversation_id or get_or_create_conversation(
-        user_id, platform, platform_identity,
+        user_id,
+        platform,
+        platform_identity,
         title=message[:100],
     )
 
@@ -283,7 +316,9 @@ need from the user to proceed.
 Current time: {current_time}"""
 
 
-def _admin_command(message: str, context_messages: List[Dict[str, str]]) -> Dict[str, Any]:
+def _admin_command(
+    message: str, context_messages: List[Dict[str, str]]
+) -> Dict[str, Any]:
     """Handle admin commands using the VoxRouter tool registry."""
     from voice.tool_registry import tool_registry
     from voice.vox_router import vox_router
@@ -306,24 +341,37 @@ def _admin_command(message: str, context_messages: List[Dict[str, str]]) -> Dict
         llm = ChatOpenAI(
             model=LLM_MODEL_NAME,
             openai_api_base=LLM_BASE_URL,
-            openai_api_key=os.environ.get("LLM_API_KEY", "") or os.environ.get("OPENAI_API_KEY", ""),
+            openai_api_key=os.environ.get("LLM_API_KEY", "")
+            or os.environ.get("OPENAI_API_KEY", ""),
             temperature=0.3,
         )
     except Exception as exc:
         logger.warning(f"Cannot initialise LLM for admin command: {exc}")
-        return {"success": True, "response": "Aisha's admin module is warming up. Could you ask again in a moment?"}
+        return {
+            "success": True,
+            "response": "Aisha's admin module is warming up. Could you ask again in a moment?",
+        }
 
     tools_summary = "\n".join(
-        f"  • {d.name}: {d.description}"
-        for d in tool_registry.definitions
+        f"  • {d.name}: {d.description}" for d in tool_registry.definitions
     )
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", _ADMIN_SYSTEM_PROMPT.format(
-            current_time=datetime.now().isoformat()
-        ) + f"\n\nTools available:\n{tools_summary}"),
-        *[{"role": m["role"], "content": m["content"].replace("{", "{{").replace("}", "}}")} for m in context_messages[-5:]],
-        ("human", "{message}"),
-    ])
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                _ADMIN_SYSTEM_PROMPT.format(current_time=datetime.now().isoformat())
+                + f"\n\nTools available:\n{tools_summary}",
+            ),
+            *[
+                {
+                    "role": m["role"],
+                    "content": m["content"].replace("{", "{{").replace("}", "}}"),
+                }
+                for m in context_messages[-5:]
+            ],
+            ("human", "{message}"),
+        ]
+    )
 
     try:
         chain = prompt | llm
@@ -332,4 +380,7 @@ def _admin_command(message: str, context_messages: List[Dict[str, str]]) -> Dict
         return {"success": True, "response": text}
     except Exception as exc:
         logger.error(f"Admin command failed: {exc}")
-        return {"success": True, "response": "Aisha's admin module is warming up. Could you ask again in a moment?"}
+        return {
+            "success": True,
+            "response": "Aisha's admin module is warming up. Could you ask again in a moment?",
+        }

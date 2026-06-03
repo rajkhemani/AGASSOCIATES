@@ -54,12 +54,12 @@ export function useActivityFeed(projectId: string) {
           async (payload) => {
             if (!isMounted) return;
             const newRecord = payload.new as Activity;
-            
+
             // To get relations like email, we might need an extra fetch for realtime records
             // Or just fetch the profile if the user table works like that.
             // For simplicity, fetch the user record manually if missing
             const { data: userData } = await supabase.from('users').select('email').eq('id', newRecord.user_id).single();
-            
+
             const detailedRecord = {
                 ...newRecord,
                 users: userData ? { email: userData.email } : { email: 'Unknown' }
@@ -70,7 +70,7 @@ export function useActivityFeed(projectId: string) {
         )
         .subscribe();
     }
-    
+
     loadActivities();
 
     return () => {

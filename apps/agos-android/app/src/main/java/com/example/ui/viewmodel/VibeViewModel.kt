@@ -93,7 +93,7 @@ class VibeViewModel(application: Application) : AndroidViewModel(application) {
         currentUserName = name
         currentUserRole = if (email.lowercase().contains("admin") || name.lowercase().contains("aditya")) "Founder & Admin" else "Operations Executive"
         isAuthenticated = true
-        
+
         viewModelScope.launch {
             repository.insertLog(
                 OrchestratorLog(
@@ -296,7 +296,7 @@ class VibeViewModel(application: Application) : AndroidViewModel(application) {
         if (isDocOcrRunning) return
         val docIndex = agosDocuments.indexOfFirst { it.id == docId }
         if (docIndex == -1) return
-        
+
         isDocOcrRunning = true
         activeOcrDocId = docId
 
@@ -322,7 +322,7 @@ class VibeViewModel(application: Application) : AndroidViewModel(application) {
                         type = "success"
                     )
                 )
-                
+
                 agosNotifications.add(
                     AgosNotification(
                         title = "OCR Extraction Success",
@@ -467,7 +467,7 @@ class VibeViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val ans = GeminiService.askArchitectAdvisor(query)
                 advisorResponse = ans
-                
+
                 // Add system log detailing user inquiry Success
                 repository.insertLog(
                     OrchestratorLog(
@@ -490,7 +490,7 @@ class VibeViewModel(application: Application) : AndroidViewModel(application) {
             repository.seedDatabase()
             // Pull the latest keys state in case they updated
             isApiKeyAvailable = GeminiService.isApiKeyAvailable()
-            
+
             // Add introductory logs
             terminalLines.add("[SYSTEM] VibeCodeing AG Orchestrator initialised.")
             terminalLines.add("[SYSTEM] All 6 container cluster nodes in AGASSOCIATES workspace are responsive.")
@@ -507,7 +507,7 @@ class VibeViewModel(application: Application) : AndroidViewModel(application) {
         val client2 = AgosClient(id = "c_2", clientName = "Aditi Rao", companyName = "HDFC Bank Ltd", phone = "+91 22 6652 0000", email = "lending.aditi@hdfc.com", address = "HDFC House, HT Parekh Marg", city = "Mumbai", state = "Maharashtra")
         val client3 = AgosClient(id = "c_3", clientName = "Rajesh G", companyName = "ICICI Home Finance", phone = "+91 22 2653 1414", email = "corporate.rajesh@icici.com", address = "Bandra Kurla Complex", city = "Mumbai", state = "Maharashtra")
         val client4 = AgosClient(id = "c_4", clientName = "Suresh Murthy", companyName = "Prestige Group", phone = "+91 80 2559 1080", email = "suresh@prestigeconstructions.com", address = "101, Prestige Falcon Towers", city = "Bengaluru", state = "Karnataka")
-        
+
         agosClients.addAll(listOf(client1, client2, client3, client4))
 
         // Seed 4 cases
@@ -524,10 +524,10 @@ class VibeViewModel(application: Application) : AndroidViewModel(application) {
                 AgosTask(caseId = "case_1", title = "Review Property Title Records", description = "Determine if Amit Sharma property has any existing liens or prior claims.", assignedTo = "Operations Executive", status = "Completed", dueDate = "Completed"),
                 AgosTask(caseId = "case_1", title = "Verify Income documents", description = "OCR analyze applicant pay slips and verify Form 16 credentials.", assignedTo = "Document AI", status = "Executing", dueDate = "Today"),
                 AgosTask(caseId = "case_1", title = "CIBIL Credit Score Check", description = "Download and validate Credit Report status.", assignedTo = "Compliance AI", status = "Pending", dueDate = "Tomorrow"),
-                
+
                 AgosTask(caseId = "case_2", title = "Prepare Draft Notice of Intended Sale", description = "Verify loan default notices and compile notice draft.", assignedTo = "Legal Executive", status = "Completed", dueDate = "Completed"),
                 AgosTask(caseId = "case_2", title = "Obtain Counsel Approval", description = "Obtain legal sign-off from Founder Aditya Gade.", assignedTo = "Founder", status = "Executing", dueDate = "Today"),
-                
+
                 AgosTask(caseId = "case_3", title = "Verify Stamping Duty Documents", description = "Calculate stamp value charges matching government rules.", assignedTo = "Registration Coordinator", status = "Pending", dueDate = "In 2 Days")
             )
         )
@@ -572,7 +572,7 @@ class VibeViewModel(application: Application) : AndroidViewModel(application) {
         isDeploying = true
         deployProgress = 0.0f
         terminalLines.clear()
-        
+
         viewModelScope.launch {
             val steps = listOf(
                 "Initiating zero-touch orchestrated build pipeline sequence..." to 0.05f,

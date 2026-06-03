@@ -28,7 +28,7 @@ data class PRAnalysisResult(
 
 object GeminiService {
     private const val TAG = "GeminiService"
-    
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(60, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
@@ -59,7 +59,7 @@ object GeminiService {
         }
 
         val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${BuildConfig.GEMINI_API_KEY}"
-        
+
         val systemPrompt = """
             You are VibeCodeing Orchestration Bot, an AI-powered semantic analysis system running pull request classification.
             Given a Pull Request Title and optional code changes/diff description, analyze the risk and metadata.
@@ -72,7 +72,7 @@ object GeminiService {
                "summary": "Short 1-sentence analytical summary of the pr change.",
                "justification": "Exact architectural and security reasoning for the risk rating."
             }
-            
+
             Rules:
             1. LOW Risk files are: docs, README, internal comments, minor refactor with no main system logic touched. Auto-merge: true.
             2. MEDIUM Risk files are: frontend components, UI styles, package config updates. Auto-merge: true.
@@ -132,14 +132,14 @@ object GeminiService {
 
                 val bodyString = response.body?.string() ?: ""
                 Log.d(TAG, "Raw Response: $bodyString")
-                
+
                 val jsonResponse = JSONObject(bodyString)
                 val candidatesArray = jsonResponse.getJSONArray("candidates")
                 val firstCandidate = candidatesArray.getJSONObject(0)
                 val content = firstCandidate.getJSONObject("content")
                 val parts = content.getJSONArray("parts")
                 var text = parts.getJSONObject(0).getString("text").trim()
-                
+
                 // Sanitise potential markdown wrapping
                 if (text.startsWith("```json")) {
                     text = text.substringAfter("```json")
@@ -168,7 +168,7 @@ object GeminiService {
     private fun runLocalFallbackAnalysis(title: String, codeChanges: String): PRAnalysisResult {
         val uppercase = title.uppercase()
         val contentUpper = codeChanges.uppercase()
-        
+
         return when {
             uppercase.contains("HOTFIX") || uppercase.contains("CRITICAL") || uppercase.contains("EMERGENCY") || contentUpper.contains("MIGRATION") || contentUpper.contains("INIT.SQL") -> {
                 PRAnalysisResult(
@@ -246,7 +246,7 @@ object GeminiService {
         }
 
         val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${BuildConfig.GEMINI_API_KEY}"
-        
+
         val contextPrompt = """
             You are the Expert AG Associates System Architect Advisor.
             The user is building or maintaining a high-fidelity workspace in `/AGASSOCIATES`.
@@ -322,7 +322,7 @@ object GeminiService {
             query.contains("LANGGRAPH") || query.contains("AGENT") || query.contains("PYTHON") -> {
                 """
                 **[AG-ASSOCIATES-AI] LangGraph Agent Integration Overview**
-                
+
                 *   **Choreography Loop**: Active agents reside in `/AGASSOCIATES/ag-associates-ai/backend/`. They use python-based LangGraph to manage transactional states across multiple decision nodes.
                 *   **State Machine**: State transitions (Intake ➔ Auditing ➔ Validation) are fully persisted to prevent session termination.
                 *   **Integration Pathway**: The Express/Fastify layer calls these agents via REST API endpoints on port `8000`.
@@ -332,7 +332,7 @@ object GeminiService {
             query.contains("SUPABASE") || query.contains("DATABASE") || query.contains("POSTGRES") || query.contains("SQL") -> {
                 """
                 **[SUPABASE / VECTOR DB] Postgres Relational Schema Core**
-                
+
                 *   **Connection URI**: Configured using `customPostgresUrl` (defaults to `postgresql://ag_associates_admin:change_me@host.docker.internal:5432/ag_associates_db`).
                 *   **Vector Embeddings**: Postgres leverages the `pgvector` extension to run fast cosine-similarity comparisons.
                 *   **Dimensions**: Vector size is strictly aligned to **384** (derived from the `all-MiniLM-L6-v2` transformer model) to avoid mismatch telemetry crashes.
@@ -342,7 +342,7 @@ object GeminiService {
             query.contains("N8N") || query.contains("WHATSAPP") || query.contains("MESSAGE") || query.contains("SMS") -> {
                 """
                 **[N8N-WHATSAPP] Webhook Automation Guide**
-                
+
                 *   **Operational Trigger**: Webhooks are routed through n8n flows configured inside `/AGASSOCIATES/N8N_WHATSAPP_SETUP.md`.
                 *   **Intake Synchronization**: When an incoming text lands, the webhook sends an HTTP POST request to the intake Fastify server on `localhost:8001/api/intake`.
                 *   **Agent Alerting**: If LangGraph flags high risk of litigation anomalies, n8n sends instant notification alerts back to user dashboards.
@@ -351,7 +351,7 @@ object GeminiService {
             query.contains("MONOREPO") || query.contains("TURBO") || query.contains("PLATFORM") || query.contains("EXPRESS") -> {
                 """
                 **[AG-PLATFORM] Monorepo Layout & Turborepo Gates**
-                
+
                 *   **Package Managers**: The root utilizes Turborepo (`turbo.json`) and pnpm/npm package-lock environments.
                 *   **Services Structure**: Contains `services/intake-api` (port 8001 Fastify server) and shared packages (`packages/db` database wrapper, `packages/ai` embedding wrappers).
                 *   **Reverse Proxy**: Caddy server is deployed as a secure DNS SSL proxy pointing subdomains to core express and client services safely.
@@ -360,7 +360,7 @@ object GeminiService {
             query.contains("NOI") || query.contains("PROTOTYPE") || query.contains("DASHBOARD") -> {
                 """
                 **[PROTOTYPE/NOI-DASHBOARD] Client Console**
-                
+
                 *   **Tech Stack**: Built with modern Tailwind CSS, HTML5, and compiled cleanly via Vite + TypeScript compilation pipelines.
                 *   **Physical Path**: Located under `/AGASSOCIATES/prototype/noi-dashboard/`.
                 *   **Integration**: Connects isomorphically to the `ag-platform` Express routes to supply real-time tracking charts and statistics to users.
@@ -369,7 +369,7 @@ object GeminiService {
             else -> {
                 """
                 **AG Associates Architect Advisor - General Telemetry**
-                
+
                 *   **Module Status**: The full stack includes 6 fully-containerized systems (`ai-backend`, `ai-frontend`, `ag-platform`, `noi-dashboard`, `whatsapp-n8n`, and `supabase-db`).
                 *   **Operational Standards**: All system integrations follow safe zero-touch configuration practices, requiring isolated verification checks before changes.
                 *   **Action Suggestion**: Ask me about "LangGraph", "Supabase DB", "n8n Webhooks", or "Monorepo layout" to inspect deep implementation details!
@@ -389,7 +389,7 @@ object GeminiService {
         }
 
         val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${BuildConfig.GEMINI_API_KEY}"
-        
+
         val contextPrompt = """
             You are the AGOS Specialized Document AI OCR and compliance extraction system.
             We are uploading a simulated image/document named '$cleanName' of format '$fileType'.
@@ -461,4 +461,3 @@ object GeminiService {
         """.trimIndent()
     }
 }
-

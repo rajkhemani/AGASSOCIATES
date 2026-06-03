@@ -3,6 +3,7 @@
 Falls back to silent mode (returns empty bytes) when piper isn't installed,
 so the API remains usable in dev environments without the C extension.
 """
+
 from __future__ import annotations
 
 import io
@@ -21,6 +22,7 @@ _VOICE_PATH = os.environ.get(
 
 try:
     from piper.voice import PiperVoice  # type: ignore
+
     HAS_PIPER = True
 except ImportError:
     HAS_PIPER = False
