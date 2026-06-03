@@ -21,3 +21,6 @@
 - **Documentation paths go stale**: Markdown docs (LANGGRAPH_AGENTS.md, DAY3_COMPLETE.md) referenced `/workspace/` paths and old dependency versions. Always update docs alongside code changes.
 
 - **Git must be in system PATH before Antigravity starts**: `setx /M` only affects new processes. If Antigravity was running when PATH was updated, it won't see `git` until restarted.
+
+- **AccountantAgent Security**: Implementation must match tests. Security features like file size limits, magic byte validation, and text sanitization should be moved to a shared extraction method (`extract_text_from_pdf`) and verified via unit tests.
+- **Resource Cleanup**: Always use `try...finally` blocks for database connections and cursors in long-running scripts (like `generate_embeddings.py`) to prevent connection leaks during errors.
