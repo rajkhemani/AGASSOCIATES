@@ -384,7 +384,7 @@ async def aisha_chat(
         identity = (
             x_user_id
             or request.platform_identity
-            or f"api_{hashlib.md5(x_api_key.encode()).hexdigest()[:8]}"
+            or f"api_{hashlib.sha256(x_api_key.encode()).hexdigest()[:8]}"
         )
     # 2. Session cookie (web dashboard users)
     elif ag_session:
