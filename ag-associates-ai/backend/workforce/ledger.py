@@ -4,6 +4,7 @@ Used by both agent code (LangGraph nodes, Executor, Accountant) and the
 voice/mobile inbound handlers. Best-effort: a logging failure never blocks
 the operation it's logging.
 """
+
 from __future__ import annotations
 
 import json
@@ -39,8 +40,8 @@ def _resolve_staff_id(kind: str, short_name: str) -> Optional[str]:
 
 def record_activity(
     *,
-    source: str,                       # 'agent' | 'human' | 'voice' | 'system'
-    staff_short_name: Optional[str],   # 'aisha', 'suresh', None for system
+    source: str,  # 'agent' | 'human' | 'voice' | 'system'
+    staff_short_name: Optional[str],  # 'aisha', 'suresh', None for system
     staff_kind: Optional[str] = None,  # required when short_name set
     capability_code: Optional[str] = None,
     case_id: Optional[str] = None,
@@ -62,8 +63,16 @@ def record_activity(
                         (staff_id, source, capability_code, case_id, summary, payload, status, org_id)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (staff_id, source, capability_code, case_id, summary,
-                     json.dumps(payload or {}), status, org_id),
+                    (
+                        staff_id,
+                        source,
+                        capability_code,
+                        case_id,
+                        summary,
+                        json.dumps(payload or {}),
+                        status,
+                        org_id,
+                    ),
                 )
                 # Touch the staff heartbeat so the admin panel shows them as online.
                 if staff_id and status == "ok":
@@ -78,6 +87,7 @@ def record_activity(
     if status in ("error", "warn") and staff_id:
         try:
             from .anomaly import check_and_disable
+
             check_and_disable(staff_id)
         except Exception as exc:
             logger.warning("anomaly check call failed: %s", exc)

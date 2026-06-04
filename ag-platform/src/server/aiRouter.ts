@@ -28,7 +28,6 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Middleware to track AI credits (Tokens)
 async function checkAndTrackTokens(orgId: string, tokensToConsume: number = 0) {
-  // Simplistic token tracking
   if (!orgId) return;
 
   const { data: org, error } = await supabase
@@ -55,8 +54,7 @@ async function checkAndTrackTokens(orgId: string, tokensToConsume: number = 0) {
 router.post("/generate-brief", async (req, res) => {
   try {
     const { project_name, client_name, scope_description, deliverables, orgId } = req.body;
-    
-    await checkAndTrackTokens(orgId); // Basic quota check
+    await checkAndTrackTokens(orgId);
 
     const systemPrompt = `You are a senior consultant writing professional project briefs. 
 Structure the output using Markdown with the following sections exactly:
@@ -72,12 +70,11 @@ Scope Description: ${scope_description}
 Deliverables: ${deliverables ? deliverables.join(', ') : 'Not specified'}`;
 
     const result = await streamText({
-      model: google("gemini-3.1-pro-preview"),
+      model: google("gemini-3.1-pro-preview") as any,
       system: systemPrompt,
       prompt: prompt,
     });
 
-    // Pipe directly to Express response
     result.pipeTextStreamToResponse(res);
   } catch (err: any) {
     console.error(err);
@@ -96,7 +93,7 @@ router.post("/suggest-tasks", async (req, res) => {
     await checkAndTrackTokens(orgId);
 
     const result = await generateObject({
-      model: google("gemini-3.1-pro-preview"),
+      model: google("gemini-3.1-pro-preview") as any,
       system: "You are an expert project manager. Based on the provided project brief and any existing tasks, suggest an array of new detailed tasks.",
       prompt: `Brief:\n${brief}\n\nExisting Tasks:\n${JSON.stringify(existingTasks)}`,
       schema: z.object({
@@ -123,7 +120,7 @@ router.post("/draft-email", async (req, res) => {
     await checkAndTrackTokens(orgId);
 
     const result = await generateText({
-      model: google("gemini-3.1-pro-preview"),
+      model: google("gemini-3.1-pro-preview") as any,
       system: "You are an elite client relations manager. Write a professional email draft based on the provided context.",
       prompt: `Type: ${email_type}\nContext: ${JSON.stringify(context_data)}`
     });
@@ -140,7 +137,7 @@ router.post("/send-email", async (req, res) => {
     const { to, subject, body } = req.body;
     const resend = getResendClient();
     const { data, error } = await resend.emails.send({
-      from: 'AgAssociates <noreply@resend.dev>', // requires verified domain in prod
+      from: 'AgAssociates <noreply@resend.dev>',
       to: [to],
       subject: subject,
       html: body.replace(/\n/g, '<br/>')
@@ -162,9 +159,9 @@ router.post("/invoice-line-item", async (req, res) => {
     await checkAndTrackTokens(orgId);
 
     const result = await generateObject({
-      model: google("gemini-3.1-pro-preview"),
+      model: google("gemini-3.1-pro-preview") as any,
       system: "Create succinct, professional invoice line item descriptions consolidating these time entries.",
-      prompt: `Project: ${project_name}\Entries: ${JSON.stringify(time_entries)}`,
+      prompt: `Project: ${project_name}\nEntries: ${JSON.stringify(time_entries)}`,
       schema: z.object({
         lineItems: z.array(z.object({
           description: z.string(),
@@ -187,7 +184,7 @@ router.post("/summarize-document", async (req, res) => {
     await checkAndTrackTokens(orgId);
 
     const result = await generateObject({
-      model: google("gemini-3.1-pro-preview"),
+      model: google("gemini-3.1-pro-preview") as any,
       system: "You are a fast, precise business analyst. Summarize the document.",
       prompt: extracted_text,
       schema: z.object({
@@ -204,19 +201,15 @@ router.post("/summarize-document", async (req, res) => {
 });
 
 // 6. SEMANTIC PROJECT SEARCH
-// Note: To ingest a project, we would compute its embedding when it is created.
-// Here we provide the search route and an ingest route.
 router.post("/search-projects", async (req, res) => {
   try {
     const { query, orgId } = req.body;
     
-    // Create query embedding
     const { embedding } = await embed({
-      model: google.textEmbeddingModel('text-embedding-004'),
+      model: google.textEmbeddingModel('text-embedding-004') as any,
       value: query,
     });
 
-    // Execute semantic search query in supabase
     const { data: matchedProjects, error } = await supabase.rpc('match_projects', {
       query_embedding: embedding,
       match_threshold: 0.7,
@@ -235,10 +228,10 @@ router.post("/search-projects", async (req, res) => {
 router.post("/ingest-project", async (req, res) => {
   try {
     const { projectId, content, orgId } = req.body;
-    await checkAndTrackTokens(orgId); // Account for ingestion
+    await checkAndTrackTokens(orgId);
     
     const { embedding } = await embed({
-      model: google.textEmbeddingModel('text-embedding-004'),
+      model: google.textEmbeddingModel('text-embedding-004') as any,
       value: content,
     });
 
@@ -260,22 +253,17 @@ router.post("/ingest-project", async (req, res) => {
 router.post("/vet-document", async (req, res) => {
   try {
     const { documentText, documentType, orgId } = req.body;
-    
-    await checkAndTrackTokens(orgId); // Account for tokens
+    await checkAndTrackTokens(orgId);
 
     if (!documentText) {
       return res.status(400).json({ error: 'Document text is required' });
     }
 
     const systemPrompt = "You are a legal document vetting assistant for an Indian home loan origination firm. Analyze documents for missing details, discrepancies, or potential issues preventing a home loan approval.";
-    const prompt = `Please analyze the following extracted text from a ${documentType || 'document'}.
-Be concise and return your analysis.
-
-Document Text:
-${documentText}`;
+    const prompt = `Please analyze the following extracted text from a ${documentType || 'document'}.\nBe concise and return your analysis.\n\nDocument Text:\n${documentText}`;
 
     const result = await generateObject({
-      model: google("gemini-3.1-pro-preview"),
+      model: google("gemini-3.1-pro-preview") as any,
       system: systemPrompt,
       prompt: prompt,
       schema: z.object({

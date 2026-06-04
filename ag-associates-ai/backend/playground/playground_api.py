@@ -2,6 +2,7 @@
 
 Mounted at /playground. Requires the AG session cookie issued by /auth/login.
 """
+
 from __future__ import annotations
 
 import logging
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/playground", tags=["Playground"])
 try:
     from workforce.ledger import record_activity as _record_activity
 except Exception:
+
     def _record_activity(**_kwargs):  # type: ignore
         return None
 
@@ -35,9 +37,13 @@ async def create_session(
 ):
     label = (payload or {}).get("label", "tab")
     start_url = (payload or {}).get("url")
-    session = await session_manager.create(label=label, owner=user["sub"], start_url=start_url)
+    session = await session_manager.create(
+        label=label, owner=user["sub"], start_url=start_url
+    )
     _record_activity(
-        source="system", staff_kind=None, staff_short_name=None,
+        source="system",
+        staff_kind=None,
+        staff_short_name=None,
         capability_code=None,
         summary=f"{user['sub']} opened playground session {session.id[:8]} → {start_url or 'about:blank'}",
         payload={"session_id": session.id, "url": start_url},
@@ -69,7 +75,9 @@ async def session_action(
 
 
 @router.get("/sessions/{sid}/screenshot")
-async def session_screenshot(sid: str, quality: int = 55, user: dict = Depends(require_user)):
+async def session_screenshot(
+    sid: str, quality: int = 55, user: dict = Depends(require_user)
+):
     try:
         b64 = await session_manager.screenshot(sid, quality=quality)
     except KeyError:

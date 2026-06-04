@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Staff = {
   id: string; kind: "agent" | "human"; display_name: string; short_name: string;

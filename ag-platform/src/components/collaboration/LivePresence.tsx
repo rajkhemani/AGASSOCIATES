@@ -1,4 +1,4 @@
-import React from "react";
+
 import { useLivePresence } from "../../hooks/useLivePresence";
 import { Users } from "lucide-react";
 

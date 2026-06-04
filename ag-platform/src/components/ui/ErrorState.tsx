@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { WifiOff, RefreshCw } from 'lucide-react';
 
 interface ErrorStateProps {

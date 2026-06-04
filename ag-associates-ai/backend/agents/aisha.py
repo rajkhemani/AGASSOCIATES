@@ -50,8 +50,8 @@ EXAMPLE OUTPUT:
 def aisha_intake_node(state: AgentState) -> AgentState:
     """Extract intake variables from the user's raw text."""
     print(f"\n🧠 [AISHA] Processing intake for sender: {state['sender']}")
-    state['current_node'] = 'aisha_intake'
-    state['timestamps']['aisha_start'] = datetime.now().isoformat()
+    state["current_node"] = "aisha_intake"
+    state["timestamps"]["aisha_start"] = datetime.now().isoformat()
 
     try:
         llm = ChatOpenAI(
@@ -61,33 +61,39 @@ def aisha_intake_node(state: AgentState) -> AgentState:
             temperature=0.1,
         )
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", AISHA_SYSTEM_PROMPT),
-            ("human", "Extract variables from this message:\n\n{raw_input}"),
-        ])
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", AISHA_SYSTEM_PROMPT),
+                ("human", "Extract variables from this message:\n\n{raw_input}"),
+            ]
+        )
 
         parser = JsonOutputParser()
         chain = prompt | llm | parser
 
-        result = invoke_llm_with_retry(chain, {"raw_input": state['raw_input']})
+        result = invoke_llm_with_retry(chain, {"raw_input": state["raw_input"]})
 
         if isinstance(result, dict):
-            state['extracted_json'] = result
-            state['tenant_name'] = result.get('tenant_name')
-            state['landlord_name'] = result.get('landlord_name')
-            state['rent_amount'] = result.get('rent_amount')
-            state['property_address'] = result.get('property_address')
-            state['agreement_start_date'] = result.get('agreement_start_date')
-            state['agreement_duration'] = result.get('agreement_duration')
-            state['security_deposit'] = result.get('security_deposit')
+            state["extracted_json"] = result
+            state["tenant_name"] = result.get("tenant_name")
+            state["landlord_name"] = result.get("landlord_name")
+            state["rent_amount"] = result.get("rent_amount")
+            state["property_address"] = result.get("property_address")
+            state["agreement_start_date"] = result.get("agreement_start_date")
+            state["agreement_duration"] = result.get("agreement_duration")
+            state["security_deposit"] = result.get("security_deposit")
 
-            print(f"✅ [AISHA] Successfully extracted {len([v for v in result.values() if v])} fields")
+            print(
+                f"✅ [AISHA] Successfully extracted {len([v for v in result.values() if v])} fields"
+            )
             record_activity(
-                source="agent", staff_kind="agent", staff_short_name="aisha",
+                source="agent",
+                staff_kind="agent",
+                staff_short_name="aisha",
                 capability_code="case.intake",
                 summary=f"Extracted {len([v for v in result.values() if v])} fields from intake",
                 payload={"sender": state.get("sender")},
-                org_id=state.get('org_id'),
+                org_id=state.get("org_id"),
             )
         else:
             raise ValueError("Aisha did not return valid JSON")
@@ -95,13 +101,17 @@ def aisha_intake_node(state: AgentState) -> AgentState:
     except Exception as e:
         error_msg = f"Aisha intake failed: {str(e)}"
         print(f"❌ [AISHA] {error_msg}")
-        state['errors'].append(error_msg)
-        state['extracted_json'] = None
+        state["errors"].append(error_msg)
+        state["extracted_json"] = None
         record_activity(
-            source="agent", staff_kind="agent", staff_short_name="aisha",
-            capability_code="case.intake", summary=error_msg, status="error",
-            org_id=state.get('org_id'),
+            source="agent",
+            staff_kind="agent",
+            staff_short_name="aisha",
+            capability_code="case.intake",
+            summary=error_msg,
+            status="error",
+            org_id=state.get("org_id"),
         )
 
-    state['timestamps']['aisha_end'] = datetime.now().isoformat()
+    state["timestamps"]["aisha_end"] = datetime.now().isoformat()
     return state

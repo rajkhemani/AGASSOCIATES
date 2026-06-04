@@ -3,22 +3,33 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 type ButtonVariant = 'default' | 'outline' | 'ghost';
+type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
 
 export function Button({
   children,
   variant = 'default',
+  size = 'default',
   className = '',
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize }) {
   const base =
-    'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none disabled:opacity-50';
+    'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none disabled:opacity-50';
+
   const variants: Record<ButtonVariant, string> = {
     default: 'bg-indigo-700 text-white hover:bg-indigo-800',
     outline: 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-700',
     ghost: 'hover:bg-slate-100 text-slate-600',
   };
+
+  const sizes: Record<ButtonSize, string> = {
+    default: 'px-4 py-2',
+    sm: 'px-3 py-1.5',
+    lg: 'px-6 py-3',
+    icon: 'h-9 w-9',
+  };
+
   return (
-    <button className={`${base} ${variants[variant]} ${className}`} {...props}>
+    <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
       {children}
     </button>
   );

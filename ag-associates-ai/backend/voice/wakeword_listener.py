@@ -11,6 +11,7 @@ in the environment so the listener can authenticate.
 This module is intentionally **not** imported by the FastAPI app — the
 backend container has no mic and the heavy audio deps should stay optional.
 """
+
 from __future__ import annotations
 
 import io
@@ -24,12 +25,16 @@ from typing import Optional
 import httpx
 
 logger = logging.getLogger("vyasa.wakeword")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
+)
 
 API_BASE = os.environ.get("VOICE_API_BASE", "http://localhost:8000")
 ADMIN_KEY = os.environ.get("VOICE_ADMIN_KEY", "")
 USER_ID = os.environ.get("VOICE_WAKEWORD_USER_ID", "desk-mic")
-WAKE_MODEL = os.environ.get("WAKEWORD_MODEL", "hey_jarvis_v0.1")  # ship custom "hey_vyasa" once trained
+WAKE_MODEL = os.environ.get(
+    "WAKEWORD_MODEL", "hey_jarvis_v0.1"
+)  # ship custom "hey_vyasa" once trained
 SAMPLE_RATE = 16000
 CHUNK_MS = 80
 COMMAND_SECONDS = float(os.environ.get("WAKEWORD_COMMAND_SECONDS", "5"))
@@ -58,7 +63,9 @@ def _post_command(wav_bytes: bytes) -> Optional[dict]:
     files = {"file": ("wakeword.wav", wav_bytes, "audio/wav")}
     try:
         with httpx.Client(timeout=30.0) as client:
-            resp = client.post(f"{API_BASE}/voice/command", headers=headers, files=files)
+            resp = client.post(
+                f"{API_BASE}/voice/command", headers=headers, files=files
+            )
             resp.raise_for_status()
             return resp.json()
     except Exception as exc:
@@ -72,21 +79,27 @@ def main() -> int:
         import sounddevice as sd  # type: ignore
         from openwakeword.model import Model  # type: ignore
     except ImportError as exc:
-        logger.error("Missing audio deps (%s). pip install openwakeword sounddevice numpy", exc)
+        logger.error(
+            "Missing audio deps (%s). pip install openwakeword sounddevice numpy", exc
+        )
         return 2
 
     model = Model(wakeword_models=[WAKE_MODEL])
     chunk_size = int(SAMPLE_RATE * CHUNK_MS / 1000)
     logger.info("Listening for wake word=%s …", WAKE_MODEL)
 
-    with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=chunk_size) as stream:
+    with sd.InputStream(
+        samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=chunk_size
+    ) as stream:
         while True:
             block, _ = stream.read(chunk_size)
             scores = model.predict(np.squeeze(block))
             triggered = any(score > 0.5 for score in scores.values())
             if not triggered:
                 continue
-            logger.info("Wake word detected — recording %.1fs of command audio", COMMAND_SECONDS)
+            logger.info(
+                "Wake word detected — recording %.1fs of command audio", COMMAND_SECONDS
+            )
             time.sleep(0.2)  # tiny gap so the user can start speaking
             wav_bytes = _record_wav(COMMAND_SECONDS)
             result = _post_command(wav_bytes)

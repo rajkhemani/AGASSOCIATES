@@ -10,7 +10,12 @@ from .deps import require_auth, require_permission
 from .rbac import AuthContext, Role, Permission, can
 
 __all__ = [
-    "oauth_router", "require_user",
-    "require_auth", "require_permission",
-    "AuthContext", "Role", "Permission", "can",
+    "oauth_router",
+    "require_user",
+    "require_auth",
+    "require_permission",
+    "AuthContext",
+    "Role",
+    "Permission",
+    "can",
 ]

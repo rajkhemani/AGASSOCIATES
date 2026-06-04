@@ -7,44 +7,59 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class GrasRPAExecutor:
     """
     Agent 5: The Executor (RPA & API Operations)
     Uses Playwright to completely eliminate human data-entry errors (e.g. extra zeros)
     and handles OTP bottlenecks automatically.
     """
-    
+
     def __init__(self):
         self.portal_url = "https://gras.mahakosh.gov.in/echallan/"
-        self.otp_storage = {} # Temporary in-memory store for OTPs keyed by case_id
+        self.otp_storage = {}  # Temporary in-memory store for OTPs keyed by case_id
 
-    async def generate_mtr6_challan(self, case_id: str, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_mtr6_challan(
+        self, case_id: str, extracted_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Takes mathematically validated JSON and auto-fills the GRAS portal.
         Completely eliminates human data entry typos.
         """
         logger.info(f"🚀 [EXECUTOR] Starting GRAS RPA for case: {case_id}")
-        
+
         # 1. We trust the input strictly (Validated by Agent 3: The Bouncer)
-        tenant_name = extracted_data.get('tenant_name')
-        rent_amount_str = str(extracted_data.get('rent_amount', '0'))
+        extracted_data.get("tenant_name")
+        rent_amount_str = str(extracted_data.get("rent_amount", "0"))
 
         # Sanitize while preserving the decimal point so values like "50000.50" stay intact.
-        cleaned = re.sub(r'[^\d.]', '', rent_amount_str)
+        cleaned = re.sub(r"[^\d.]", "", rent_amount_str)
         # Collapse multiple dots to a single decimal separator.
-        if cleaned.count('.') > 1:
-            head, _, tail = cleaned.partition('.')
-            cleaned = head + '.' + tail.replace('.', '')
+        if cleaned.count(".") > 1:
+            head, _, tail = cleaned.partition(".")
+            cleaned = head + "." + tail.replace(".", "")
         try:
-            exact_rent = Decimal(cleaned) if cleaned else Decimal('0')
+            exact_rent = Decimal(cleaned) if cleaned else Decimal("0")
         except InvalidOperation:
-            return {"success": False, "error": "Invalid rent amount passed to Executor."}
+            return {
+                "success": False,
+                "error": "Invalid rent amount passed to Executor.",
+            }
         if exact_rent <= 0:
-            return {"success": False, "error": "Invalid rent amount passed to Executor."}
+            return {
+                "success": False,
+                "error": "Invalid rent amount passed to Executor.",
+            }
 
-        stamp_duty = int((exact_rent * Decimal('0.0025')).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+        stamp_duty = int(
+            (exact_rent * Decimal("0.0025")).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP
+            )
+        )
 
-        logger.info(f"🛡️ [EXECUTOR] Calculated Exact Stamp Duty: ₹{stamp_duty}. No extra zeros possible.")
+        logger.info(
+            f"🛡️ [EXECUTOR] Calculated Exact Stamp Duty: ₹{stamp_duty}. No extra zeros possible."
+        )
 
         browser = None
         try:
@@ -57,7 +72,7 @@ class GrasRPAExecutor:
                 # 2. Navigate to portal
                 logger.info("🌐 [EXECUTOR] Navigating to GRAS Portal...")
                 await page.goto(self.portal_url)
-                
+
                 # NOTE: The below selectors are placeholders for the actual GRAS portal DOM
                 # await page.click("text=Pay Without Registration")
                 # await page.fill("input[name='department']", "Inspector General of Registration")
@@ -68,13 +83,16 @@ class GrasRPAExecutor:
                 logger.info("📲 [EXECUTOR] Reached OTP Verification Stage.")
                 # Trigger OTP generation on the portal
                 # await page.click("button[id='generate_otp']")
-                
+
                 # Now we WAIT for the OTP to hit our webhook instead of bothering Aditya
                 # The webhook will populate self.otp_storage[case_id]
                 otp_code = await self.wait_for_otp(case_id, timeout_seconds=120)
 
                 if not otp_code:
-                    return {"success": False, "error": "OTP Timeout. Staff did not need to interrupt, system will retry."}
+                    return {
+                        "success": False,
+                        "error": "OTP Timeout. Staff did not need to interrupt, system will retry.",
+                    }
 
                 logger.info("✅ [EXECUTOR] Received OTP asynchronously. Submitting...")
                 # await page.fill("input[id='otp_input']", otp_code)
@@ -89,9 +107,9 @@ class GrasRPAExecutor:
 
                 return {
                     "success": True,
-                    "grn_number": "MHR00000012345", # Mock for now
+                    "grn_number": "MHR00000012345",  # Mock for now
                     "amount_paid": stamp_duty,
-                    "agent": "Executor"
+                    "agent": "Executor",
                 }
 
         except Exception as e:
@@ -104,7 +122,9 @@ class GrasRPAExecutor:
                 except Exception as close_err:
                     logger.warning(f"[EXECUTOR] Browser close failed: {close_err}")
 
-    async def wait_for_otp(self, case_id: str, timeout_seconds: int = 120) -> Optional[str]:
+    async def wait_for_otp(
+        self, case_id: str, timeout_seconds: int = 120
+    ) -> Optional[str]:
         """
         Notifies staff via Telegram that an OTP is needed, then waits for it
         to arrive in Redis. Returns the OTP string, or None on timeout.
@@ -129,11 +149,16 @@ class GrasRPAExecutor:
 
                 # Notify staff via Telegram
                 from telegram_bot import send_otp_request
+
                 sent = send_otp_request(case_id)
                 if sent:
-                    logger.info(f"📲 [EXECUTOR] Sent Telegram OTP request for case {case_id}")
+                    logger.info(
+                        f"📲 [EXECUTOR] Sent Telegram OTP request for case {case_id}"
+                    )
                 else:
-                    logger.warning("⚠️ [EXECUTOR] Telegram notification failed (OTP will still work if webhook posts directly)")
+                    logger.warning(
+                        "⚠️ [EXECUTOR] Telegram notification failed (OTP will still work if webhook posts directly)"
+                    )
 
             while (asyncio.get_event_loop().time() - start_time) < timeout_seconds:
                 otp_code = await r.get(otp_key)
@@ -143,8 +168,9 @@ class GrasRPAExecutor:
                         await r.delete(f"otp_waiting:{CHAT_ID}")
                     logger.info(f"✅ [EXECUTOR] OTP received for case {case_id}")
                     from telegram_bot import send_otp_received
+
                     send_otp_received(case_id)
-                    return otp_code.decode('utf-8')
+                    return otp_code.decode("utf-8")
 
                 await asyncio.sleep(2)
 
@@ -152,6 +178,7 @@ class GrasRPAExecutor:
             if CHAT_ID:
                 await r.delete(f"otp_waiting:{CHAT_ID}")
             from telegram_bot import send_otp_timeout
+
             send_otp_timeout(case_id)
             return None
         finally:
@@ -159,6 +186,7 @@ class GrasRPAExecutor:
                 await r.close()
             except Exception as close_err:
                 logger.warning(f"[EXECUTOR] Redis close failed: {close_err}")
+
 
 # Singleton instance
 executor_agent = GrasRPAExecutor()

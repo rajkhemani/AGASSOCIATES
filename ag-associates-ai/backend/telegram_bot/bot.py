@@ -30,14 +30,31 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import redis.asyncio as aioredis
-from db import create_case, list_cases, get_case, update_case_status, create_task, list_tasks, create_challan, list_challans, approve_challan
+from db import (
+    update_task_status,
+    create_case,
+    list_cases,
+    get_case,
+    update_case_status,
+    create_task,
+    list_tasks,
+    create_challan,
+    list_challans,
+    approve_challan,
+)
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application, CallbackQueryHandler, CommandHandler,
-    MessageHandler, ContextTypes, filters,
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
 )
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # ── Config ───────────────────────────────────────────────────────────────
@@ -70,6 +87,7 @@ TTSService = None
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
+
 
 def _is_aisha_mode(chat_id: int) -> bool:
     return chat_id in _aisha_chat_modes
@@ -108,18 +126,30 @@ def _autoforward_key() -> str:
 
 
 PORTAL_LABELS = {
-    "idbi": "IDBI Bank", "icici": "ICICI Bank", "hdfc": "HDFC Bank",
-    "axis": "Axis Bank", "sbi": "SBI",
-    "gras": "GRAS", "igr": "IGR", "cersai": "CERSAI", "noc": "NOC",
+    "idbi": "IDBI Bank",
+    "icici": "ICICI Bank",
+    "hdfc": "HDFC Bank",
+    "axis": "Axis Bank",
+    "sbi": "SBI",
+    "gras": "GRAS",
+    "igr": "IGR",
+    "cersai": "CERSAI",
+    "noc": "NOC",
 }
 
 BANK_PATTERNS = {
-    "idbi": r"\bIDBI\b", "icici": r"\bICICI\b",
-    "hdfc": r"\bHDFC\b", "axis": r"\bAxis\b", "sbi": r"\bSBI\b",
+    "idbi": r"\bIDBI\b",
+    "icici": r"\bICICI\b",
+    "hdfc": r"\bHDFC\b",
+    "axis": r"\bAxis\b",
+    "sbi": r"\bSBI\b",
 }
 PORTAL_MAP = {
-    "gras": r"\bGRAS\b", "igr": r"\bIGR\b",
-    "cersai": r"\bCERSAI\b", "sbi": r"\bSBI\b", "noc": r"\bNOC\b",
+    "gras": r"\bGRAS\b",
+    "igr": r"\bIGR\b",
+    "cersai": r"\bCERSAI\b",
+    "sbi": r"\bSBI\b",
+    "noc": r"\bNOC\b",
 }
 
 
@@ -130,7 +160,7 @@ def _portal_label(portal: str) -> str:
 async def _send_text(update: Update, text: str, parse_mode: str = "HTML"):
     if len(text) > 4000:
         for i in range(0, len(text), 4000):
-            await update.message.reply_text(text[i:i + 4000], parse_mode=parse_mode)
+            await update.message.reply_text(text[i : i + 4000], parse_mode=parse_mode)
     else:
         await update.message.reply_text(text, parse_mode=parse_mode)
 
@@ -147,14 +177,20 @@ async def _reply_with_voice(update: Update, text: str, ctx: ContextTypes.DEFAULT
 
 # ── Aisha API ────────────────────────────────────────────────────────────
 
+
 async def _call_aisha_api(message: str, chat_id: int, username: str) -> Optional[str]:
     import httpx
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
                 AISHA_API_URL,
-                json={"message": message, "platform": "telegram",
-                       "platform_identity": str(chat_id), "display_name": username},
+                json={
+                    "message": message,
+                    "platform": "telegram",
+                    "platform_identity": str(chat_id),
+                    "display_name": username,
+                },
                 headers={"x-api-key": AISHA_API_KEY} if AISHA_API_KEY else {},
             )
             resp.raise_for_status()
@@ -167,7 +203,9 @@ async def _call_aisha_api(message: str, chat_id: int, username: str) -> Optional
         return None
 
 
-async def _call_aisha_and_reply(update: Update, text: str, ctx: ContextTypes.DEFAULT_TYPE):
+async def _call_aisha_and_reply(
+    update: Update, text: str, ctx: ContextTypes.DEFAULT_TYPE
+):
     chat_id = update.effective_chat.id
     identity = update.effective_user.username or str(chat_id)
     await update.message.reply_chat_action("typing")
@@ -179,6 +217,7 @@ async def _call_aisha_and_reply(update: Update, text: str, ctx: ContextTypes.DEF
 
 
 # ── Excel audit ──────────────────────────────────────────────────────────
+
 
 async def audit_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -209,10 +248,11 @@ async def document_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     try:
         from finance_auditor import audit_excel
+
         report = audit_excel(bytes(file_bytes), doc.file_name)
         if len(report) > 4000:
             for i in range(0, len(report), 4000):
-                await update.message.reply_text(report[i:i + 4000], parse_mode="HTML")
+                await update.message.reply_text(report[i : i + 4000], parse_mode="HTML")
         else:
             await update.message.reply_text(report, parse_mode="HTML")
     except Exception as e:
@@ -222,11 +262,13 @@ async def document_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ── TTS ──────────────────────────────────────────────────────────────────
 
+
 async def _synthesize_speech(text: str, lang: str = "en") -> Optional[bytes]:
     global TTSService
     if TTSService is None:
         try:
             import edge_tts
+
             TTSService = edge_tts
         except ImportError:
             return None
@@ -245,17 +287,26 @@ async def _synthesize_speech(text: str, lang: str = "en") -> Optional[bytes]:
 
 # ── OTP delivery ─────────────────────────────────────────────────────────
 
-async def deliver_otp(chat_id: int, portal: str, otp_code: str, app: Application) -> bool:
+
+async def deliver_otp(
+    chat_id: int, portal: str, otp_code: str, app: Application
+) -> bool:
     label = _portal_label(portal)
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Received", callback_data="otp_done"),
-         InlineKeyboardButton("🔄 Resend", callback_data=f"otp_resend:{portal}:{otp_code}")]
-    ])
+    kb = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("✅ Received", callback_data="otp_done"),
+                InlineKeyboardButton(
+                    "🔄 Resend", callback_data=f"otp_resend:{portal}:{otp_code}"
+                ),
+            ]
+        ]
+    )
     try:
         await app.bot.send_message(
             chat_id=chat_id,
             text=f"🔐 <b>OTP for {label}</b>\n\n<code>{otp_code}</code>\n\n"
-                 f"Expires in 5 minutes.",
+            f"Expires in 5 minutes.",
             parse_mode="HTML",
             reply_markup=kb,
         )
@@ -268,7 +319,7 @@ async def deliver_otp(chat_id: int, portal: str, otp_code: str, app: Application
 
 async def process_incoming_sms(sms_text: str, sender: str, app: Application) -> bool:
     r = await get_redis()
-    otp_match = re.search(r'\b(\d{4,8})\b', sms_text)
+    otp_match = re.search(r"\b(\d{4,8})\b", sms_text)
     if not otp_match:
         return False
     otp_code = otp_match.group(1)
@@ -288,11 +339,19 @@ async def process_incoming_sms(sms_text: str, sender: str, app: Application) -> 
             req = json.loads(raw)
             cid = int(req["chat_id"])
             ok = await deliver_otp(cid, detected, otp_code, app)
-            await r.rpush(OTP_HISTORY_KEY, json.dumps({
-                "ts": datetime.now(timezone.utc).isoformat(),
-                "chat_id": cid, "portal": detected, "otp": otp_code[:4] + "***",
-                "sender": sender, "delivered": ok,
-            }))
+            await r.rpush(
+                OTP_HISTORY_KEY,
+                json.dumps(
+                    {
+                        "ts": datetime.now(timezone.utc).isoformat(),
+                        "chat_id": cid,
+                        "portal": detected,
+                        "otp": otp_code[:4] + "***",
+                        "sender": sender,
+                        "delivered": ok,
+                    }
+                ),
+            )
             await r.ltrim(OTP_HISTORY_KEY, -200, -1)
             return ok
         except (json.JSONDecodeError, KeyError, ValueError):
@@ -310,11 +369,18 @@ async def process_incoming_sms(sms_text: str, sender: str, app: Application) -> 
                 continue
         return ok
 
-    await r.rpush(ORPHAN_KEY, json.dumps({
-        "otp": otp_code, "portal": detected,
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "sender": sender, "sms": sms_text[:100],
-    }))
+    await r.rpush(
+        ORPHAN_KEY,
+        json.dumps(
+            {
+                "otp": otp_code,
+                "portal": detected,
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "sender": sender,
+                "sms": sms_text[:100],
+            }
+        ),
+    )
     await r.expire(ORPHAN_KEY, 3600)
     return False
 
@@ -327,26 +393,43 @@ async def sms_webhook_handler(body: dict, app: Application):
 
 # ── Commands ─────────────────────────────────────────────────────────────
 
+
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cid = update.effective_chat.id
     user = update.effective_user.username or str(cid)
     r = await get_redis()
-    await r.hset(_staff_key(cid), mapping={
-        "chat_id": str(cid), "username": user,
-        "registered_at": datetime.now(timezone.utc).isoformat(),
-    })
+    await r.hset(
+        _staff_key(cid),
+        mapping={
+            "chat_id": str(cid),
+            "username": user,
+            "registered_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
     await r.sadd(STAFF_SET_KEY, str(cid))
 
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🤖 Chat with Aisha", callback_data="aisha_toggle"),
-         InlineKeyboardButton("🔊 Voice", callback_data="voice_toggle")],
-        [InlineKeyboardButton("🇮🇳 Hindi Voice", callback_data="hindi_toggle"),
-         InlineKeyboardButton("🔄 Auto-OTP", callback_data="autootp_toggle")],
-        [InlineKeyboardButton("🔐 OTP Menu", callback_data="otp_menu"),
-         InlineKeyboardButton("📋 Claim", callback_data="claim")],
-        [InlineKeyboardButton("📜 History", callback_data="history"),
-         InlineKeyboardButton("❓ Help", callback_data="help")],
-    ])
+    kb = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "🤖 Chat with Aisha", callback_data="aisha_toggle"
+                ),
+                InlineKeyboardButton("🔊 Voice", callback_data="voice_toggle"),
+            ],
+            [
+                InlineKeyboardButton("🇮🇳 Hindi Voice", callback_data="hindi_toggle"),
+                InlineKeyboardButton("🔄 Auto-OTP", callback_data="autootp_toggle"),
+            ],
+            [
+                InlineKeyboardButton("🔐 OTP Menu", callback_data="otp_menu"),
+                InlineKeyboardButton("📋 Claim", callback_data="claim"),
+            ],
+            [
+                InlineKeyboardButton("📜 History", callback_data="history"),
+                InlineKeyboardButton("❓ Help", callback_data="help"),
+            ],
+        ]
+    )
     await update.message.reply_text(
         f"✅ Registered <b>{user}</b>\n\n"
         "<b>Key commands:</b>\n"
@@ -358,7 +441,8 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/claim — Claim orphan OTPs\n"
         "/history — View recent OTPs\n\n"
         "<i>Send a voice message anytime to talk hands-free.</i>",
-        parse_mode="HTML", reply_markup=kb,
+        parse_mode="HTML",
+        reply_markup=kb,
     )
 
 
@@ -435,16 +519,25 @@ async def request_otp(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     valid = ("any", "gras", "igr", "cersai", "sbi", "noc")
     if portal not in valid:
         await update.message.reply_text(
-            f"❌ Unknown portal. Supported: {', '.join(valid)}")
+            f"❌ Unknown portal. Supported: {', '.join(valid)}"
+        )
         return
 
     r = await get_redis()
-    await r.rpush(_pending_key(portal), json.dumps({
-        "chat_id": cid, "portal": portal,
-        "ts": datetime.now(timezone.utc).isoformat(),
-    }))
+    await r.rpush(
+        _pending_key(portal),
+        json.dumps(
+            {
+                "chat_id": cid,
+                "portal": portal,
+                "ts": datetime.now(timezone.utc).isoformat(),
+            }
+        ),
+    )
     await r.expire(_pending_key(portal), OTP_TTL_SECONDS)
-    await update.message.reply_text(f"⏳ OTP requested for <b>{portal}</b>.", parse_mode="HTML")
+    await update.message.reply_text(
+        f"⏳ OTP requested for <b>{portal}</b>.", parse_mode="HTML"
+    )
 
 
 async def claim_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -467,7 +560,9 @@ async def claim_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         except (json.JSONDecodeError, KeyError):
             continue
 
-    await update.message.reply_text(f"✅ Claimed <b>{claimed}</b> orphan OTP(s).", parse_mode="HTML")
+    await update.message.reply_text(
+        f"✅ Claimed <b>{claimed}</b> orphan OTP(s).", parse_mode="HTML"
+    )
 
 
 async def history_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -510,7 +605,9 @@ async def status_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not lines:
         await update.message.reply_text("📭 No pending OTP requests.")
     else:
-        await update.message.reply_text("📋 <b>Your pending requests:</b>\n" + "\n".join(lines), parse_mode="HTML")
+        await update.message.reply_text(
+            "📋 <b>Your pending requests:</b>\n" + "\n".join(lines), parse_mode="HTML"
+        )
 
 
 async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -541,11 +638,16 @@ async def autootp_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🚫 Auto-OTP off.")
     else:
         await r.sadd(_autoforward_key(), str(cid))
-        kind = "group" if update.effective_chat.type in ("group", "supergroup") else "chat"
-        await update.message.reply_text(f"✅ Auto-OTP on! All OTPs forwarded to this {kind}.")
+        kind = (
+            "group" if update.effective_chat.type in ("group", "supergroup") else "chat"
+        )
+        await update.message.reply_text(
+            f"✅ Auto-OTP on! All OTPs forwarded to this {kind}."
+        )
 
 
 # ── Message handlers ─────────────────────────────────────────────────────
+
 
 async def aisha_message_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not _is_aisha_mode(update.effective_chat.id):
@@ -560,13 +662,13 @@ async def voice_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not voice:
         return
 
-    cid = update.effective_chat.id
     await update.message.reply_chat_action("typing")
 
     f = await ctx.bot.get_file(voice.file_id)
     audio = await f.download_as_bytearray()
 
     import httpx
+
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
@@ -593,6 +695,7 @@ async def voice_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ── Callback handler ────────────────────────────────────────────────────
+
 
 async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -671,20 +774,30 @@ async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         case_id = q.data.split(":", 1)[1]
         try:
             update_case_status(case_id, "portal_submission")
-            await q.edit_message_text(q.message.text_html + "\n\n📤 <b>Submitted for portal processing.</b>", parse_mode="HTML")
+            await q.edit_message_text(
+                q.message.text_html + "\n\n📤 <b>Submitted for portal processing.</b>",
+                parse_mode="HTML",
+            )
         except Exception as e:
-            await q.edit_message_text(q.message.text_html + f"\n\n❌ Failed: {e}", parse_mode="HTML")
+            await q.edit_message_text(
+                q.message.text_html + f"\n\n❌ Failed: {e}", parse_mode="HTML"
+            )
 
     elif q.data.startswith("noi_close:"):
         case_id = q.data.split(":", 1)[1]
         try:
             update_case_status(case_id, "completed")
-            await q.edit_message_text(q.message.text_html + "\n\n✅ <b>Case closed.</b>", parse_mode="HTML")
+            await q.edit_message_text(
+                q.message.text_html + "\n\n✅ <b>Case closed.</b>", parse_mode="HTML"
+            )
         except Exception as e:
-            await q.edit_message_text(q.message.text_html + f"\n\n❌ Failed: {e}", parse_mode="HTML")
+            await q.edit_message_text(
+                q.message.text_html + f"\n\n❌ Failed: {e}", parse_mode="HTML"
+            )
 
 
 # ── Error handler ───────────────────────────────────────────────────────
+
 
 async def error_handler(update: Optional[Update], ctx: ContextTypes.DEFAULT_TYPE):
     logger.error("Unhandled error: %s", ctx.error, exc_info=ctx.error)
@@ -699,6 +812,7 @@ async def error_handler(update: Optional[Update], ctx: ContextTypes.DEFAULT_TYPE
 
 
 # ── Job queue ────────────────────────────────────────────────────────────
+
 
 async def cleanup_orphans(ctx: Optional[ContextTypes.DEFAULT_TYPE] = None):
     """Periodic job: expire old orphans (redundant with Redis EXPIRE, but safe)."""
@@ -717,6 +831,7 @@ async def cleanup_orphans(ctx: Optional[ContextTypes.DEFAULT_TYPE] = None):
 
 
 # ── Background SMS listener ─────────────────────────────────────────────
+
 
 async def _sms_listener(app: Application):
     r = await get_redis()
@@ -751,6 +866,7 @@ async def _cleanup_loop(app: Application):
 
 # ── Health endpoint ──────────────────────────────────────────────────────
 
+
 def run_health_check():
     import http.server
     import socketserver
@@ -759,18 +875,25 @@ def run_health_check():
         def do_GET(self):
             self.send_response(200)
             self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "ok",
-                "aisha_mode": len(_aisha_chat_modes),
-                "voice_mode": len(_voice_mode_chats),
-            }).encode())
-        def log_message(self, *a): pass
+            self.wfile.write(
+                json.dumps(
+                    {
+                        "status": "ok",
+                        "aisha_mode": len(_aisha_chat_modes),
+                        "voice_mode": len(_voice_mode_chats),
+                    }
+                ).encode()
+            )
+
+        def log_message(self, *a):
+            pass
 
     httpd = socketserver.TCPServer(("0.0.0.0", HEALTH_PORT), H)
     httpd.serve_forever()
 
 
 # ── NOI Case Management ──────────────────────────────────────────────────
+
 
 async def noi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cid = update.effective_chat.id
@@ -812,7 +935,10 @@ async def noi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             if not cases:
                 await update.message.reply_text("📭 No cases found.")
                 return
-            lines = [f"<code>{c['id'][:8]}</code> <b>{c['client_name']}</b> ({c['status']})" for c in cases]
+            lines = [
+                f"<code>{c['id'][:8]}</code> <b>{c['client_name']}</b> ({c['status']})"
+                for c in cases
+            ]
             await update.message.reply_text(
                 "📋 <b>NOI Cases</b>\n\n" + "\n".join(lines),
                 parse_mode="HTML",
@@ -824,13 +950,27 @@ async def noi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif sub == "status" and len(ctx.args) >= 3:
         case_id = ctx.args[1]
         new_status = ctx.args[2]
-        valid_statuses = ("intake", "documents", "challan", "otp_collection", "portal_submission", "verification", "completed", "cancelled")
+        valid_statuses = (
+            "intake",
+            "documents",
+            "challan",
+            "otp_collection",
+            "portal_submission",
+            "verification",
+            "completed",
+            "cancelled",
+        )
         if new_status not in valid_statuses:
-            await update.message.reply_text(f"❌ Invalid status. Valid: {', '.join(valid_statuses)}")
+            await update.message.reply_text(
+                f"❌ Invalid status. Valid: {', '.join(valid_statuses)}"
+            )
             return
         try:
             if update_case_status(case_id, new_status):
-                await update.message.reply_text(f"✅ Case <code>{case_id[:8]}...</code> status → <b>{new_status}</b>", parse_mode="HTML")
+                await update.message.reply_text(
+                    f"✅ Case <code>{case_id[:8]}...</code> status → <b>{new_status}</b>",
+                    parse_mode="HTML",
+                )
             else:
                 await update.message.reply_text(f"❌ Case not found: {case_id[:8]}...")
         except Exception as e:
@@ -857,7 +997,13 @@ async def noi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             if tasks:
                 msg += "<b>Tasks:</b>\n"
                 for t in tasks:
-                    icon = {"pending": "⏳", "running": "🔄", "awaiting_otp": "🔐", "completed": "✅", "failed": "❌"}.get(t["status"], "❓")
+                    icon = {
+                        "pending": "⏳",
+                        "running": "🔄",
+                        "awaiting_otp": "🔐",
+                        "completed": "✅",
+                        "failed": "❌",
+                    }.get(t["status"], "❓")
                     msg += f"{icon} <code>{t['task_type']}</code> ({t['status']})\n"
             if challans:
                 msg += "\n<b>Challans:</b>\n"
@@ -867,10 +1013,18 @@ async def noi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             msg += "\n/task <id> — Manage tasks\n"
             msg += "/challan <id> — Manage challans"
 
-            kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📤 Submit", callback_data=f"noi_submit:{case_id}"),
-                 InlineKeyboardButton("❌ Close", callback_data=f"noi_close:{case_id}")],
-            ])
+            kb = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "📤 Submit", callback_data=f"noi_submit:{case_id}"
+                        ),
+                        InlineKeyboardButton(
+                            "❌ Close", callback_data=f"noi_close:{case_id}"
+                        ),
+                    ],
+                ]
+            )
             await update.message.reply_text(msg, parse_mode="HTML", reply_markup=kb)
         except Exception as e:
             logger.error("Get case error: %s", e)
@@ -894,11 +1048,16 @@ async def task_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         new_status = ctx.args[2]
         valid_statuses = ("pending", "running", "awaiting_otp", "completed", "failed")
         if new_status not in valid_statuses:
-            await update.message.reply_text(f"❌ Invalid status. Valid: {', '.join(valid_statuses)}")
+            await update.message.reply_text(
+                f"❌ Invalid status. Valid: {', '.join(valid_statuses)}"
+            )
             return
         try:
             if update_task_status(task_id, new_status):
-                await update.message.reply_text(f"✅ Task updated: <code>{task_id[:8]}...</code> → <b>{new_status}</b>", parse_mode="HTML")
+                await update.message.reply_text(
+                    f"✅ Task updated: <code>{task_id[:8]}...</code> → <b>{new_status}</b>",
+                    parse_mode="HTML",
+                )
             else:
                 await update.message.reply_text("❌ Task not found.")
         except Exception as e:
@@ -910,7 +1069,10 @@ async def task_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         task_type = " ".join(ctx.args[3:])
         try:
             t = create_task(case_id, agent, task_type)
-            await update.message.reply_text(f"✅ Task created: <code>{t['task_type']}</code> for <b>{t['agent']}</b> (pending)", parse_mode="HTML")
+            await update.message.reply_text(
+                f"✅ Task created: <code>{t['task_type']}</code> for <b>{t['agent']}</b> (pending)",
+                parse_mode="HTML",
+            )
         except Exception as e:
             await update.message.reply_text(f"❌ Failed: {e}")
 
@@ -922,10 +1084,12 @@ async def task_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("📭 No tasks for this case.")
                 return
             lines = [
-                f"{'✅' if t['status']=='completed' else '⏳'} <code>{t['id'][:8]}</code> {t['task_type']} ({t['agent']}) — {t['status']}"
+                f"{'✅' if t['status'] == 'completed' else '⏳'} <code>{t['id'][:8]}</code> {t['task_type']} ({t['agent']}) — {t['status']}"
                 for t in tasks
             ]
-            await update.message.reply_text("📋 <b>Tasks</b>\n\n" + "\n".join(lines), parse_mode="HTML")
+            await update.message.reply_text(
+                "📋 <b>Tasks</b>\n\n" + "\n".join(lines), parse_mode="HTML"
+            )
         except Exception as e:
             await update.message.reply_text(f"❌ Failed: {e}")
 
@@ -946,7 +1110,10 @@ async def challan_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         challan_id = ctx.args[1]
         try:
             if approve_challan(challan_id, str(update.effective_user.id)):
-                await update.message.reply_text(f"✅ Challan <code>{challan_id[:8]}...</code> approved.", parse_mode="HTML")
+                await update.message.reply_text(
+                    f"✅ Challan <code>{challan_id[:8]}...</code> approved.",
+                    parse_mode="HTML",
+                )
             else:
                 await update.message.reply_text("❌ Challan not found.")
         except Exception as e:
@@ -981,12 +1148,15 @@ async def challan_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("📭 No challans for this case.")
                 return
             lines = [
-                f"{'✅' if c['status']=='approved' else '💰'} <code>{c['id'][:8]}</code> ₹{c['amount']:,.2f} ({c['status']})"
+                f"{'✅' if c['status'] == 'approved' else '💰'} <code>{c['id'][:8]}</code> ₹{c['amount']:,.2f} ({c['status']})"
                 for c in challans
             ]
-            await update.message.reply_text("💰 <b>Challans</b>\n\n" + "\n".join(lines), parse_mode="HTML")
+            await update.message.reply_text(
+                "💰 <b>Challans</b>\n\n" + "\n".join(lines), parse_mode="HTML"
+            )
         except Exception as e:
             await update.message.reply_text(f"❌ Failed: {e}")
+
 
 def main():
     if not TELEGRAM_BOT_TOKEN:
@@ -994,6 +1164,7 @@ def main():
         return
 
     import threading
+
     health_thread = threading.Thread(target=run_health_check, daemon=True)
     health_thread.start()
 
@@ -1025,7 +1196,9 @@ def main():
     app.add_handler(CommandHandler("challan", challan_command))
 
     app.add_handler(MessageHandler(filters.Document.ALL, document_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, aisha_message_handler))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, aisha_message_handler)
+    )
     app.add_handler(MessageHandler(filters.VOICE, voice_handler))
     app.add_handler(CallbackQueryHandler(button_callback))
 

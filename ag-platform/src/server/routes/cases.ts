@@ -1,4 +1,3 @@
-
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { CaseService } from '../services/caseService.ts';
@@ -102,13 +101,14 @@ router.put('/cases/:id/status', async (req, res) => {
 
 // Frontend AdvisorCockpit calls PATCH /api/cases/:id with { status }
 router.patch('/cases/:id', async (req, res) => {
+  let userId = DEV_USER_ID;
   try {
     const { status, notes } = req.body;
     if (!status) {
       res.status(400).json({ error: 'Status is required' });
       return;
     }
-    const userId = req.headers['x-user-id'] as string || (req as any).user?.sub || DEV_USER_ID;
+    userId = req.headers['x-user-id'] as string || (req as any).user?.sub || DEV_USER_ID;
     await CaseService.updateStatus(req.params.id, status, userId, notes || 'Status updated via pipeline');
     const updatedCase = await CaseService.getCaseById(req.params.id);
     res.json(updatedCase);

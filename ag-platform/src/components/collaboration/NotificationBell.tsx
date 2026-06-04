@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNotifications } from "../../hooks/useNotifications";
 import { Bell, Check } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";

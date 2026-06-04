@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadCloud, File, FileText, Image as ImageIcon, Video, XCircle, RefreshCw } from "lucide-react";
 import { uploadFileResumable } from "../../lib/storage/upload";

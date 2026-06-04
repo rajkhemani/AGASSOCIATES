@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Play, Square, Clock, ChevronUp, ChevronDown, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface CaseOption {

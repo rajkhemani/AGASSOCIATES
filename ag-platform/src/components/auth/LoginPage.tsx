@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Building2, Mail, Lock, Eye, EyeOff, ShieldCheck, Users, User, ArrowRight, Loader2 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';

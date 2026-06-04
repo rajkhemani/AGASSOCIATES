@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const API = process.env.NEXT_PUBLIC_AG_API || "http://localhost:8000";
 
@@ -208,7 +208,7 @@ function BrowserApp({ win, onUpdate }: { win: Win; onUpdate: (id: string, p: Par
 
   const pollScreenshot = useCallback(async (sid: string) => {
     try {
-      const r = await fetch(`${API}/playground/sessions/${sid}/screenshot`, { credentials: "include" });
+      const r = await fetch(`${API}/playground/sessions/${sid || ""}/screenshot`, { credentials: "include" });
       if (!r.ok) throw new Error(`screenshot ${r.status}`);
       const data = await r.json();
       setImg(`data:image/jpeg;base64,${data.image}`);
@@ -225,11 +225,11 @@ function BrowserApp({ win, onUpdate }: { win: Win; onUpdate: (id: string, p: Par
       try {
         sid = await ensureSession();
         if (!mounted) {
-          if (sid) fetch(`${API}/playground/sessions/${sid}`, { method: "DELETE", credentials: "include" }).catch(() => {});
+          if (sid) fetch(`${API}/playground/sessions/${sid || ""}`, { method: "DELETE", credentials: "include" }).catch(() => {});
           return;
         }
-        await pollScreenshot(sid);
-        pollRef.current = setInterval(() => pollScreenshot(sid), 800);
+        await pollScreenshot(sid || "");
+        pollRef.current = setInterval(() => pollScreenshot(sid || ""), 800);
       } catch (e: any) { setErr(e?.message || "init failed"); }
     })();
 
@@ -237,7 +237,7 @@ function BrowserApp({ win, onUpdate }: { win: Win; onUpdate: (id: string, p: Par
       mounted = false;
       if (pollRef.current) clearInterval(pollRef.current);
       if (sid) {
-        fetch(`${API}/playground/sessions/${sid}`, { method: "DELETE", credentials: "include" }).catch(() => {});
+        fetch(`${API}/playground/sessions/${sid || ""}`, { method: "DELETE", credentials: "include" }).catch(() => {});
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -247,7 +247,7 @@ function BrowserApp({ win, onUpdate }: { win: Win; onUpdate: (id: string, p: Par
     setLoading(true); setErr(null);
     try {
       const sid = await ensureSession();
-      const r = await fetch(`${API}/playground/sessions/${sid}/action`, {
+      const r = await fetch(`${API}/playground/sessions/${sid || ""}/action`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind, ...args }),
@@ -255,7 +255,7 @@ function BrowserApp({ win, onUpdate }: { win: Win; onUpdate: (id: string, p: Par
       const data = await r.json();
       if (data.url) setUrl(data.url);
       if (!data.ok) setErr(data.error || "action failed");
-      await pollScreenshot(sid);
+      await pollScreenshot(sid || "");
     } catch (e: any) { setErr(e?.message || "action error"); }
     finally { setLoading(false); }
   };

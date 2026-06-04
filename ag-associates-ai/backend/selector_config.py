@@ -29,6 +29,7 @@ async def _fetch_from_supabase(portal: str) -> Dict[str, str]:
         return {}
 
     import httpx
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
@@ -45,7 +46,11 @@ async def _fetch_from_supabase(portal: str) -> Dict[str, str]:
             )
             resp.raise_for_status()
             rows = resp.json()
-            return {row["selector_key"]: row["selector_value"] for row in rows} if isinstance(rows, list) else {}
+            return (
+                {row["selector_key"]: row["selector_value"] for row in rows}
+                if isinstance(rows, list)
+                else {}
+            )
     except Exception as exc:
         logger.warning("Supabase selector fetch failed for %s: %s", portal, exc)
         return {}
@@ -53,14 +58,18 @@ async def _fetch_from_supabase(portal: str) -> Dict[str, str]:
 
 def get_selector(portal: str, key: str, default: str) -> str:
     """Resolve a selector: Supabase config > env var > default."""
-    env_key = {"igr": "IGR_SEL_", "gras": "GRAS_SEL_", "nesl": "NESL_SEL_"}.get(portal, f"{portal.upper()}_SEL_")
+    env_key = {"igr": "IGR_SEL_", "gras": "GRAS_SEL_", "nesl": "NESL_SEL_"}.get(
+        portal, f"{portal.upper()}_SEL_"
+    )
     env_val = os.environ.get(f"{env_key}{key.upper()}")
     if env_val:
         return env_val
     return default
 
 
-async def load_portal_selectors(portal: str, defaults: Dict[str, str]) -> Dict[str, str]:
+async def load_portal_selectors(
+    portal: str, defaults: Dict[str, str]
+) -> Dict[str, str]:
     """Load selectors for a portal. Merges Supabase overrides atop defaults."""
     selectors = dict(defaults)
     overrides = await _fetch_from_supabase(portal)

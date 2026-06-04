@@ -8,6 +8,7 @@ Hardened entrypoint for the voice automation system:
     must be confirmed via /voice/confirm/{id}
   • Every command (success, denied, errored) lands in voice_command_logs
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,7 +19,17 @@ import uuid
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Body, Depends, File, Header, HTTPException, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    Header,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 
 from . import audit, rate_limit, rbac, whatsapp
 from .piper_service import synthesize
@@ -28,6 +39,7 @@ from .whisper_service import whisper_service
 
 try:
     from utils.s3 import generate_presigned_url, s3_client, BUCKET_NAME
+
     _HAS_S3 = True
 except Exception:
     _HAS_S3 = False
@@ -35,8 +47,10 @@ except Exception:
 try:
     from workforce.ledger import record_activity as _record_activity
 except Exception:
+
     def _record_activity(**_kwargs):  # type: ignore
         return None
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/voice", tags=["Voice Automation"])
@@ -52,6 +66,7 @@ WHATSAPP_PHONE_TO_USER = {
 }
 try:
     import json as _json
+
     _override = os.environ.get("VOICE_PHONE_USER_MAP")
     if _override:
         WHATSAPP_PHONE_TO_USER.update(_json.loads(_override))
@@ -72,8 +87,12 @@ def _verify_admin(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="voice admin auth not configured",
         )
-    if not x_voice_admin_key or not secrets.compare_digest(x_voice_admin_key, VOICE_ADMIN_KEY):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid admin key")
+    if not x_voice_admin_key or not secrets.compare_digest(
+        x_voice_admin_key, VOICE_ADMIN_KEY
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid admin key"
+        )
     return x_user_id or "admin"
 
 
@@ -128,22 +147,41 @@ def _process_transcript(
 
     if not tool_name:
         command_id = audit.log_command(
-            user_id=user_id, transcript=transcript, detected_language=None,
-            decision=decision, risk=default_risk, status="unrouted",
+            user_id=user_id,
+            transcript=transcript,
+            detected_language=None,
+            decision=decision,
+            risk=default_risk,
+            status="unrouted",
             audio_s3_key=audio_s3_key,
         )
-        return {"success": False, "command_id": command_id, "transcript": transcript,
-                "routing": decision, "execution": {"executed": False, "reason": "no matching tool"}}
+        return {
+            "success": False,
+            "command_id": command_id,
+            "transcript": transcript,
+            "routing": decision,
+            "execution": {"executed": False, "reason": "no matching tool"},
+        }
 
     gate = rbac.check(tool_name, default_risk, caller_roles)
     if not gate["allowed"]:
         command_id = audit.log_command(
-            user_id=user_id, transcript=transcript, detected_language=None,
-            decision=decision, risk=default_risk, status="denied",
-            result={"reason": gate["reason"]}, audio_s3_key=audio_s3_key,
+            user_id=user_id,
+            transcript=transcript,
+            detected_language=None,
+            decision=decision,
+            risk=default_risk,
+            status="denied",
+            result={"reason": gate["reason"]},
+            audio_s3_key=audio_s3_key,
         )
-        return {"success": False, "command_id": command_id, "transcript": transcript,
-                "routing": decision, "execution": {"executed": False, "reason": gate["reason"]}}
+        return {
+            "success": False,
+            "command_id": command_id,
+            "transcript": transcript,
+            "routing": decision,
+            "execution": {"executed": False, "reason": gate["reason"]},
+        }
 
     effective_risk = gate["effective_risk"]
 
@@ -154,26 +192,48 @@ def _process_transcript(
     rl = rate_limit.check_and_consume("voice", capability_code, user_id, limit)
     if not rl["allowed"]:
         command_id = audit.log_command(
-            user_id=user_id, transcript=transcript, detected_language=None,
-            decision=decision, risk=effective_risk, status="denied",
-            result={"reason": rl["reason"], "rate_limit": rl}, audio_s3_key=audio_s3_key,
+            user_id=user_id,
+            transcript=transcript,
+            detected_language=None,
+            decision=decision,
+            risk=effective_risk,
+            status="denied",
+            result={"reason": rl["reason"], "rate_limit": rl},
+            audio_s3_key=audio_s3_key,
         )
-        return {"success": False, "command_id": command_id, "transcript": transcript,
-                "routing": decision,
-                "execution": {"executed": False, "reason": rl["reason"]}}
+        return {
+            "success": False,
+            "command_id": command_id,
+            "transcript": transcript,
+            "routing": decision,
+            "execution": {"executed": False, "reason": rl["reason"]},
+        }
 
     if effective_risk != "low":
         command_id = audit.log_command(
-            user_id=user_id, transcript=transcript, detected_language=None,
-            decision=decision, risk=effective_risk, status="pending_confirm",
+            user_id=user_id,
+            transcript=transcript,
+            detected_language=None,
+            decision=decision,
+            risk=effective_risk,
+            status="pending_confirm",
             audio_s3_key=audio_s3_key,
         )
         if phone:
-            whatsapp.send_confirm_prompt(phone, transcript, tool_name, decision.get("args") or {}, command_id)
-        return {"success": True, "command_id": command_id, "transcript": transcript,
-                "routing": decision,
-                "execution": {"executed": False, "requires_confirm": True,
-                              "reason": f"{effective_risk} risk — confirm via POST /voice/confirm/{command_id}"}}
+            whatsapp.send_confirm_prompt(
+                phone, transcript, tool_name, decision.get("args") or {}, command_id
+            )
+        return {
+            "success": True,
+            "command_id": command_id,
+            "transcript": transcript,
+            "routing": decision,
+            "execution": {
+                "executed": False,
+                "requires_confirm": True,
+                "reason": f"{effective_risk} risk — confirm via POST /voice/confirm/{command_id}",
+            },
+        }
 
     try:
         output = tool_registry.execute(tool_name, decision.get("args") or {})
@@ -185,12 +245,19 @@ def _process_transcript(
         status_str = "tool_error"
 
     command_id = audit.log_command(
-        user_id=user_id, transcript=transcript, detected_language=None,
-        decision=decision, risk=effective_risk, status=status_str, result=exec_result,
+        user_id=user_id,
+        transcript=transcript,
+        detected_language=None,
+        decision=decision,
+        risk=effective_risk,
+        status=status_str,
+        result=exec_result,
         audio_s3_key=audio_s3_key,
     )
     _record_activity(
-        source="voice", staff_kind="agent", staff_short_name="vox",
+        source="voice",
+        staff_kind="agent",
+        staff_short_name="vox",
         capability_code="voice.command",
         summary=f"voice: {transcript[:80]} → {tool_name}",
         payload={
@@ -201,8 +268,13 @@ def _process_transcript(
         },
         status="ok" if exec_result["executed"] else "warn",
     )
-    return {"success": exec_result["executed"], "command_id": command_id, "transcript": transcript,
-            "routing": decision, "execution": exec_result}
+    return {
+        "success": exec_result["executed"],
+        "command_id": command_id,
+        "transcript": transcript,
+        "routing": decision,
+        "execution": exec_result,
+    }
 
 
 @router.post("/command")
@@ -213,7 +285,10 @@ async def handle_voice_command(
 ):
     """Receive an audio blob, transcribe it, route to a tool, gate by risk."""
     if not _system_enabled():
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="voice system disabled")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="voice system disabled",
+        )
 
     file_id = str(uuid.uuid4())
     file_path = os.path.join(TEMP_DIR, f"{file_id}_{file.filename or 'cmd.wav'}")
@@ -228,7 +303,9 @@ async def handle_voice_command(
             raise HTTPException(status_code=400, detail="Could not transcribe audio")
 
         s3_key = _archive_audio(file_path, file_id)
-        return _process_transcript(transcript, user_id=user_id, caller_roles=roles, audio_s3_key=s3_key)
+        return _process_transcript(
+            transcript, user_id=user_id, caller_roles=roles, audio_s3_key=s3_key
+        )
     finally:
         if os.path.exists(file_path):
             try:
@@ -242,14 +319,23 @@ def _execute_pending(command_id: str, expected_user: Optional[str]) -> dict:
     if pending is None:
         raise HTTPException(status_code=404, detail="command not found")
     if pending["status"] != "pending_confirm":
-        raise HTTPException(status_code=409, detail=f"command in state {pending['status']!r}")
+        raise HTTPException(
+            status_code=409, detail=f"command in state {pending['status']!r}"
+        )
     if expected_user and pending["user_id"] and pending["user_id"] != expected_user:
-        raise HTTPException(status_code=403, detail="confirmation must come from the originating user")
+        raise HTTPException(
+            status_code=403, detail="confirmation must come from the originating user"
+        )
 
     # TTL guard — refuse to execute confirmations that arrived too late.
     from datetime import datetime, timezone
+
     created = pending["created_at"]
-    if created and (datetime.now(timezone.utc) - created).total_seconds() > whatsapp.CONFIRM_TTL_SECONDS:
+    if (
+        created
+        and (datetime.now(timezone.utc) - created).total_seconds()
+        > whatsapp.CONFIRM_TTL_SECONDS
+    ):
         audit.mark_denied(command_id, "confirmation TTL exceeded")
         raise HTTPException(status_code=410, detail="confirmation window expired")
 
@@ -268,17 +354,25 @@ def _execute_pending(command_id: str, expected_user: Optional[str]) -> dict:
 async def confirm_voice_command(command_id: str, user_id: str = Depends(_verify_admin)):
     """Execute a MED/HIGH-risk command after explicit admin confirmation."""
     if not _system_enabled():
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="voice system disabled")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="voice system disabled",
+        )
     result = _execute_pending(command_id, user_id)
     return {"command_id": command_id, "execution": result}
 
 
 # ----- WhatsApp bridge ---------------------------------------------------
 
-def _verify_n8n(x_inbound_key: Optional[str] = Header(default=None, alias="x-inbound-key")) -> None:
+
+def _verify_n8n(
+    x_inbound_key: Optional[str] = Header(default=None, alias="x-inbound-key"),
+) -> None:
     if not N8N_WHATSAPP_INBOUND_KEY:
         raise HTTPException(status_code=503, detail="WhatsApp inbound not configured")
-    if not x_inbound_key or not secrets.compare_digest(x_inbound_key, N8N_WHATSAPP_INBOUND_KEY):
+    if not x_inbound_key or not secrets.compare_digest(
+        x_inbound_key, N8N_WHATSAPP_INBOUND_KEY
+    ):
         raise HTTPException(status_code=401, detail="invalid inbound key")
 
 
@@ -288,7 +382,7 @@ async def whatsapp_inbound_voice(
     _: None = Depends(_verify_n8n),
 ):
     """n8n forwards a WhatsApp voice note here. Expected payload:
-        {"from": "+91…", "media_url": "https://…", "media_token": "...optional"}
+    {"from": "+91…", "media_url": "https://…", "media_token": "...optional"}
     """
     if not _system_enabled():
         raise HTTPException(status_code=503, detail="voice system disabled")
@@ -323,7 +417,13 @@ async def whatsapp_inbound_voice(
         if not transcript:
             raise HTTPException(status_code=400, detail="empty transcription")
         s3_key = _archive_audio(file_path, file_id)
-        return _process_transcript(transcript, user_id=user_id, caller_roles=roles, phone=phone, audio_s3_key=s3_key)
+        return _process_transcript(
+            transcript,
+            user_id=user_id,
+            caller_roles=roles,
+            phone=phone,
+            audio_s3_key=s3_key,
+        )
     finally:
         if os.path.exists(file_path):
             try:
@@ -338,7 +438,7 @@ async def whatsapp_reply(
     _: None = Depends(_verify_n8n),
 ):
     """Handles 'YES'/'NO' replies. Expected payload:
-        {"from": "+91…", "text": "yes"}
+    {"from": "+91…", "text": "yes"}
     """
     phone = (payload.get("from") or "").strip()
     text = (payload.get("text") or "").strip()
@@ -347,7 +447,9 @@ async def whatsapp_reply(
 
     user_id = WHATSAPP_PHONE_TO_USER.get(phone, phone)
     intent = whatsapp.classify_reply(text)
-    pending = audit.get_latest_pending_for_user(user_id, max_age_seconds=whatsapp.CONFIRM_TTL_SECONDS)
+    pending = audit.get_latest_pending_for_user(
+        user_id, max_age_seconds=whatsapp.CONFIRM_TTL_SECONDS
+    )
 
     if not pending:
         return {"matched": False, "reason": "no pending command in TTL window"}
@@ -357,11 +459,16 @@ async def whatsapp_reply(
         return {"matched": True, "command_id": pending["id"], "execution": result}
     if intent == "deny":
         audit.mark_denied(pending["id"], "user denied via WhatsApp")
-        return {"matched": True, "command_id": pending["id"], "execution": {"executed": False, "reason": "user denied"}}
+        return {
+            "matched": True,
+            "command_id": pending["id"],
+            "execution": {"executed": False, "reason": "user denied"},
+        }
     return {"matched": False, "reason": "reply did not match yes/no"}
 
 
 # ----- Admin tool-config (per-tool RBAC) ---------------------------------
+
 
 @router.get("/admin/tool-config")
 async def list_tool_config(_: str = Depends(_verify_admin)):
@@ -369,14 +476,16 @@ async def list_tool_config(_: str = Depends(_verify_admin)):
     out = []
     for d in tool_registry.definitions:
         cfg = rbac.get_config(d.name) or {}
-        out.append({
-            "name": d.name,
-            "description": d.description,
-            "default_risk": d.risk,
-            "enabled": cfg.get("enabled", True),
-            "risk_override": cfg.get("risk_override"),
-            "allowed_roles": cfg.get("allowed_roles", []),
-        })
+        out.append(
+            {
+                "name": d.name,
+                "description": d.description,
+                "default_risk": d.risk,
+                "enabled": cfg.get("enabled", True),
+                "risk_override": cfg.get("risk_override"),
+                "allowed_roles": cfg.get("allowed_roles", []),
+            }
+        )
     return out
 
 
@@ -399,6 +508,7 @@ async def upsert_tool_config(
 
 # ----- Audio replay ------------------------------------------------------
 
+
 @router.get("/audio/{command_id}")
 async def voice_audio(command_id: str, _: str = Depends(_verify_admin)) -> dict:
     """Return a short-lived presigned URL the admin UI can use to replay the
@@ -408,9 +518,13 @@ async def voice_audio(command_id: str, _: str = Depends(_verify_admin)) -> dict:
         # Audit row may already be confirmed/denied — look up audio_s3_key directly.
         import psycopg2
         from config import get_database_url
+
         with psycopg2.connect(get_database_url()) as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT audio_s3_key FROM voice_command_logs WHERE id = %s", (command_id,))
+                cur.execute(
+                    "SELECT audio_s3_key FROM voice_command_logs WHERE id = %s",
+                    (command_id,),
+                )
                 row = cur.fetchone()
                 if not row:
                     raise HTTPException(status_code=404, detail="command not found")
@@ -418,14 +532,20 @@ async def voice_audio(command_id: str, _: str = Depends(_verify_admin)) -> dict:
     else:
         import psycopg2
         from config import get_database_url
+
         with psycopg2.connect(get_database_url()) as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT audio_s3_key FROM voice_command_logs WHERE id = %s", (command_id,))
+                cur.execute(
+                    "SELECT audio_s3_key FROM voice_command_logs WHERE id = %s",
+                    (command_id,),
+                )
                 row = cur.fetchone()
                 audio_key = row[0] if row else None
 
     if not audio_key:
-        raise HTTPException(status_code=404, detail="no archived audio for this command")
+        raise HTTPException(
+            status_code=404, detail="no archived audio for this command"
+        )
     if not _HAS_S3:
         raise HTTPException(status_code=503, detail="audio archive not configured")
 
@@ -437,7 +557,10 @@ async def voice_audio(command_id: str, _: str = Depends(_verify_admin)) -> dict:
 async def speak(text: str, _: str = Depends(_verify_admin)) -> Response:
     """Render a short message as Piper TTS audio for the admin UI."""
     if not _system_enabled():
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="voice system disabled")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="voice system disabled",
+        )
     wav = synthesize(text)
     if not wav:
         raise HTTPException(status_code=503, detail="TTS unavailable")

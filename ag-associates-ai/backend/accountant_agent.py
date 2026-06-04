@@ -4,11 +4,13 @@ import pdfplumber
 import gspread
 from typing import Dict, Any
 
+
 class AccountantAgent:
     """
     Agent 6: The Accountant
     Deterministic financial reconciliation using pdfplumber and gspread.
     """
+
     def __init__(self, google_creds_path: str = None, sheet_key: str = None):
         self.gc = None
         self.sheet = None
@@ -26,9 +28,9 @@ class AccountantAgent:
             raise ValueError("File size exceeds 10MB limit")
 
         # Magic byte validation
-        with open(pdf_path, 'rb') as f:
+        with open(pdf_path, "rb") as f:
             header = f.read(4)
-            if header != b'%PDF':
+            if header != b"%PDF":
                 raise ValueError("File is not a valid PDF")
 
         text_content = []
@@ -36,12 +38,14 @@ class AccountantAgent:
             for page in pdf.pages:
                 page_text = page.extract_text() or ""
                 # Sanitization: remove null bytes and escape sequences
-                sanitized = page_text.replace('\x00', '').replace('\x1b', '')
+                sanitized = page_text.replace("\x00", "").replace("\x1b", "")
                 text_content.append(sanitized)
 
         return "\n".join(text_content) + "\n"
 
-    def reconcile_idbi_statement(self, pdf_path: str, expected_stamp_duty: float) -> Dict[str, Any]:
+    def reconcile_idbi_statement(
+        self, pdf_path: str, expected_stamp_duty: float
+    ) -> Dict[str, Any]:
         """Parses an IDBI bank statement PDF and validates the UTR + credited amount.
 
         NOTE: this method currently does not write back to the GSpread ledger — the
@@ -57,27 +61,27 @@ class AccountantAgent:
 
             if "Cr. INR" in text:
                 # 2. Strict UTR Regex
-                utr_match = re.search(r'\b\d{12}\b', text)
+                utr_match = re.search(r"\b\d{12}\b", text)
                 if utr_match:
                     utr_number = utr_match.group(0)
 
                 # Extract the credit amount that appears alongside "Cr. INR".
                 # Matches integer or decimal values, optionally with commas.
                 amount_match = re.search(
-                    r'Cr\.\s*INR\s*([\d,]+(?:\.\d{1,2})?)',
+                    r"Cr\.\s*INR\s*([\d,]+(?:\.\d{1,2})?)",
                     text,
                 )
                 if amount_match:
                     try:
-                        credit_amount = float(amount_match.group(1).replace(',', ''))
+                        credit_amount = float(amount_match.group(1).replace(",", ""))
                     except ValueError:
                         credit_amount = 0.0
 
             if not utr_number:
                 return {
                     "status": "FAILED",
-                    "error_level": "TIER_1", 
-                    "reason": "Missing or illegible UTR number. Ask client to re-upload."
+                    "error_level": "TIER_1",
+                    "reason": "Missing or illegible UTR number. Ask client to re-upload.",
                 }
 
             # 3. Mathematical Verification (Critical Escalation Check)
@@ -85,7 +89,7 @@ class AccountantAgent:
                 return {
                     "status": "FAILED",
                     "error_level": "TIER_3",
-                    "reason": f"CRITICAL: Mathematical mismatch. Expected {expected_stamp_duty}, got {credit_amount}."
+                    "reason": f"CRITICAL: Mathematical mismatch. Expected {expected_stamp_duty}, got {credit_amount}.",
                 }
 
             # 4. GSpread Execution
@@ -98,15 +102,16 @@ class AccountantAgent:
                 "error_level": "NONE",
                 "utr": utr_number,
                 "amount": credit_amount,
-                "message": "Reconciliation validated. Ledger update pending row-lookup implementation."
+                "message": "Reconciliation validated. Ledger update pending row-lookup implementation.",
             }
 
         except Exception as e:
             return {
                 "status": "FAILED",
                 "error_level": "TIER_2",
-                "reason": f"Algorithmic uncertainty / execution error: {str(e)}"
+                "reason": f"Algorithmic uncertainty / execution error: {str(e)}",
             }
+
 
 # Singleton for imports
 accountant_agent = AccountantAgent()

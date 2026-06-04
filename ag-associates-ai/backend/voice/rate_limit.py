@@ -6,6 +6,7 @@ count what's left. Fails open (allows the call) when Redis is unreachable so
 a cache outage never freezes the platform — anomaly auto-disable is the
 backstop for that case.
 """
+
 from __future__ import annotations
 
 import logging
@@ -31,20 +32,34 @@ def _client():
         return None
     if _CLIENT is None:
         try:
-            _CLIENT = redis.from_url(REDIS_URL, socket_connect_timeout=1, socket_timeout=1)
+            _CLIENT = redis.from_url(
+                REDIS_URL, socket_connect_timeout=1, socket_timeout=1
+            )
         except Exception as exc:
             logger.warning("redis init failed: %s", exc)
             _CLIENT = None
     return _CLIENT
 
 
-def check_and_consume(scope: str, capability: str, user_id: str, limit: Optional[int]) -> dict:
+def check_and_consume(
+    scope: str, capability: str, user_id: str, limit: Optional[int]
+) -> dict:
     """Consume one slot. Returns {allowed, remaining, limit, reason}."""
     if not limit or limit <= 0:
-        return {"allowed": True, "remaining": -1, "limit": limit, "reason": "no limit configured"}
+        return {
+            "allowed": True,
+            "remaining": -1,
+            "limit": limit,
+            "reason": "no limit configured",
+        }
     client = _client()
     if client is None:
-        return {"allowed": True, "remaining": -1, "limit": limit, "reason": "redis unavailable — fail-open"}
+        return {
+            "allowed": True,
+            "remaining": -1,
+            "limit": limit,
+            "reason": "redis unavailable — fail-open",
+        }
 
     now_ms = int(time.time() * 1000)
     window_start = now_ms - WINDOW_SECONDS * 1000
@@ -59,7 +74,12 @@ def check_and_consume(scope: str, capability: str, user_id: str, limit: Optional
         _, _, count, _ = pipe.execute()
     except Exception as exc:
         logger.warning("rate-limit pipeline failed (fail-open): %s", exc)
-        return {"allowed": True, "remaining": -1, "limit": limit, "reason": "redis error"}
+        return {
+            "allowed": True,
+            "remaining": -1,
+            "limit": limit,
+            "reason": "redis error",
+        }
 
     if count > limit:
         # Roll the just-added timestamp back so the user isn't double-penalised.
@@ -67,16 +87,26 @@ def check_and_consume(scope: str, capability: str, user_id: str, limit: Optional
             client.zrem(key, str(now_ms))
         except Exception:
             pass
-        return {"allowed": False, "remaining": 0, "limit": limit,
-                "reason": f"rate limit exceeded: {count - 1}/{limit} per hour"}
+        return {
+            "allowed": False,
+            "remaining": 0,
+            "limit": limit,
+            "reason": f"rate limit exceeded: {count - 1}/{limit} per hour",
+        }
 
-    return {"allowed": True, "remaining": max(0, limit - count), "limit": limit, "reason": "ok"}
+    return {
+        "allowed": True,
+        "remaining": max(0, limit - count),
+        "limit": limit,
+        "reason": "ok",
+    }
 
 
 def get_limit_for_capability(capability_code: str) -> Optional[int]:
     """Read the per-hour limit from Postgres. Cached for 30 s."""
     import psycopg2
     from config import get_database_url
+
     cached = _LIMIT_CACHE.get(capability_code)
     now = time.time()
     if cached and (now - cached[0]) < 30:
@@ -84,7 +114,10 @@ def get_limit_for_capability(capability_code: str) -> Optional[int]:
     try:
         with psycopg2.connect(get_database_url()) as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT per_hour_limit FROM capability WHERE code = %s", (capability_code,))
+                cur.execute(
+                    "SELECT per_hour_limit FROM capability WHERE code = %s",
+                    (capability_code,),
+                )
                 row = cur.fetchone()
                 value = row[0] if row else None
     except Exception as exc:

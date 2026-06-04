@@ -5,17 +5,17 @@ from config import LLM_BASE_URL
 
 logger = logging.getLogger(__name__)
 
+
 class ConversationService:
     """
     Wrapper for the OpenAI Conversations API.
     Manages stateful conversation objects and items.
     """
-    
+
     def __init__(self, api_key: str = None, base_url: str = None):
         # Fallback to config if not provided
         self.client = OpenAI(
-            api_key=api_key or "not-needed",
-            base_url=base_url or LLM_BASE_URL
+            api_key=api_key or "not-needed", base_url=base_url or LLM_BASE_URL
         )
 
     def create_conversation(self, metadata: Dict[str, str] = None) -> str:
@@ -34,14 +34,15 @@ class ConversationService:
             item = {
                 "type": "message",
                 "role": role,
-                "content": [{"type": "text", "text": content}]
+                "content": [{"type": "text", "text": content}],
             }
             self.client.conversations.items.create(
-                conversation_id=conversation_id,
-                items=[item]
+                conversation_id=conversation_id, items=[item]
             )
         except Exception as e:
-            logger.error(f"Failed to add message to conversation {conversation_id}: {e}")
+            logger.error(
+                f"Failed to add message to conversation {conversation_id}: {e}"
+            )
             raise
 
     def add_tool_output(self, conversation_id: str, call_id: str, output: str):
@@ -50,14 +51,15 @@ class ConversationService:
             item = {
                 "type": "function_call_output",
                 "call_id": call_id,
-                "output": output
+                "output": output,
             }
             self.client.conversations.items.create(
-                conversation_id=conversation_id,
-                items=[item]
+                conversation_id=conversation_id, items=[item]
             )
         except Exception as e:
-            logger.error(f"Failed to add tool output to conversation {conversation_id}: {e}")
+            logger.error(
+                f"Failed to add tool output to conversation {conversation_id}: {e}"
+            )
             raise
 
     def get_conversation(self, conversation_id: str):
@@ -66,4 +68,6 @@ class ConversationService:
 
     def list_items(self, conversation_id: str, limit: int = 20):
         """Lists items in a conversation."""
-        return self.client.conversations.items.list(conversation_id=conversation_id, limit=limit)
+        return self.client.conversations.items.list(
+            conversation_id=conversation_id, limit=limit
+        )

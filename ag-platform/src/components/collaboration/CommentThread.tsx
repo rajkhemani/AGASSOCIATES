@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../../hooks/useLivePresence";
 import { formatDistanceToNow } from "date-fns";
 import { Send } from "lucide-react";

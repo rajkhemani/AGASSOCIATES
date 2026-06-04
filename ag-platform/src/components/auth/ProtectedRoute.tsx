@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Loader2 } from 'lucide-react';
@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
   allowedRoles?: ('admin' | 'staff' | 'applicant')[];
 }
 
-export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, role, loading } = useAuthStore();
   const location = useLocation();
 

@@ -5,7 +5,7 @@ import { ApplicantDashboard } from './components/applicant/ApplicantDashboard';
 import { AdvisorCockpit } from './components/admin/AdvisorCockpit';
 import { BankPortal } from './components/bank/BankPortal';
 import { LoginPage } from './components/auth/LoginPage';
-import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 import { WorkforceControl } from './components/admin/WorkforceControl';
 import { PrivacyPolicy } from './components/privacy/PrivacyPolicy';
 import { ErrorBoundary } from './components/ui';

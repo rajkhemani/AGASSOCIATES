@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type ToolDef = { name: string; description: string; risk: "low" | "med" | "high"; parameters: Record<string, unknown> };
 type CommandResult = {

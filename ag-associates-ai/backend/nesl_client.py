@@ -100,7 +100,9 @@ class NeslClient:
                 data = resp.json()
 
             transaction_id = data.get("transaction_id", self._generate_transaction_id())
-            filing_ref = data.get("filing_reference", self._generate_filing_reference(case_id))
+            filing_ref = data.get(
+                "filing_reference", self._generate_filing_reference(case_id)
+            )
 
             record_activity(
                 source="nesl_client",
@@ -207,6 +209,7 @@ class NeslClient:
         """Check filing status on NeSL/IGR portal."""
         if self.mode == "api":
             import httpx
+
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     resp = await client.get(

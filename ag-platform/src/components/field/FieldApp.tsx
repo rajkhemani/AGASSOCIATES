@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Camera, Upload, WifiOff, CheckCircle, Clock } from 'lucide-react';
 
 interface QueueItem {

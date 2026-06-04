@@ -2,19 +2,21 @@
 Embedding generator script for legal templates
 Generates vector embeddings for template content and stores them in PostgreSQL
 """
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from pgvector.psycopg2 import register_vector
 from sentence_transformers import SentenceTransformer
 from config import get_database_url, EMBEDDING_MODEL_NAME, EMBEDDING_DIMENSION
 
+
 def generate_embeddings():
     """Generate embeddings for all templates without embeddings"""
-    
+
     # Load embedding model
     print(f"Loading embedding model: {EMBEDDING_MODEL_NAME}")
     model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-    
+
     conn = None
     cur = None
     try:
@@ -23,7 +25,7 @@ def generate_embeddings():
         conn = psycopg2.connect(get_database_url(), cursor_factory=RealDictCursor)
         register_vector(conn)
         cur = conn.cursor()
-        
+
         # Fetch templates without embeddings
         print("Fetching templates without embeddings...")
         cur.execute("""
@@ -31,15 +33,15 @@ def generate_embeddings():
             FROM legal_templates
             WHERE embedding IS NULL
         """)
-        
+
         templates = cur.fetchall()
         print(f"Found {len(templates)} templates to process")
-        
+
         processed_count = 0
         for template in templates:
-            template_id = template['id']
-            content = template['content']
-            title = template['title']
+            template_id = template["id"]
+            content = template["content"]
+            title = template["title"]
 
             print(f"Processing template #{template_id}: {title}")
 
@@ -48,27 +50,35 @@ def generate_embeddings():
 
             # Ensure embedding dimension matches
             if len(embedding) != EMBEDDING_DIMENSION:
-                print(f"Warning: Embedding dimension mismatch. Expected {EMBEDDING_DIMENSION}, got {len(embedding)}")
+                print(
+                    f"Warning: Embedding dimension mismatch. Expected {EMBEDDING_DIMENSION}, got {len(embedding)}"
+                )
                 # Resize if necessary (for demo purposes)
                 if len(embedding) > EMBEDDING_DIMENSION:
                     embedding = embedding[:EMBEDDING_DIMENSION]
                 else:
                     import numpy as np
-                    embedding = np.pad(embedding, (0, EMBEDDING_DIMENSION - len(embedding)))
+
+                    embedding = np.pad(
+                        embedding, (0, EMBEDDING_DIMENSION - len(embedding))
+                    )
 
             # Convert to list for PostgreSQL
             embedding_list = embedding.tolist()
 
             # Update database
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE legal_templates
                 SET embedding = %s::vector
                 WHERE id = %s
-            """, (embedding_list, template_id))
+            """,
+                (embedding_list, template_id),
+            )
 
             processed_count += 1
             print(f"✓ Updated embedding for template #{template_id}")
-        
+
         conn.commit()
         print(f"\n✅ Successfully processed {processed_count} templates")
         return processed_count
@@ -77,6 +87,7 @@ def generate_embeddings():
             cur.close()
         if conn:
             conn.close()
+
 
 if __name__ == "__main__":
     try:
