@@ -2,12 +2,12 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'AG Associates | Premium Financial Advisory',
-  description: 'India\'s premier financial advisory firm delivering strategic guidance for institutions and corporations. Portfolio management, risk mitigation, and corporate advisory services.',
-  keywords: ['financial advisory', 'corporate finance', 'investment banking', 'portfolio management', 'risk advisory', 'AG Associates'],
+  title: 'AG Associates | AI-Driven Legal Operations',
+  description: 'Specialized property law firm based in Thane, Maharashtra. AI-orchestrated "Zero-Staff" platform for high-volume legal operations: Title Search, Legal Vetting, Property Registration, and NOI processing.',
+  keywords: ['legal operations', 'property law', 'NOI processing', 'title search', 'legal vetting', 'AG Associates', 'AI law firm'],
   openGraph: {
-    title: 'AG Associates | Premium Financial Advisory',
-    description: 'Strategic financial guidance and investment advisory services for discerning institutions.',
+    title: 'AG Associates | AI-Driven Legal Operations',
+    description: 'AI-orchestrated "Zero-Staff" platform for high-volume legal operations.',
     url: 'https://advadiityagade.com',
     siteName: 'AG Associates',
     locale: 'en_IN',
@@ -15,8 +15,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'AG Associates | Premium Financial Advisory',
-    description: 'Strategic financial guidance for institutions and corporations.',
+    title: 'AG Associates | AI-Driven Legal Operations',
+    description: 'AI-orchestrated "Zero-Staff" platform for high-volume legal operations.',
   },
   metadataBase: new URL('https://advadiityagade.com'),
 }
@@ -28,7 +28,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="antialiased scroll-smooth">
-      <body className="min-h-screen">{children}</body>
+      <body className="min-h-screen bg-dark-bg">{children}</body>
     </html>
   )
 }
