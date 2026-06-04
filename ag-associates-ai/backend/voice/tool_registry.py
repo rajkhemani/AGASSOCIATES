@@ -43,9 +43,10 @@ class ToolRegistry:
             raise KeyError(f"Unknown tool: {name}")
         try:
             return self.tools[name](**(args or {}))
-        except TypeError as exc:
+        except TypeError:
             # Surface bad arg shapes as a structured error rather than a 500.
-            return {"error": f"invalid arguments for {name}: {exc}"}
+            logger.exception("Invalid arguments for tool %s", name)
+            return {"error": f"invalid arguments for {name}"}
 
 
 tool_registry = ToolRegistry()

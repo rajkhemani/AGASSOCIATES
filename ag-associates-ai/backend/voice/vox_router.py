@@ -52,9 +52,9 @@ class VoxRouter:
                 {"tools_json": json.dumps(tools, indent=2), "transcript": transcript}
             )
             return result
-        except Exception as e:
-            logger.error(f"VoxRouter failed: {e}")
-            return {"tool": None, "error": str(e)}
+        except Exception:
+            logger.exception("VoxRouter failed")
+            return {"tool": None, "error": "routing failed"}
 
 
 vox_router = VoxRouter()

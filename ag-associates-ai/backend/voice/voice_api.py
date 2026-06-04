@@ -239,9 +239,9 @@ def _process_transcript(
         output = tool_registry.execute(tool_name, decision.get("args") or {})
         exec_result = {"executed": True, "output": output}
         status_str = "executed"
-    except Exception as exc:
+    except Exception:
         logger.exception("Tool %s crashed", tool_name)
-        exec_result = {"executed": False, "reason": f"tool error: {exc}"}
+        exec_result = {"executed": False, "reason": "tool execution failed"}
         status_str = "tool_error"
 
     command_id = audit.log_command(
