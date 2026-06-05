@@ -6,6 +6,7 @@ on:
     paths:
       - "ag-associates-ai/**"
       - "ag-platform/**"
+      - "landing/**"
       - "docker-compose.prod.yml"
       - "Caddyfile"
       - ".github/workflows/deploy.yml"
