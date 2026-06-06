@@ -43,6 +43,9 @@ jobs:
               VITE_SUPABASE_URL=${{ vars.SUPABASE_URL }}
               VITE_SUPABASE_ANON_KEY=${{ vars.SUPABASE_ANON_KEY }}
               VITE_API_BASE_URL=/api
+          - name: telegram-bot
+            context: ag-associates-ai/backend/telegram_bot
+            build_args: ""
     steps:
       - uses: actions/checkout@v4
 

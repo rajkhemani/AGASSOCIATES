@@ -240,7 +240,7 @@ services:
   telegram-bot:
     build:
       context: ./ag-associates-ai/backend/telegram_bot
-    image: ghcr.io/luxoranova9/telegram-bot:${IMAGE_TAG:-latest}
+    image: ghcr.io/rajkhemani/telegram-bot:${IMAGE_TAG:-latest}
     container_name: ag_telegram_bot
     <<: [*restart, *logging]
     environment:
