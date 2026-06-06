@@ -21,6 +21,7 @@ dashboard.{$DOMAIN} {
 api.{$DOMAIN} {
 	encode zstd gzip
 	reverse_proxy /webhook* telegram-bot:3003
+	reverse_proxy /api/sms/ingest* intake-api:3002
 	reverse_proxy ai-backend:8000
 }
 
