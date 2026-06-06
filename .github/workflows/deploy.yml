@@ -46,6 +46,12 @@ jobs:
           - name: telegram-bot
             context: ag-associates-ai/backend/telegram_bot
             build_args: ""
+          - name: intake-api
+            context: ag-platform/services/intake-api
+            build_args: ""
+          - name: email-intake
+            context: ag-associates-ai/backend/email_intake
+            build_args: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -82,15 +88,20 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
+          envs: GITHUB_TOKEN
           script: |
             set -euo pipefail
-            cd /srv/ag/repo
-            git fetch origin main
-            git reset --hard origin/main
+            DEPLOY_DIR="/srv/ag/deploy-${{ github.sha }}"
+            mkdir -p "$DEPLOY_DIR"
+            git clone https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git "$DEPLOY_DIR"
+            cd "$DEPLOY_DIR"
             export IMAGE_TAG=${{ github.sha }}
-            docker compose --env-file /srv/ag/.env pull
-            docker compose --env-file /srv/ag/.env up -d --remove-orphans
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f docker-compose.prod.yml --env-file /srv/ag/.env pull
+            docker compose -f docker-compose.prod.yml --env-file /srv/ag/.env up -d --remove-orphans
             docker image prune -f
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Smoke test API health
         run: |
