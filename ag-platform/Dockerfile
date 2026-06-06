@@ -27,7 +27,7 @@ WORKDIR /app
 RUN apk add --no-cache postgresql-client
 
 COPY --from=builder /app/dist ./dist
-COPY package.json .npmrc ./
+COPY package.json package-lock.json .npmrc ./
 COPY server.ts ./
 COPY src/server/ ./src/server/
 COPY tsconfig.json tsconfig.node.json ./
