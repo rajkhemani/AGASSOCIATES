@@ -85,6 +85,7 @@ jobs:
           script: |
             set -euo pipefail
             cd /srv/ag/repo
+            sudo chown -R $(whoami) /srv/ag/repo 2>/dev/null || true
             git fetch origin main
             git reset --hard origin/main
             export IMAGE_TAG=${{ github.sha }}
