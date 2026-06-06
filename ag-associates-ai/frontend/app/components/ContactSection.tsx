@@ -9,7 +9,7 @@ const contactLinks = [
     icon: Send,
     label: 'Telegram',
     value: 'AI Team Chat',
-    href: 'https://t.me/AGAssociatesBot',
+    href: 'https://t.me/Agsms_bot',
     primary: true,
   },
   {
