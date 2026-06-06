@@ -1,0 +1,57 @@
+name: Setup Telegram Bot + SMS Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      telegram_bot_token:
+        description: "Bot token from @BotFather"
+        required: true
+        type: string
+      telegram_chat_id:
+        description: "Chat ID (get from @userinfobot on Telegram)"
+        required: true
+        type: string
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    environment: ag
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set GitHub secrets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh secret set TELEGRAM_BOT_TOKEN --body "${{ inputs.telegram_bot_token }}" --repo ${{ github.repository }}
+          gh secret set TELEGRAM_CHAT_ID --body "${{ inputs.telegram_chat_id }}" --repo ${{ github.repository }}
+          gh secret set TELEGRAM_WEBHOOK_URL --body "https://api.${{ vars.PROD_DOMAIN }}/webhook" --repo ${{ github.repository }}
+          echo "✅ Secrets TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID & TELEGRAM_WEBHOOK_URL set!"
+
+      - name: Register Telegram webhook
+        run: |
+          WEBHOOK_URL="https://api.${{ vars.PROD_DOMAIN }}/webhook"
+          echo "Registering webhook: $WEBHOOK_URL"
+          RESULT=$(curl -s -X POST "https://api.telegram.org/bot${{ inputs.telegram_bot_token }}/setWebhook" \
+            -d "url=$WEBHOOK_URL" \
+            -d "max_connections=40" \
+            -d "allowed_updates=[\"message\",\"callback_query\"]")
+          echo "$RESULT" | jq .
+          echo ""
+          echo "Webhook info:"
+          curl -s "https://api.telegram.org/bot${{ inputs.telegram_bot_token }}/getWebhookInfo" | jq .
+
+      - name: Send test message to Telegram
+        run: |
+          MSG="🚀 *AG Associates SMS Bot is LIVE!*\n\nYour phone SMS will now forward here.\n\nReply with OTP codes to auto-process cases."
+          curl -s -X POST "https://api.telegram.org/bot${{ inputs.telegram_bot_token }}/sendMessage" \
+            -d "chat_id=${{ inputs.telegram_chat_id }}" \
+            -d "text=$MSG" \
+            -d "parse_mode=Markdown" | jq .
+
+      - name: Trigger production deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run deploy.yml --repo ${{ github.repository }}
+          echo "✅ Deploy triggered! Telegram bot will be online in ~5 min."

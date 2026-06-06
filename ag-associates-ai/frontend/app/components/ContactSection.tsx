@@ -2,15 +2,22 @@
 
 import { useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
-import { Mail, MessageSquare, Linkedin, ArrowRight } from 'lucide-react';
+import { Mail, MessageSquare, Linkedin, Send, ArrowRight } from 'lucide-react';
 
 const contactLinks = [
+  {
+    icon: Send,
+    label: 'Telegram',
+    value: 'AI Team Chat',
+    href: 'https://t.me/Agsms_bot',
+    primary: true,
+  },
   {
     icon: Mail,
     label: 'Email',
     value: 'admin@advadiityagade.com',
     href: 'mailto:admin@advadiityagade.com',
-    primary: true,
+    primary: false,
   },
   {
     icon: MessageSquare,
@@ -23,7 +30,7 @@ const contactLinks = [
     icon: Linkedin,
     label: 'LinkedIn',
     value: 'Adv. Aditya Gade',
-    href: '#',
+    href: 'https://www.linkedin.com/in/adv-adiitya-gade-211a74257/',
     primary: false,
   },
 ];
