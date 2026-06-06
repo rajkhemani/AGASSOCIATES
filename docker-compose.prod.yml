@@ -254,7 +254,7 @@ services:
       LLM_BASE_URL: https://api.groq.com/openai/v1
     depends_on:
       redis: { condition: service_healthy }
-      ai-backend: { condition: service_healthy }
+      ai-backend: { condition: service_started }
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
       interval: 30s
