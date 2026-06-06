@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyError } from 'fastify';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { intakePayloadSchema } from '../schemas/intake.schema';
@@ -160,7 +160,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
   );
 
   // Centralized Error Handling
-  fastify.setErrorHandler((error, request, reply) => {
+  fastify.setErrorHandler((error: FastifyError, request, reply) => {
     if (error.validation) {
       return reply.status(400).send({
         status: 'error',
