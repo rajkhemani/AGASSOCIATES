@@ -82,16 +82,18 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
+          envs: GITHUB_TOKEN
           script: |
             set -euo pipefail
+            rm -rf /srv/ag/repo
+            git clone https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git /srv/ag/repo
             cd /srv/ag/repo
-            sudo chown -R $(whoami) /srv/ag/repo 2>/dev/null || true
-            git fetch origin main
-            git reset --hard origin/main
             export IMAGE_TAG=${{ github.sha }}
             docker compose --env-file /srv/ag/.env pull
             docker compose --env-file /srv/ag/.env up -d --remove-orphans
             docker image prune -f
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Smoke test API health
         run: |
