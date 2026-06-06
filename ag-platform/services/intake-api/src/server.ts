@@ -28,8 +28,12 @@ async function start() {
   try {
     await fastify.register(cors);
 
-    // Connect to Redis
-    await connectRedis();
+    // Connect to Redis (non-fatal on failure — server starts regardless)
+    try {
+      await connectRedis();
+    } catch (err) {
+      fastify.log.warn({ err }, 'Redis unreachable on startup — running without Redis');
+    }
 
     // SMS Ingest (root-level, outside /api/v1/webhook prefix) for Android SMS Forwarder
     fastify.post('/api/sms/ingest', async (request, reply) => {
@@ -37,11 +41,16 @@ async function start() {
       const text = body?.text || body?.message || '';
       const from = body?.from || body?.sender || 'unknown';
       fastify.log.info({ from, preview: text.slice(0, 60) }, 'SMS ingest');
-      await redisClient.rPush(
-        'sms:incoming',
-        JSON.stringify({ from, text, received_at: new Date().toISOString() })
-      );
-      return { status: 'success' };
+      try {
+        await redisClient.rPush(
+          'sms:incoming',
+          JSON.stringify({ from, text, received_at: new Date().toISOString() })
+        );
+        return { status: 'success' };
+      } catch (err) {
+        fastify.log.error({ err }, 'Redis push failed — SMS not stored');
+        return reply.code(503).send({ status: 'error', message: 'storage unavailable' });
+      }
     });
 
     // Register Routes
