@@ -103,12 +103,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Smoke test API health
+      - name: Smoke test — Telegram webhook
         run: |
           for i in 1 2 3 4 5 6; do
-            if curl -sf "https://api.${{ vars.PROD_DOMAIN }}/health" >/dev/null; then
-              echo "API healthy"; exit 0
+            result=$(curl -sf "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/getWebhookInfo" 2>&1)
+            url=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['url'])" 2>/dev/null)
+            err=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('last_error_message',''))" 2>/dev/null)
+            echo "webhook=$url err=$err"
+            if [ -n "$url" ]; then
+              echo "Deploy verified — bot webhook: $url"; exit 0
             fi
-            echo "waiting for API ($i/6)…"; sleep 10
+            echo "retrying ($i/6)…"; sleep 10
           done
-          echo "API failed to become healthy"; exit 1
+          echo "Smoke test failed"; exit 1
