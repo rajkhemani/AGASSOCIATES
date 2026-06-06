@@ -46,6 +46,12 @@ jobs:
           - name: telegram-bot
             context: ag-associates-ai/backend/telegram_bot
             build_args: ""
+          - name: intake-api
+            context: ag-platform/services/intake-api
+            build_args: ""
+          - name: email-intake
+            context: ag-associates-ai/backend/email_intake
+            build_args: ""
     steps:
       - uses: actions/checkout@v4
 
