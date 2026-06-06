@@ -89,7 +89,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           envs: GITHUB_TOKEN
-          script: |
+            script: |
             set -euo pipefail
             DEPLOY_DIR="/srv/ag/deploy-${{ github.sha }}"
             rm -rf "$DEPLOY_DIR"
@@ -102,19 +102,26 @@ jobs:
             docker compose -p ag -f docker-compose.prod.yml --env-file /srv/ag/.env pull
             docker compose -p ag -f docker-compose.prod.yml --env-file /srv/ag/.env up -d
             docker image prune -f
+            # Diagnostic: check intake-api container status and logs
+            echo "=== intake-api container status ==="
+            docker ps -a --filter name=ag_intake_api --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || true
+            echo "=== intake-api logs (last 20) ==="
+            docker logs ag_intake_api --tail 20 2>&1 || true
+            echo "=== all ag_ containers ==="
+            docker ps -a --filter name=ag_ --format "table {{.Names}}\t{{.Status}}" 2>&1 || true
+            echo "=== compose ps ==="
+            docker compose -p ag -f docker-compose.prod.yml ps 2>&1 || true
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Smoke test — Telegram webhook
+      - name: Smoke test — intake-api + app endpoints
         run: |
           for i in 1 2 3 4 5 6; do
-            result=$(curl -sf "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/getWebhookInfo" 2>&1)
-            url=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['result']['url'])" 2>/dev/null)
-            err=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'].get('last_error_message',''))" 2>/dev/null)
-            echo "webhook=$url err=$err"
-            if [ -n "$url" ]; then
-              echo "Deploy verified — bot webhook: $url"; exit 0
+            code=$(curl -s -o /dev/null -w "%{http_code}" "https://intake.${{ vars.PROD_DOMAIN }}/health" 2>/dev/null)
+            echo "intake health: $code"
+            if [ "$code" = "200" ]; then
+              echo "Deploy verified — intake-api healthy"; exit 0
             fi
             echo "retrying ($i/6)…"; sleep 10
           done
-          echo "Smoke test failed"; exit 1
+          echo "Smoke test failed — intake-api unreachable"; exit 1
