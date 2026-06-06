@@ -57,11 +57,9 @@ async function start() {
     await fastify.register(webhookRoutes, { prefix: '/api/v1/webhook' });
     await fastify.register(dashboardRoutes, { prefix: '/api/v1/dashboard' });
 
-    // Health Check (verifies Redis connectivity)
+    // Health Check
     fastify.get('/health', async (_req, reply) => {
       try {
-        // Imported here to avoid a circular reference at module load.
-        const { redisClient } = await import('./services/redis.service');
         await redisClient.ping();
         return { status: 'healthy' };
       } catch (err) {
