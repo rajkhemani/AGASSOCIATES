@@ -89,12 +89,9 @@ jobs:
             mkdir -p "$DEPLOY_DIR"
             git clone https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git "$DEPLOY_DIR"
             cd "$DEPLOY_DIR"
-            ln -sfn "$DEPLOY_DIR" /srv/ag/current 2>/dev/null || true
             export IMAGE_TAG=${{ github.sha }}
-            cd /srv/ag/repo
-            export IMAGE_TAG=${{ github.sha }}
-            docker compose --env-file /srv/ag/.env pull
-            docker compose --env-file /srv/ag/.env up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml --env-file /srv/ag/.env pull
+            docker compose -f docker-compose.prod.yml --env-file /srv/ag/.env up -d --remove-orphans
             docker image prune -f
         env:
           GITHUB_TOKEN: ${{ github.token }}
