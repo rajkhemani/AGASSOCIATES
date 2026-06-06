@@ -1,8 +1,9 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import dotenv from 'dotenv';
+import { z } from 'zod';
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
-import { connectRedis } from './services/redis.service';
+import { connectRedis, redisClient } from './services/redis.service';
 import webhookRoutes from './routes/webhook';
 import dashboardRoutes from './routes/dashboard';
 
@@ -30,6 +31,19 @@ async function start() {
 
     // Connect to Redis
     await connectRedis();
+
+    // SMS Ingest (root-level, outside /api/v1/webhook prefix) for Android SMS Forwarder
+    fastify.post('/api/sms/ingest', async (request, reply) => {
+      const body = request.body as Record<string, string | undefined>;
+      const text = body?.text || body?.message || '';
+      const from = body?.from || body?.sender || 'unknown';
+      fastify.log.info({ from, preview: text.slice(0, 60) }, 'SMS ingest');
+      await redisClient.rPush(
+        'sms:incoming',
+        JSON.stringify({ from, text, received_at: new Date().toISOString() })
+      );
+      return { status: 'success' };
+    });
 
     // Register Routes
     await fastify.register(webhookRoutes, { prefix: '/api/v1/webhook' });

@@ -147,26 +147,7 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     });
   }
 
-  // 3. SMS Webhook (for Android SMS Forwarder / Twilio)
-  typedFastify.post(
-    '/api/sms/ingest',
-    {
-      schema: {
-        body: z.object({
-          from: z.string().optional(),
-          sender: z.string().optional(),
-          text: z.string().optional(),
-          message: z.string().optional(),
-        }),
-      },
-    },
-    async (request, reply) => {
-      const { from, sender, text, message } = request.body;
-      return processSms(text || message || '', from || sender || 'unknown', reply);
-    }
-  );
-
-  // 4. SMS Webhook (for OTP Bridge, legacy format)
+  // 3. SMS Webhook (for OTP Bridge, legacy format)
   typedFastify.post(
     '/sms-incoming',
     {
