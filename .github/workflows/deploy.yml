@@ -85,7 +85,8 @@ jobs:
           envs: GITHUB_TOKEN
           script: |
             set -euo pipefail
-            rm -rf /srv/ag/repo
+            sudo rm -rf /srv/ag/repo || rm -rf /srv/ag/repo
+            sudo chown -R $(whoami) /srv/ag 2>/dev/null || true
             git clone https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git /srv/ag/repo
             cd /srv/ag/repo
             export IMAGE_TAG=${{ github.sha }}
