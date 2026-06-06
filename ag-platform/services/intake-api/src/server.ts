@@ -1,7 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import dotenv from 'dotenv';
-import { z } from 'zod';
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
 import { connectRedis, redisClient } from './services/redis.service';
 import webhookRoutes from './routes/webhook';
