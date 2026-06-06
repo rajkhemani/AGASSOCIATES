@@ -90,6 +90,7 @@ jobs:
             git clone https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git "$DEPLOY_DIR"
             cd "$DEPLOY_DIR"
             export IMAGE_TAG=${{ github.sha }}
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker compose -f docker-compose.prod.yml --env-file /srv/ag/.env pull
             docker compose -f docker-compose.prod.yml --env-file /srv/ag/.env up -d --remove-orphans
             docker image prune -f
