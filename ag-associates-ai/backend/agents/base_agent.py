@@ -11,11 +11,10 @@ Every agent:
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -107,14 +106,19 @@ class BaseAgent:
             tools=tools_desc,
         )
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", sys_prompt),
-            *[
-                {"role": m["role"], "content": m["content"].replace("{", "{{").replace("}", "}}")}
-                for m in context_messages[-15:]
-            ],
-            ("human", "{message}"),
-        ])
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", sys_prompt),
+                *[
+                    {
+                        "role": m["role"],
+                        "content": m["content"].replace("{", "{{").replace("}", "}}"),
+                    }
+                    for m in context_messages[-15:]
+                ],
+                ("human", "{message}"),
+            ]
+        )
 
         try:
             chain = prompt | llm
@@ -123,17 +127,24 @@ class BaseAgent:
             return text
         except Exception as e:
             logger.error("[%s] LLM error: %s", self.name, e)
-            return f"Maaf kijiye, main abhi available nahi hoon. Thodi der mein poochhiye."
+            return (
+                "Maaf kijiye, main abhi available nahi hoon. Thodi der mein poochhiye."
+            )
 
     async def send_bus(self, target: str, payload: dict, **kwargs):
         return await agent_bus.send_message(self.name, target, payload, **kwargs)
 
-    async def respond_bus(self, target: str, payload: dict, correlation_id: str, **kwargs):
-        await agent_bus.publish_response(self.name, target, payload, correlation_id, **kwargs)
+    async def respond_bus(
+        self, target: str, payload: dict, correlation_id: str, **kwargs
+    ):
+        await agent_bus.publish_response(
+            self.name, target, payload, correlation_id, **kwargs
+        )
 
     async def send_dm(self, chat_id: int, text: str):
         try:
             from telegram_bot.private_messenger import send_dm
+
             await send_dm(chat_id, text)
         except ImportError:
             logger.warning("[%s] private_messenger not available for DM", self.name)

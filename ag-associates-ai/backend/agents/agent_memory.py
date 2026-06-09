@@ -8,7 +8,6 @@ Each agent gets its own schema namespace for isolation. Supports:
 
 import json
 import logging
-from datetime import datetime, timezone
 from typing import Any, Optional
 
 import psycopg2
@@ -19,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 def _conn():
-    return psycopg2.connect(get_database_url(), cursor_factory=psycopg2.extras.RealDictCursor)
+    return psycopg2.connect(
+        get_database_url(), cursor_factory=psycopg2.extras.RealDictCursor
+    )
 
 
 def ensure_agent_tables(agent_name: str):
@@ -69,16 +70,26 @@ def get_or_create_conversation(agent_name: str, user_id: str, title: str = "") -
         return str(row["id"])
 
 
-def add_message(agent_name: str, conversation_id: str, role: str, content: str, metadata: Optional[dict] = None):
+def add_message(
+    agent_name: str,
+    conversation_id: str,
+    role: str,
+    content: str,
+    metadata: Optional[dict] = None,
+):
     sql = """INSERT INTO agent_{}_messages (conversation_id, role, content, metadata)
              VALUES (%s, %s, %s, %s)""".format(agent_name)
     with _conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(sql, (conversation_id, role, content, json.dumps(metadata or {})))
+            cur.execute(
+                sql, (conversation_id, role, content, json.dumps(metadata or {}))
+            )
         conn.commit()
 
 
-def get_context_window(agent_name: str, conversation_id: str, limit: int = 20) -> list[dict]:
+def get_context_window(
+    agent_name: str, conversation_id: str, limit: int = 20
+) -> list[dict]:
     sql = """SELECT role, content FROM agent_{}_messages
              WHERE conversation_id = %s
              ORDER BY created_at ASC
@@ -86,7 +97,9 @@ def get_context_window(agent_name: str, conversation_id: str, limit: int = 20) -
     with _conn() as conn:
         with conn.cursor() as cur:
             cur.execute(sql, (conversation_id, limit))
-            return [{"role": r["role"], "content": r["content"]} for r in cur.fetchall()]
+            return [
+                {"role": r["role"], "content": r["content"]} for r in cur.fetchall()
+            ]
 
 
 def set_context_value(agent_name: str, conversation_id: str, key: str, value: Any):

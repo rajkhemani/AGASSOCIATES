@@ -33,7 +33,9 @@ async def create_payment_intent(request: Request):
         raise HTTPException(status_code=400, detail="Missing case_id, amount, or email")
 
     try:
-        session = await _get_stripe_client().create_checkout_session(case_id, amount, email)
+        session = await _get_stripe_client().create_checkout_session(
+            case_id, amount, email
+        )
         return session
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

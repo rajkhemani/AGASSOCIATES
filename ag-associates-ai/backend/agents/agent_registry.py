@@ -18,7 +18,9 @@ AGENT_PERMISSIONS = [
     Permission("agent.auditor.access", "Access Auditor agent", Role.EXECUTIVE.value),
     Permission("agent.vyasa.access", "Access Vyasa agent", Role.CLERK.value),
     Permission("agent.bouncer.access", "Access Bouncer agent", Role.EXECUTIVE.value),
-    Permission("agent.accountant.access", "Access Accountant agent", Role.ADVOCATE.value),
+    Permission(
+        "agent.accountant.access", "Access Accountant agent", Role.ADVOCATE.value
+    ),
     Permission("agent.noi.access", "Access NOI agent", Role.ADVOCATE.value),
     Permission("agent.executor.access", "Access Executor agent", Role.PRINCIPAL.value),
     Permission("agent.drafter.access", "Access Drafter agent", Role.ADVOCATE.value),
@@ -71,12 +73,14 @@ def list_agents(user_role: str = "") -> list[dict]:
     for name in sorted(_registry.keys()):
         min_role = AGENT_ROLE_MAP.get(name, Role.CLERK)
         accessible = role is None or role.value >= min_role.value
-        results.append({
-            "name": name,
-            "description": AGENT_DESCRIPTIONS.get(name, ""),
-            "accessible": accessible,
-            "min_role": min_role.label if not accessible else None,
-        })
+        results.append(
+            {
+                "name": name,
+                "description": AGENT_DESCRIPTIONS.get(name, ""),
+                "accessible": accessible,
+                "min_role": min_role.label if not accessible else None,
+            }
+        )
     return results
 
 
@@ -86,6 +90,7 @@ def get_accessible_agents(user_role: str) -> list[str]:
     except ValueError:
         return []
     return [
-        name for name in _registry
+        name
+        for name in _registry
         if role.value >= AGENT_ROLE_MAP.get(name, Role.CLERK).value
     ]

@@ -3,14 +3,9 @@
 Each processor takes file bytes + metadata, returns extracted text/structured data.
 """
 
-import csv
 import io
-import json
 import logging
 import os
-import re
-import tempfile
-from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +15,7 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 
 async def process_audio(file_bytes: bytes, filename: str = "") -> str:
     """Transcribe audio using Whisper (vLLM audio endpoint).
-    
+
     Args:
         file_bytes: Audio file content (ogg, mp3, wav, etc.)
         filename: Original filename
@@ -28,6 +23,7 @@ async def process_audio(file_bytes: bytes, filename: str = "") -> str:
         Transcribed text
     """
     import httpx
+
     url = f"{LLM_BASE_URL}/audio/transcriptions"
     try:
         async with httpx.AsyncClient(timeout=120) as client:
@@ -47,7 +43,7 @@ async def process_audio(file_bytes: bytes, filename: str = "") -> str:
 
 async def process_image(file_bytes: bytes, filename: str = "") -> str:
     """Extract text from image using OCR via LLM vision.
-    
+
     Args:
         file_bytes: Image content (jpg, png, etc.)
         filename: Original filename
@@ -71,7 +67,10 @@ async def process_image(file_bytes: bytes, filename: str = "") -> str:
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "What does this image contain? Extract all text visible."},
+                    {
+                        "type": "text",
+                        "text": "What does this image contain? Extract all text visible.",
+                    },
                     {"type": "image_url", "image_url": {"url": data_url}},
                 ],
             },
@@ -96,7 +95,7 @@ async def process_image(file_bytes: bytes, filename: str = "") -> str:
 
 async def process_pdf(file_bytes: bytes, filename: str = "") -> str:
     """Extract text from PDF using pdfplumber.
-    
+
     Args:
         file_bytes: PDF content
         filename: Original filename
@@ -108,7 +107,6 @@ async def process_pdf(file_bytes: bytes, filename: str = "") -> str:
     except ImportError:
         return "PDF processing library not available."
 
-    import io
     texts = []
     try:
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
@@ -119,7 +117,9 @@ async def process_pdf(file_bytes: bytes, filename: str = "") -> str:
                 tables = page.extract_tables()
                 for table in tables:
                     texts.append(_format_table(table))
-        return "\n\n".join(texts) if texts else "No text could be extracted from this PDF."
+        return (
+            "\n\n".join(texts) if texts else "No text could be extracted from this PDF."
+        )
     except Exception as e:
         logger.error("PDF processing failed: %s", e)
         return f"PDF processing error: {e}"
@@ -127,7 +127,7 @@ async def process_pdf(file_bytes: bytes, filename: str = "") -> str:
 
 async def process_excel(file_bytes: bytes, filename: str = "") -> str:
     """Extract structured data from Excel files.
-    
+
     Args:
         file_bytes: Excel content (.xlsx/.xls)
         filename: Original filename
@@ -139,9 +139,10 @@ async def process_excel(file_bytes: bytes, filename: str = "") -> str:
     except ImportError:
         return await _process_excel_csv_fallback(file_bytes, filename)
 
-    import io
     try:
-        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+        wb = openpyxl.load_workbook(
+            io.BytesIO(file_bytes), read_only=True, data_only=True
+        )
         parts = []
         for sheet_name in wb.sheetnames:
             ws = wb[sheet_name]
@@ -161,24 +162,25 @@ async def _process_excel_csv_fallback(file_bytes: bytes, filename: str) -> str:
     """Fallback: read Excel as CSV if openpyxl unavailable."""
     try:
         if filename.lower().endswith(".csv"):
-            text = file_bytes.decode("utf-8", errors="replace")
+            return file_bytes.decode("utf-8", errors="replace")
         else:
             import pandas as pd
             import io
+
             dfs = pd.read_excel(io.BytesIO(file_bytes), sheet_name=None)
             parts = []
             for name, df in dfs.items():
                 parts.append(f"=== Sheet: {name} ===\n{df.to_csv(index=False)}")
             return "\n\n".join(parts)
     except ImportError:
-        return f"Excel processing requires openpyxl or pandas."
+        return "Excel processing requires openpyxl or pandas."
     except Exception as e:
         return f"Excel fallback error: {e}"
 
 
 async def process_docx(file_bytes: bytes, filename: str = "") -> str:
     """Extract text from DOCX files.
-    
+
     Args:
         file_bytes: DOCX content
         filename: Original filename
@@ -190,7 +192,6 @@ async def process_docx(file_bytes: bytes, filename: str = "") -> str:
     except ImportError:
         return "DOCX processing library not available."
 
-    import io
     try:
         doc = Document(io.BytesIO(file_bytes))
         texts = [p.text for p in doc.paragraphs if p.text.strip()]

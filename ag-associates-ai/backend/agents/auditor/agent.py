@@ -8,7 +8,11 @@ import logging
 from typing import Optional
 
 from agents.base_agent import BaseAgent, AgentResponse
-from agents.agent_memory import get_or_create_conversation, add_message, get_context_window
+from agents.agent_memory import (
+    get_or_create_conversation,
+    add_message,
+    get_context_window,
+)
 from .prompts import AUDITOR_PERSONA
 from . import tools
 
@@ -24,10 +28,24 @@ class AuditorAgent(BaseAgent):
             persona_prompt=AUDITOR_PERSONA,
             required_permission="agent.auditor.access",
         )
-        self.register_tool("audit_excel", tools.audit_excel, "Audit an Excel file (.xlsx) for financial analysis")
-        self.register_tool("check_balance_sheet", tools.check_balance_sheet, "Verify Assets = Liabilities + Equity")
-        self.register_tool("detect_duplicates", tools.detect_duplicates, "Find duplicate transactions")
-        self.register_tool("rent_roll_summary", tools.rent_roll_summary, "Generate NOI rent roll summary")
+        self.register_tool(
+            "audit_excel",
+            tools.audit_excel,
+            "Audit an Excel file (.xlsx) for financial analysis",
+        )
+        self.register_tool(
+            "check_balance_sheet",
+            tools.check_balance_sheet,
+            "Verify Assets = Liabilities + Equity",
+        )
+        self.register_tool(
+            "detect_duplicates", tools.detect_duplicates, "Find duplicate transactions"
+        )
+        self.register_tool(
+            "rent_roll_summary",
+            tools.rent_roll_summary,
+            "Generate NOI rent roll summary",
+        )
 
     async def process_request(
         self,
@@ -52,7 +70,12 @@ class AuditorAgent(BaseAgent):
         tool_result = None
         msg_lower = user_message.lower()
 
-        if "excel" in msg_lower or "xlsx" in msg_lower or "statement" in msg_lower or "audit" in msg_lower:
+        if (
+            "excel" in msg_lower
+            or "xlsx" in msg_lower
+            or "statement" in msg_lower
+            or "audit" in msg_lower
+        ):
             tool_result = (
                 "📎 <b>File Instructions:</b>\n"
                 "Agar aapke paas Excel file hai, toh mujhe forward karein — "

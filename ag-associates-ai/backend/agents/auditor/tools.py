@@ -4,18 +4,14 @@ Wraps existing finance_auditor.py and adds complementary analysis functions.
 Each tool is a plain async function that can be registered with the agent.
 """
 
-import io
-import json
 import logging
-from datetime import datetime
-from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
 async def audit_excel(file_bytes: bytes, filename: str) -> str:
     """Audit an Excel file (.xlsx/.xls) — bank statement, balance sheet, or P&L.
-    
+
     Args:
         file_bytes: Raw file content
         filename: Original filename for type detection
@@ -24,6 +20,7 @@ async def audit_excel(file_bytes: bytes, filename: str) -> str:
     """
     try:
         from telegram_bot.finance_auditor import audit_excel as _do_audit
+
         report = _do_audit(file_bytes, filename)
         return report
     except ImportError:
@@ -39,7 +36,7 @@ async def check_balance_sheet(
     equity: float,
 ) -> str:
     """Verify the accounting equation: Assets = Liabilities + Equity.
-    
+
     Args:
         total_assets: Total assets value
         total_liabilities: Total liabilities value
@@ -71,7 +68,7 @@ async def check_balance_sheet(
 
 async def detect_duplicates(transactions: list[dict]) -> str:
     """Detect potentially duplicate transactions in a list.
-    
+
     Args:
         transactions: List of dicts with keys: date, description, amount
     Returns:
@@ -84,7 +81,11 @@ async def detect_duplicates(transactions: list[dict]) -> str:
     duplicates = []
 
     for i, tx in enumerate(transactions):
-        key = (tx.get("date", ""), tx.get("amount", 0), tx.get("description", "").strip().lower())
+        key = (
+            tx.get("date", ""),
+            tx.get("amount", 0),
+            tx.get("description", "").strip().lower(),
+        )
         if key in seen:
             duplicates.append((seen[key], i, tx))
         else:
@@ -96,15 +97,15 @@ async def detect_duplicates(transactions: list[dict]) -> str:
     lines = [f"⚠️ Found {len(duplicates)} potential duplicate(s):"]
     for orig_idx, dup_idx, tx in duplicates:
         lines.append(
-            f"  • #{orig_idx+1} & #{dup_idx+1}: ₹{tx['amount']:,.2f} on {tx.get('date', '?')} "
-            f"— \"{tx.get('description', '')}\""
+            f"  • #{orig_idx + 1} & #{dup_idx + 1}: ₹{tx['amount']:,.2f} on {tx.get('date', '?')} "
+            f'— "{tx.get("description", "")}"'
         )
     return "\n".join(lines)
 
 
 async def rent_roll_summary(properties: list[dict]) -> str:
     """Generate a rent roll summary for NOI portfolio analysis.
-    
+
     Args:
         properties: List of dicts with keys: property_name, monthly_rent, tenant, status
     Returns:
@@ -129,12 +130,14 @@ async def rent_roll_summary(properties: list[dict]) -> str:
             f"₹{rent:,.2f}/mo ({status})"
         )
 
-    lines.extend([
-        "─" * 40,
-        f"Active Properties: {active_count}",
-        f"Total Monthly Rent: ₹{total_rent:,.2f}",
-        f"Annual Run Rate: ₹{total_rent * 12:,.2f}",
-    ])
+    lines.extend(
+        [
+            "─" * 40,
+            f"Active Properties: {active_count}",
+            f"Total Monthly Rent: ₹{total_rent:,.2f}",
+            f"Annual Run Rate: ₹{total_rent * 12:,.2f}",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -143,7 +146,7 @@ async def analyze_agreement_amounts(
     actual_transactions: list[dict],
 ) -> str:
     """Compare agreement rent amounts with actual bank transactions.
-    
+
     Args:
         agreement_rent: Monthly rent as per agreement
         actual_transactions: List of rent payment transactions
@@ -167,7 +170,7 @@ async def analyze_agreement_amounts(
             on_time += 1
 
     lines = [
-        f"📋 Agreement Amount Analysis",
+        "📋 Agreement Amount Analysis",
         f"   Expected monthly: ₹{expected:,.2f}",
         f"   Periods checked: {len(actual_transactions)}",
         f"   Correct payments: {on_time}",

@@ -15,6 +15,7 @@ class PaymentWebhookHandler:
 
     async def handle_webhook(self, payload: bytes, sig_header: str):
         import stripe
+
         """Verify Stripe signature and process the event."""
         try:
             event = stripe.Webhook.construct_event(

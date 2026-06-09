@@ -230,9 +230,7 @@ def _legal_draft(message: str) -> Dict[str, Any]:
 # ── Agent delegation ─────────────────────────────────────────────────────
 
 
-def _delegate_to_agent(
-    agent_name: str, message: str, user_id: str
-) -> Dict[str, Any]:
+def _delegate_to_agent(agent_name: str, message: str, user_id: str) -> Dict[str, Any]:
     """Route to a specialized agent via the agent bus."""
     try:
         from agents.agent_registry import get_agent
@@ -245,6 +243,7 @@ def _delegate_to_agent(
             }
 
         import asyncio
+
         loop = asyncio.new_event_loop()
         result = loop.run_until_complete(
             agent.process_request(
@@ -257,12 +256,21 @@ def _delegate_to_agent(
 
         if result:
             return {"success": True, "response": result.text}
-        return {"success": True, "response": f"Agent '{agent_name}' ne koi response nahi diya."}
+        return {
+            "success": True,
+            "response": f"Agent '{agent_name}' ne koi response nahi diya.",
+        }
     except ImportError:
-        return {"success": True, "response": "Multi-agent system abhi available nahi hai."}
+        return {
+            "success": True,
+            "response": "Multi-agent system abhi available nahi hai.",
+        }
     except Exception as e:
         logger.error(f"Agent delegation failed: {e}")
-        return {"success": True, "response": f"Agent '{agent_name}' mein error aaya: {e}"}
+        return {
+            "success": True,
+            "response": f"Agent '{agent_name}' mein error aaya: {e}",
+        }
 
 
 # ── Main handler ─────────────────────────────────────────────────────────

@@ -4,7 +4,6 @@ Extensibility: add new processors to PROCESSORS dict with MIME/extension keys.
 """
 
 import logging
-from typing import Optional
 
 from . import processors
 
@@ -53,9 +52,11 @@ MIME_MAP = {
 }
 
 
-async def process_file(file_bytes: bytes, filename: str = "", mime_type: str = "") -> str:
+async def process_file(
+    file_bytes: bytes, filename: str = "", mime_type: str = ""
+) -> str:
     """Route file to the appropriate processor.
-    
+
     Args:
         file_bytes: Raw file content
         filename: Original filename (used for extension detection)
@@ -71,19 +72,21 @@ async def process_file(file_bytes: bytes, filename: str = "", mime_type: str = "
 
     logger.warning("Unknown file type: ext=%s mime=%s", ext, mime_type)
     return (
-        f"Unsupported file type. AG Associates supports:\n"
-        f"📊 Excel (.xlsx, .xls, .csv) — Financial audit\n"
-        f"📄 PDF (.pdf) — Document reading\n"
-        f"📝 Word (.docx) — Document reading\n"
-        f"🎵 Audio (.mp3, .ogg, .wav) — Voice transcription\n"
-        f"🖼️ Image (.jpg, .png) — OCR text extraction\n"
-        f"📋 Text (.txt, .md) — Plain text"
+        "Unsupported file type. AG Associates supports:\n"
+        "📊 Excel (.xlsx, .xls, .csv) — Financial audit\n"
+        "📄 PDF (.pdf) — Document reading\n"
+        "📝 Word (.docx) — Document reading\n"
+        "🎵 Audio (.mp3, .ogg, .wav) — Voice transcription\n"
+        "🖼️ Image (.jpg, .png) — OCR text extraction\n"
+        "📋 Text (.txt, .md) — Plain text"
     )
 
 
-async def process_file_to_json(file_bytes: bytes, filename: str = "", mime_type: str = "") -> dict:
+async def process_file_to_json(
+    file_bytes: bytes, filename: str = "", mime_type: str = ""
+) -> dict:
     """Process a file and return structured JSON.
-    
+
     Returns dict with:
         - text: extracted content
         - type: detected file type

@@ -4,10 +4,8 @@ Agents can send proactive updates to whitelisted users without waiting
 for a user command. Whitelist is stored in Redis for quick lookup.
 """
 
-import json
 import logging
 import os
-from typing import Optional
 
 import redis.asyncio as aioredis
 
@@ -37,6 +35,7 @@ async def send_dm(chat_id: int, text: str, parse_mode: str = "HTML") -> bool:
         return False
 
     import httpx
+
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(

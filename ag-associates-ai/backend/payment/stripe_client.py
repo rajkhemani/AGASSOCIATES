@@ -10,6 +10,7 @@ class StripeClient:
 
     def __init__(self):
         import stripe
+
         self.api_key = os.environ.get("STRIPE_SECRET_KEY")
         if not self.api_key:
             logger.error("STRIPE_SECRET_KEY is not set in environment")
@@ -19,6 +20,7 @@ class StripeClient:
         self, case_id: str, amount: float, customer_email: str
     ) -> Dict[str, Any]:
         import stripe
+
         """Creates a Stripe Checkout session for a specific NOI case."""
         try:
             session = stripe.checkout.Session.create(

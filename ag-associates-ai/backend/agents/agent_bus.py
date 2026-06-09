@@ -112,7 +112,9 @@ async def listen_agent(
                 try:
                     msg = {k: v for k, v in fields.items() if k and v}
                     if int(msg.get("hop_count", 0)) >= MAX_HOPS:
-                        logger.warning("[BUS] Max hops exceeded for %s, dropping", msg_id)
+                        logger.warning(
+                            "[BUS] Max hops exceeded for %s, dropping", msg_id
+                        )
                         await r.xack(AGENT_BUS_STREAM, AGENT_BUS_GROUP, msg_id)
                         continue
 
@@ -167,6 +169,8 @@ async def publish_response(
 ):
     response_key = f"agent:response:{correlation_id}"
     r = await get_bus_redis()
-    data = json.dumps({"source": source, "target": target, "payload": payload}, default=str)
+    data = json.dumps(
+        {"source": source, "target": target, "payload": payload}, default=str
+    )
     await r.lpush(response_key, data)
     await r.expire(response_key, 60)

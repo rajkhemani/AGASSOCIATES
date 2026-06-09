@@ -280,12 +280,16 @@ async def document_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         try:
             from agents.auditor.agent import auditor
 
-            result = await auditor.handle_file(bytes(file_bytes), filename, str(update.effective_chat.id))
+            result = await auditor.handle_file(
+                bytes(file_bytes), filename, str(update.effective_chat.id)
+            )
             if result:
                 text = result.text
                 if len(text) > 4000:
                     for i in range(0, len(text), 4000):
-                        await update.message.reply_text(text[i:i+4000], parse_mode="HTML")
+                        await update.message.reply_text(
+                            text[i : i + 4000], parse_mode="HTML"
+                        )
                 else:
                     await update.message.reply_text(text, parse_mode="HTML")
                 return
@@ -299,7 +303,9 @@ async def document_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             report = audit_excel(bytes(file_bytes), filename)
             if len(report) > 4000:
                 for i in range(0, len(report), 4000):
-                    await update.message.reply_text(report[i : i + 4000], parse_mode="HTML")
+                    await update.message.reply_text(
+                        report[i : i + 4000], parse_mode="HTML"
+                    )
             else:
                 await update.message.reply_text(report, parse_mode="HTML")
             return
@@ -314,7 +320,9 @@ async def document_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         text = await process_file(bytes(file_bytes), filename, mime)
         if not text:
-            await update.message.reply_text("❌ Could not extract content from this file.")
+            await update.message.reply_text(
+                "❌ Could not extract content from this file."
+            )
             return
 
         # If the content is long, send truncated
@@ -536,8 +544,8 @@ async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ("/status", "Pending OTP requests"),
         ("/cancel", "Cancel OTP request"),
         ("/audit", "Upload Excel for financial audit"),
-    ("/agents", "List all available AI agents"),
-    ("/agent", "<name> <msg> — Chat with a specific agent"),
+        ("/agents", "List all available AI agents"),
+        ("/agent", "<name> <msg> — Chat with a specific agent"),
     ]
     lines = [f"<b>{c}</b> — {d}" for c, d in cmds]
     await update.message.reply_text(
@@ -1266,15 +1274,21 @@ async def agent_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     agent = get_agent(agent_name)
     if not agent:
-        await update.message.reply_text(f"❌ Agent '{agent_name}' not found. See /agents")
+        await update.message.reply_text(
+            f"❌ Agent '{agent_name}' not found. See /agents"
+        )
         return
 
     if not message:
-        await update.message.reply_text(f"🤖 <b>{agent_name.title()}</b>\n\nKya poochna chahenge?")
+        await update.message.reply_text(
+            f"🤖 <b>{agent_name.title()}</b>\n\nKya poochna chahenge?"
+        )
         return
 
     await update.message.reply_chat_action("typing")
-    await update.message.reply_text(f"🤖 Talking to <b>{agent_name.title()}</b>...", parse_mode="HTML")
+    await update.message.reply_text(
+        f"🤖 Talking to <b>{agent_name.title()}</b>...", parse_mode="HTML"
+    )
 
     try:
         user_role = "CLERK"
@@ -1287,7 +1301,9 @@ async def agent_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             text = response.text
             if len(text) > 4000:
                 for i in range(0, len(text), 4000):
-                    await update.message.reply_text(text[i:i+4000], parse_mode="HTML")
+                    await update.message.reply_text(
+                        text[i : i + 4000], parse_mode="HTML"
+                    )
             else:
                 await update.message.reply_text(text, parse_mode="HTML")
         else:
@@ -1300,6 +1316,7 @@ async def agent_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 def get_agent(name: str):
     try:
         from agents.agent_init import get_agent as _get
+
         return _get(name)
     except ImportError:
         return None

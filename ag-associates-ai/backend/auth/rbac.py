@@ -137,7 +137,9 @@ AGENT_PERMISSIONS = [
     Permission("agent.auditor.access", "Access Auditor agent", Role.EXECUTIVE.value),
     Permission("agent.vyasa.access", "Access Vyasa agent", Role.CLERK.value),
     Permission("agent.bouncer.access", "Access Bouncer agent", Role.EXECUTIVE.value),
-    Permission("agent.accountant.access", "Access Accountant agent", Role.ADVOCATE.value),
+    Permission(
+        "agent.accountant.access", "Access Accountant agent", Role.ADVOCATE.value
+    ),
     Permission("agent.noi.access", "Access NOI agent", Role.ADVOCATE.value),
     Permission("agent.executor.access", "Access Executor agent", Role.PRINCIPAL.value),
     Permission("agent.drafter.access", "Access Drafter agent", Role.ADVOCATE.value),
