@@ -107,6 +107,8 @@ jobs:
             docker ps -a --filter name=ag_intake_api --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || true
             echo "=== intake-api logs (last 20) ==="
             docker logs ag_intake_api --tail 20 2>&1 || true
+            echo "=== ai-backend logs (last 30) ==="
+            docker logs ag_ai_backend --tail 30 2>&1 || true
             echo "=== all ag_ containers ==="
             docker ps -a --filter name=ag_ --format "table {{.Names}}\t{{.Status}}" 2>&1 || true
             echo "=== compose ps ==="
