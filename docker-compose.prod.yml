@@ -84,6 +84,12 @@ services:
     image: ghcr.io/rajkhemani/ag-ai-backend:${IMAGE_TAG:-latest}
     container_name: ag_ai_backend
     <<: [*restart, *logging]
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
     environment:
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432

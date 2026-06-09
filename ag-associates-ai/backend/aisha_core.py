@@ -321,9 +321,9 @@ def _admin_command(
 ) -> Dict[str, Any]:
     """Handle admin commands using the VoxRouter tool registry."""
     from voice.tool_registry import tool_registry
-    from voice.vox_router import vox_router
+    from voice.vox_router import get_vox_router
 
-    decision = vox_router.route(message)
+    decision = get_vox_router().route(message)
     tool_name = decision.get("tool")
 
     if tool_name:
