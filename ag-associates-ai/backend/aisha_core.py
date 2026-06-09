@@ -44,6 +44,13 @@ categorize the user's message into exactly ONE of these intents:
 - admin_cmd:    User wants to run an admin operation — check case status,
                 query reports, manage staff, run general RPA.
 - otp_request:  User needs an OTP for GRAS, IGR, or other portal.
+- delegate_auditor: Financial audit — bank statements, Excel analysis,
+                balance sheet, P&L, anomalies, duplicate transactions.
+- delegate_vyasa: Legal research — property law, stamp duty rates,
+                registration act, case law, compliance questions.
+- delegate_bouncer: Math check — stamp duty calculation, numeric verification.
+- delegate_accountant: Financial reporting — billing, receivables, reports.
+- delegate_drafter: Document drafting — agreements, notices, letters.
 - general:      General conversation, questions, greetings, or anything
                 that doesn't fit the above.
 
@@ -220,6 +227,44 @@ def _legal_draft(message: str) -> Dict[str, Any]:
         }
 
 
+# ── Agent delegation ─────────────────────────────────────────────────────
+
+
+def _delegate_to_agent(
+    agent_name: str, message: str, user_id: str
+) -> Dict[str, Any]:
+    """Route to a specialized agent via the agent bus."""
+    try:
+        from agents.agent_registry import get_agent
+
+        agent = get_agent(agent_name)
+        if not agent:
+            return {
+                "success": True,
+                "response": f"Agent '{agent_name}' available nahi hai abhi.",
+            }
+
+        import asyncio
+        loop = asyncio.new_event_loop()
+        result = loop.run_until_complete(
+            agent.process_request(
+                user_message=message,
+                user_id=user_id,
+                user_role="CLERK",
+            )
+        )
+        loop.close()
+
+        if result:
+            return {"success": True, "response": result.text}
+        return {"success": True, "response": f"Agent '{agent_name}' ne koi response nahi diya."}
+    except ImportError:
+        return {"success": True, "response": "Multi-agent system abhi available nahi hai."}
+    except Exception as e:
+        logger.error(f"Agent delegation failed: {e}")
+        return {"success": True, "response": f"Agent '{agent_name}' mein error aaya: {e}"}
+
+
 # ── Main handler ─────────────────────────────────────────────────────────
 
 
@@ -277,6 +322,9 @@ def handle_message(
         result = _legal_draft(message)
     elif intent == "admin_cmd":
         result = _admin_command(message, context)
+    elif intent.startswith("delegate_"):
+        agent_name = intent.replace("delegate_", "")
+        result = _delegate_to_agent(agent_name, message, platform_identity)
     else:
         result = _general_chat(message, context)
 

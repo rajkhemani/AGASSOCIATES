@@ -51,6 +51,7 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+from agents.agent_registry import list_agents
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -232,32 +233,107 @@ async def audit_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# ── Multi-modal handlers ─────────────────────────────────────────────────
+
+
+async def photo_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    photo = update.message.photo[-1]
+    if not photo:
+        return
+
+    await update.message.reply_chat_action("typing")
+    await update.message.reply_text("🖼️ Processing image...")
+
+    f = await ctx.bot.get_file(photo.file_id)
+    file_bytes = await f.download_as_bytearray()
+
+    try:
+        from media.processors import process_image
+
+        text = await process_image(bytes(file_bytes), "image.jpg")
+        if text:
+            await update.message.reply_text(
+                f"📄 <b>Image Analysis</b>\n\n{text}", parse_mode="HTML"
+            )
+        else:
+            await update.message.reply_text("Could not extract text from this image.")
+    except Exception as e:
+        logger.error("Photo handler error: %s", e)
+        await update.message.reply_text(f"❌ Image processing error: {e}")
+
+
 async def document_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     doc = update.message.document
     if not doc:
         return
-    if not doc.file_name or not doc.file_name.lower().endswith((".xlsx", ".xls")):
-        await update.message.reply_text("Please send an .xlsx or .xls file.")
-        return
 
     await update.message.reply_chat_action("typing")
-    await update.message.reply_text("📊 Analyzing...")
+    await update.message.reply_text("📄 Processing...")
 
     f = await ctx.bot.get_file(doc.file_id)
     file_bytes = await f.download_as_bytearray()
+    filename = doc.file_name or "file"
+    mime = doc.mime_type or ""
 
+    # Route Excel files to auditor agent if available, else use finance_auditor
+    if filename.lower().endswith((".xlsx", ".xls", ".csv")):
+        try:
+            from agents.auditor.agent import auditor
+
+            result = await auditor.handle_file(bytes(file_bytes), filename, str(update.effective_chat.id))
+            if result:
+                text = result.text
+                if len(text) > 4000:
+                    for i in range(0, len(text), 4000):
+                        await update.message.reply_text(text[i:i+4000], parse_mode="HTML")
+                else:
+                    await update.message.reply_text(text, parse_mode="HTML")
+                return
+        except ImportError:
+            pass
+
+        # Fallback: existing finance_auditor
+        try:
+            from finance_auditor import audit_excel
+
+            report = audit_excel(bytes(file_bytes), filename)
+            if len(report) > 4000:
+                for i in range(0, len(report), 4000):
+                    await update.message.reply_text(report[i : i + 4000], parse_mode="HTML")
+            else:
+                await update.message.reply_text(report, parse_mode="HTML")
+            return
+        except Exception as e:
+            logger.error("Audit fallback error: %s", e)
+            await update.message.reply_text(f"❌ Audit failed: {e}")
+            return
+
+    # Route all other file types through multi-modal pipeline
     try:
-        from finance_auditor import audit_excel
+        from media.router import process_file
 
-        report = audit_excel(bytes(file_bytes), doc.file_name)
-        if len(report) > 4000:
-            for i in range(0, len(report), 4000):
-                await update.message.reply_text(report[i : i + 4000], parse_mode="HTML")
+        text = await process_file(bytes(file_bytes), filename, mime)
+        if not text:
+            await update.message.reply_text("❌ Could not extract content from this file.")
+            return
+
+        # If the content is long, send truncated
+        if len(text) > 4000:
+            preview = text[:3500] + "\n\n... (truncated)"
+            await update.message.reply_text(
+                f"📄 <b>Extracted from {filename}</b>\n\n<pre>{preview}</pre>",
+                parse_mode="HTML",
+            )
         else:
-            await update.message.reply_text(report, parse_mode="HTML")
+            await update.message.reply_text(
+                f"📄 <b>Extracted from {filename}</b>\n\n<pre>{text}</pre>",
+                parse_mode="HTML",
+            )
+    except ImportError:
+        await update.message.reply_text("Multi-modal processing unavailable.")
     except Exception as e:
-        logger.error("Audit error: %s", e)
-        await update.message.reply_text(f"❌ Audit failed: {e}")
+        logger.error("Document handler error: %s", e)
+        await update.message.reply_text(f"❌ Processing error: {e}")
 
 
 # ── TTS ──────────────────────────────────────────────────────────────────
@@ -460,6 +536,8 @@ async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ("/status", "Pending OTP requests"),
         ("/cancel", "Cancel OTP request"),
         ("/audit", "Upload Excel for financial audit"),
+    ("/agents", "List all available AI agents"),
+    ("/agent", "<name> <msg> — Chat with a specific agent"),
     ]
     lines = [f"<b>{c}</b> — {d}" for c, d in cmds]
     await update.message.reply_text(
@@ -1158,6 +1236,75 @@ async def challan_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ Failed: {e}")
 
 
+# ── Multi-Agent System ────────────────────────────────────────────────────
+
+
+async def agents_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user_role = "CLERK"
+    agents = list_agents(user_role)
+    lines = ["🤖 <b>AG Agents</b>\n"]
+    for a in agents:
+        if a["accessible"]:
+            lines.append(f"✅ <b>{a['name']}</b> — {a['description']}")
+        else:
+            lines.append(f"🔒 <b>{a['name']}</b> — needs {a['min_role']}")
+    lines.append("\n/agent <name> <message> — Chat with an agent")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+async def agent_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not ctx.args:
+        await update.message.reply_text(
+            "Usage: /agent <name> <message>\n"
+            "Example: /agent auditor is sabhi transactions match ho rahe hain?\n\n"
+            "Available: /agents — list all agents"
+        )
+        return
+
+    agent_name = ctx.args[0].lower()
+    message = " ".join(ctx.args[1:]) if len(ctx.args) > 1 else ""
+
+    agent = get_agent(agent_name)
+    if not agent:
+        await update.message.reply_text(f"❌ Agent '{agent_name}' not found. See /agents")
+        return
+
+    if not message:
+        await update.message.reply_text(f"🤖 <b>{agent_name.title()}</b>\n\nKya poochna chahenge?")
+        return
+
+    await update.message.reply_chat_action("typing")
+    await update.message.reply_text(f"🤖 Talking to <b>{agent_name.title()}</b>...", parse_mode="HTML")
+
+    try:
+        user_role = "CLERK"
+        response = await agent.process_request(
+            user_message=message,
+            user_id=str(update.effective_chat.id),
+            user_role=user_role,
+        )
+        if response:
+            text = response.text
+            if len(text) > 4000:
+                for i in range(0, len(text), 4000):
+                    await update.message.reply_text(text[i:i+4000], parse_mode="HTML")
+            else:
+                await update.message.reply_text(text, parse_mode="HTML")
+        else:
+            await update.message.reply_text("❌ Agent ne koi response nahi diya.")
+    except Exception as e:
+        logger.error("Agent command error: %s", e)
+        await update.message.reply_text(f"❌ Agent error: {e}")
+
+
+def get_agent(name: str):
+    try:
+        from agents.agent_init import get_agent as _get
+        return _get(name)
+    except ImportError:
+        return None
+
+
 def main():
     if not TELEGRAM_BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN not set")
@@ -1194,12 +1341,15 @@ def main():
     app.add_handler(CommandHandler("noi", noi_command))
     app.add_handler(CommandHandler("task", task_command))
     app.add_handler(CommandHandler("challan", challan_command))
+    app.add_handler(CommandHandler("agents", agents_command))
+    app.add_handler(CommandHandler("agent", agent_command))
 
     app.add_handler(MessageHandler(filters.Document.ALL, document_handler))
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, aisha_message_handler)
     )
     app.add_handler(MessageHandler(filters.VOICE, voice_handler))
+    app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
     app.add_handler(CallbackQueryHandler(button_callback))
 
     app.add_error_handler(error_handler)

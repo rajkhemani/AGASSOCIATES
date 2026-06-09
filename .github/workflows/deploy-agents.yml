@@ -1,0 +1,62 @@
+name: Deploy Multi-Agent System
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ag-associates-ai/backend/agents/**'
+      - 'ag-associates-ai/backend/media/**'
+      - 'ag-associates-ai/backend/telegram_bot/bot.py'
+      - 'ag-associates-ai/backend/telegram_bot/private_messenger.py'
+      - 'ag-associates-ai/backend/aisha_core.py'
+      - 'ag-associates-ai/backend/auth/rbac.py'
+      - 'ag-associates-ai/backend/database/agent_migrations.sql'
+      - '.github/workflows/deploy-agents.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy agent files to backend
+        run: |
+          cp -rv ag-associates-ai/backend/agents/agent_bus.py \
+                 ag-associates-ai/backend/agents/base_agent.py \
+                 ag-associates-ai/backend/agents/agent_registry.py \
+                 ag-associates-ai/backend/agents/agent_memory.py \
+                 ag-associates-ai/backend/agents/agent_init.py \
+                 /srv/ag/backend/agents/
+
+          for agent in auditor vyasa bouncer accountant noi executor drafter; do
+            cp -rv ag-associates-ai/backend/agents/$agent/ /srv/ag/backend/agents/$agent/
+          done
+
+          cp -rv ag-associates-ai/backend/media/ /srv/ag/backend/media/
+          cp -v ag-associates-ai/backend/telegram_bot/bot.py /srv/ag/backend/telegram_bot/bot.py
+          cp -v ag-associates-ai/backend/telegram_bot/private_messenger.py /srv/ag/backend/telegram_bot/private_messenger.py
+          cp -v ag-associates-ai/backend/aisha_core.py /srv/ag/backend/aisha_core.py
+          cp -v ag-associates-ai/backend/auth/rbac.py /srv/ag/backend/auth/rbac.py
+
+      - name: Run DB migrations
+        run: |
+          docker exec ag_postgres psql -U agadmin -d agdb \
+            -f /srv/ag/backend/database/agent_migrations.sql 2>&1 || \
+          docker exec $(docker ps -q -f name=postgres) psql -U agadmin -d agdb \
+            -f /srv/ag/backend/database/agent_migrations.sql 2>&1 || \
+          echo "DB migration may have already run (tables exist)"
+
+      - name: Rebuild and restart bot
+        run: |
+          cd /srv/ag
+          docker compose -f docker-compose.prod.yml --env-file /srv/ag/.env build ag_telegram_bot
+          docker compose -f docker-compose.prod.yml --env-file /srv/ag/.env up -d ag_telegram_bot --remove-orphans
+
+      - name: Verify
+        run: |
+          sleep 3
+          docker compose -f /srv/ag/docker-compose.prod.yml ps ag_telegram_bot
+          echo "✅ Deploy complete"

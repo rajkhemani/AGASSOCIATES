@@ -134,7 +134,7 @@ This repository contains the firm's **AI-orchestrated "Zero-Staff" platform** �
 | **Database** | Supabase PostgreSQL + pgvector | Multi-tenant data, RLS, embeddings |
 | **Cache / Jobs** | Redis | OTP storage, job queue, session cache |
 | **Microservices** | Telegram Bot (pgram), Intake API (Fastify), Email Intake | Decoupled communication channels |
-| **LLM** | llama-3.3-70b-versatile (Groq API) | Aisha/Auditor chat, document drafting |
+| **LLM** | Qwen2.5-7B-Instruct (local vLLM) | Aisha/Auditor chat, document drafting |
 | **Embeddings** | SentenceTransformer (`all-MiniLM-L6-v2`) | RAG template retrieval (384-dim) |
 | **Webhook** | Caddy reverse proxy + auto-TLS | Public-facing unified ingress |
 | **CI/CD** | GitHub Actions → GHCR → Docker Compose | Fully automated deploy to VPS |
@@ -144,7 +144,7 @@ This repository contains the firm's **AI-orchestrated "Zero-Staff" platform** �
 
 ## 🤖 The AI "Agentic" Workforce
 
-Six specialized AI agents simulate a traditional law firm hierarchy at machine speed:
+A multi-agent AI workforce simulates a traditional law firm hierarchy at machine speed — LangGraph pipeline + specialist agents + service-layer bots:
 
 | Agent | Role | What It Does |
 |-------|------|-------------|
@@ -162,7 +162,7 @@ Six specialized AI agents simulate a traditional law firm hierarchy at machine s
 ## 📋 Key Modules
 
 ### 🤖 AI Document Pipeline (`ag-associates-ai/`)
-- **FastAPI** backend with modular `agents/` directory (12 specialized agents)
+- **FastAPI** backend with modular `agents/` directory (6 LangGraph pipeline agents + 6 specialist agents)
 - **LangGraph** orchestrated pipeline: Aisha → Drafter → Auditor
 - **NOI (Notice of Intimidation)** processing with Redis-backed ticking timebomb dashboard
 - **NeSL e-Filing** integration for legal notice submission
@@ -195,7 +195,7 @@ AGASSOCIATES/
 │
 ├── ag-associates-ai/              # 🤖 AI Document Pipeline
 │   ├── backend/
-│   │   ├── agents/                #   12 modular agents (aisha, drafter, auditor...)
+│   │   ├── agents/                #   6 LangGraph pipeline agents + utilities
 │   │   ├── telegram_bot/          #   Standalone Telegram microservice (bot.py, db.py)
 │   │   ├── main.py                #   FastAPI entry (NOI, NeSL, Aisha, SMS, HITL...)
 │   │   ├── agents.py              #   LangGraph 6-agent pipeline (legacy entry)
@@ -218,12 +218,10 @@ AGASSOCIATES/
 │   │   ├── types/                 #   Shared TypeScript interfaces
 │   │   └── ui/                    #   Shared shadcn/ui components
 │   ├── services/
-│   │   └── intake-api/            #   🚀 Fastify Intake Bot & OTP Bridge
+│   │   ├── intake-api/            #   🚀 Fastify Intake Bot & OTP Bridge
+│   │   └── coordinator/           #   🤖 Telegraf Telegram bot for agent orchestration
 │   ├── supabase/migrations/       #   Database migrations
 │   └── server.ts                  #   Express + Vite middleware entry
-│
-├── apps/
-│   └── agos-android/             # 📱 Android client (AI Studio, Jetpack Compose)
 │
 ├── docker-compose.prod.yml       # 🐳 10-service production stack
 ├── Caddyfile                     # 🌐 Caddy reverse proxy + auto-TLS
@@ -412,7 +410,7 @@ A self-hosted GitHub Actions runner (`ag-prod-runner`) can be installed as an al
 | `ag-platform/.env` | Platform + Supabase | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GEMINI_API_KEY` |
 | `docker-compose.prod.yml` | Production stack | `POSTGRES_*`, `REDIS_*`, `CADDY_*`, `SENTRY_*`, `N8N_*` |
 
-> **Note:** `.env.example` files do not exist in this repo. Trust `config.py` defaults and the production compose file for variable reference.
+> **Note:** A single `.env.example` exists at repo root with all required vars. Subdirectory `.env.example` files do not exist — trust `config.py` defaults for backend vars.
 
 ---
 
