@@ -34,8 +34,8 @@ from fastapi import (
 from . import audit, rate_limit, rbac, whatsapp
 from .piper_service import synthesize
 from .tool_registry import tool_registry
-from .vox_router import get_vox_router
-from .whisper_service import get_whisper_service
+from .vox_router import vox_router
+from .whisper_service import whisper_service
 
 try:
     from utils.s3 import generate_presigned_url, s3_client, BUCKET_NAME
@@ -141,7 +141,7 @@ def _process_transcript(
     audio_s3_key: Optional[str] = None,
 ) -> dict:
     """Shared route+risk+execute pipeline used by mic, wake-word, and WhatsApp."""
-    decision = get_vox_router().route(transcript)
+    decision = vox_router.route(transcript)
     tool_name = decision.get("tool")
     default_risk = _risk_of(tool_name)
 
@@ -298,7 +298,7 @@ async def handle_voice_command(
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        transcript = get_whisper_service().transcribe(file_path)
+        transcript = whisper_service.transcribe(file_path)
         if not transcript:
             raise HTTPException(status_code=400, detail="Could not transcribe audio")
 
@@ -413,7 +413,7 @@ async def whatsapp_inbound_voice(
     try:
         with open(file_path, "wb") as fh:
             fh.write(audio_bytes)
-        transcript = get_whisper_service().transcribe(file_path)
+        transcript = whisper_service.transcribe(file_path)
         if not transcript:
             raise HTTPException(status_code=400, detail="empty transcription")
         s3_key = _archive_audio(file_path, file_id)
