@@ -3,8 +3,22 @@ from .stripe_client import StripeClient
 from .webhook import PaymentWebhookHandler
 
 router = APIRouter(prefix="/payments", tags=["payments"])
-stripe_client = StripeClient()
-webhook_handler = PaymentWebhookHandler()
+_stripe_client: StripeClient | None = None
+_webhook_handler: PaymentWebhookHandler | None = None
+
+
+def _get_stripe_client() -> StripeClient:
+    global _stripe_client
+    if _stripe_client is None:
+        _stripe_client = StripeClient()
+    return _stripe_client
+
+
+def _get_webhook_handler() -> PaymentWebhookHandler:
+    global _webhook_handler
+    if _webhook_handler is None:
+        _webhook_handler = PaymentWebhookHandler()
+    return _webhook_handler
 
 
 @router.post("/create-intent")
@@ -19,7 +33,7 @@ async def create_payment_intent(request: Request):
         raise HTTPException(status_code=400, detail="Missing case_id, amount, or email")
 
     try:
-        session = await stripe_client.create_checkout_session(case_id, amount, email)
+        session = await _get_stripe_client().create_checkout_session(case_id, amount, email)
         return session
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -34,4 +48,4 @@ async def stripe_webhook(request: Request):
     if not sig_header:
         raise HTTPException(status_code=400, detail="Missing stripe-signature header")
 
-    return await webhook_handler.handle_webhook(payload, sig_header)
+    return await _get_webhook_handler().handle_webhook(payload, sig_header)
