@@ -26,6 +26,8 @@ WORKDIR /app
 
 RUN apk add --no-cache postgresql-client
 
+ENV NODE_ENV=production
+
 COPY --from=builder /app/dist ./dist
 COPY package.json package-lock.json .npmrc ./
 COPY server.ts ./
