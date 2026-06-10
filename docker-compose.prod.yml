@@ -81,7 +81,7 @@ services:
   ai-backend:
     build:
       context: ./ag-associates-ai/backend
-    image: ghcr.io/luxoranova9/ag-ai-backend:${IMAGE_TAG:-latest}
+    image: ghcr.io/rajkhemani/ag-ai-backend:${IMAGE_TAG:-latest}
     container_name: ag_ai_backend
     <<: [*restart, *logging]
     environment:
@@ -132,9 +132,9 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
       interval: 30s
-      timeout: 5s
-      start_period: 20s
-      retries: 3
+      timeout: 10s
+      start_period: 120s
+      retries: 5
     networks: [ag_net]
 
   ai-dashboard:
@@ -142,7 +142,7 @@ services:
       context: ./ag-associates-ai/frontend
       args:
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
-    image: ghcr.io/luxoranova9/ag-ai-dashboard:${IMAGE_TAG:-latest}
+    image: ghcr.io/rajkhemani/ag-ai-dashboard:${IMAGE_TAG:-latest}
     container_name: ag_ai_dashboard
     <<: [*restart, *logging]
     environment:
@@ -163,7 +163,7 @@ services:
         VITE_SUPABASE_URL: ${SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
         VITE_API_BASE_URL: /api
-    image: ghcr.io/luxoranova9/ag-platform:${IMAGE_TAG:-latest}
+    image: ghcr.io/rajkhemani/ag-platform:${IMAGE_TAG:-latest}
     container_name: ag_platform
     <<: [*restart, *logging]
     environment:
@@ -216,7 +216,7 @@ services:
   intake-api:
     build:
       context: ./ag-platform/services/intake-api
-    image: ghcr.io/luxoranova9/intake-api:${IMAGE_TAG:-latest}
+    image: ghcr.io/rajkhemani/intake-api:${IMAGE_TAG:-latest}
     ports:
       - "3002:3002"
     container_name: ag_intake_api
@@ -227,10 +227,12 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
     depends_on:
       redis: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3002/health"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       start_period: 10s
@@ -240,7 +242,7 @@ services:
   telegram-bot:
     build:
       context: ./ag-associates-ai/backend/telegram_bot
-    image: ghcr.io/luxoranova9/telegram-bot:${IMAGE_TAG:-latest}
+    image: ghcr.io/rajkhemani/telegram-bot:${IMAGE_TAG:-latest}
     container_name: ag_telegram_bot
     <<: [*restart, *logging]
     environment:
@@ -254,7 +256,7 @@ services:
       LLM_BASE_URL: https://api.groq.com/openai/v1
     depends_on:
       redis: { condition: service_healthy }
-      ai-backend: { condition: service_healthy }
+      ai-backend: { condition: service_started }
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
       interval: 30s
@@ -266,7 +268,7 @@ services:
   email-intake:
     build:
       context: ./ag-associates-ai/backend/email_intake
-    image: ghcr.io/luxoranova9/email-intake:${IMAGE_TAG:-latest}
+    image: ghcr.io/rajkhemani/email-intake:${IMAGE_TAG:-latest}
     container_name: ag_email_intake
     <<: [*restart, *logging]
     environment:

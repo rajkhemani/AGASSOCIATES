@@ -1,6 +1,5 @@
 import os
 import logging
-import stripe
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -10,6 +9,8 @@ class StripeClient:
     """Wrapper for Stripe API operations."""
 
     def __init__(self):
+        import stripe
+
         self.api_key = os.environ.get("STRIPE_SECRET_KEY")
         if not self.api_key:
             logger.error("STRIPE_SECRET_KEY is not set in environment")
@@ -18,6 +19,8 @@ class StripeClient:
     async def create_checkout_session(
         self, case_id: str, amount: float, customer_email: str
     ) -> Dict[str, Any]:
+        import stripe
+
         """Creates a Stripe Checkout session for a specific NOI case."""
         try:
             session = stripe.checkout.Session.create(

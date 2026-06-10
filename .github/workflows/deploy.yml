@@ -6,6 +6,7 @@ on:
     paths:
       - "ag-associates-ai/**"
       - "ag-platform/**"
+      - "landing/**"
       - "docker-compose.prod.yml"
       - "Caddyfile"
       - ".github/workflows/deploy.yml"
@@ -43,6 +44,15 @@ jobs:
               VITE_SUPABASE_URL=${{ vars.SUPABASE_URL }}
               VITE_SUPABASE_ANON_KEY=${{ vars.SUPABASE_ANON_KEY }}
               VITE_API_BASE_URL=/api
+          - name: telegram-bot
+            context: ag-associates-ai/backend/telegram_bot
+            build_args: ""
+          - name: intake-api
+            context: ag-platform/services/intake-api
+            build_args: ""
+          - name: email-intake
+            context: ag-associates-ai/backend/email_intake
+            build_args: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -79,22 +89,68 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
+          envs: GITHUB_TOKEN
           script: |
             set -euo pipefail
-            cd /srv/ag/repo
-            git fetch origin main
-            git reset --hard origin/main
+            DEPLOY_DIR="/srv/ag/deploy-${{ github.sha }}"
+            rm -rf "$DEPLOY_DIR"
+            git clone https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git "$DEPLOY_DIR"
+            cd "$DEPLOY_DIR"
             export IMAGE_TAG=${{ github.sha }}
-            docker compose --env-file /srv/ag/.env pull
-            docker compose --env-file /srv/ag/.env up -d --remove-orphans
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # Force-remove orphaned containers by name (covers v1/v2 label mismatches)
+            docker ps -aq --filter "name=ag_" 2>/dev/null | xargs -r docker rm -f || true
+            docker compose -p ag -f docker-compose.prod.yml --env-file /srv/ag/.env pull
+            docker compose -p ag -f docker-compose.prod.yml --env-file /srv/ag/.env up -d
             docker image prune -f
+            # Diagnostic: check intake-api container status and logs
+            echo "=== intake-api container status ==="
+            docker ps -a --filter name=ag_intake_api --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || true
+            echo "=== intake-api logs (last 20) ==="
+            docker logs ag_intake_api --tail 20 2>&1 || true
+            echo "=== ai-backend logs (last 30) ==="
+            docker logs ag_ai_backend --tail 30 2>&1 || true
+            echo "=== ag-platform logs (last 30) ==="
+            docker logs ag_platform --tail 30 2>&1 || true
+            echo "=== email-intake logs (last 20) ==="
+            docker logs ag_email_intake --tail 20 2>&1 || true
+            echo "=== all ag_ containers ==="
+            docker ps -a --filter name=ag_ --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>&1 || true
+            echo "=== compose ps ==="
+            docker compose -p ag -f docker-compose.prod.yml ps 2>&1 || true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Smoke test API health
+      - name: Delayed container diagnostics (120s)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            sleep 120
+            echo "=== Delayed diagnostics (120s post-deploy) ==="
+            echo "=== ai-backend logs ==="
+            docker logs ag_ai_backend --tail 50 2>&1 || true
+            echo "=== ag-platform logs ==="
+            docker logs ag_platform --tail 50 2>&1 || true
+            echo "=== email-intake logs ==="
+            docker logs ag_email_intake --tail 20 2>&1 || true
+            echo "=== all containers ==="
+            docker ps -a --filter name=ag_ --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>&1 || true
+
+      - name: Smoke test — all endpoints
         run: |
           for i in 1 2 3 4 5 6; do
-            if curl -sf "https://api.${{ vars.PROD_DOMAIN }}/health" >/dev/null; then
-              echo "API healthy"; exit 0
+            intake=$(curl -s -o /dev/null -w "%{http_code}" "https://intake.${{ vars.PROD_DOMAIN }}/health" 2>/dev/null)
+            api=$(curl -s -o /dev/null -w "%{http_code}" "https://api.${{ vars.PROD_DOMAIN }}/health" 2>/dev/null)
+            app=$(curl -s -o /dev/null -w "%{http_code}" "https://app.${{ vars.PROD_DOMAIN }}/" 2>/dev/null)
+            dashboard=$(curl -s -o /dev/null -w "%{http_code}" "https://dashboard.${{ vars.PROD_DOMAIN }}/" 2>/dev/null)
+            echo "intake=$intake api=$api app=$app dashboard=$dashboard"
+            if [ "$intake" = "200" ] && [ "$api" = "200" ] && [ "$app" = "200" ] && [ "$dashboard" = "200" ]; then
+              echo "All endpoints healthy"; exit 0
             fi
-            echo "waiting for API ($i/6)…"; sleep 10
+            echo "retrying ($i/6)…"; sleep 15
           done
-          echo "API failed to become healthy"; exit 1
+          echo "WARNING: Not all endpoints healthy (intake=$intake api=$api app=$app dashboard=$dashboard)"

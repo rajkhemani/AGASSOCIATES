@@ -1,6 +1,5 @@
 import os
 import logging
-import stripe
 from fastapi import HTTPException
 from .stripe_client import StripeClient
 
@@ -15,16 +14,16 @@ class PaymentWebhookHandler:
         self.stripe_client = StripeClient()
 
     async def handle_webhook(self, payload: bytes, sig_header: str):
+        import stripe
+
         """Verify Stripe signature and process the event."""
         try:
             event = stripe.Webhook.construct_event(
                 payload, sig_header, self.webhook_secret
             )
         except ValueError:
-            # Invalid payload
             raise HTTPException(status_code=400, detail="Invalid payload")
         except stripe.error.SignatureVerificationError:
-            # Invalid signature
             raise HTTPException(status_code=400, detail="Invalid signature")
 
         # Process the event

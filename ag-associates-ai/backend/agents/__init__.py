@@ -10,8 +10,19 @@ Pipeline: Aisha (intake) → Guardrail (regex) → Bouncer (math) → Drafter
 """
 
 from .db import generate_embedding, get_db_connection, similarity_search
-from .graph import build_agent_graph, process_rental_request, should_revise
 from .state import AgentState
+
+def build_agent_graph():
+    from .graph import build_agent_graph as _build
+    return _build()
+
+def process_rental_request(*args, **kwargs):
+    from .graph import process_rental_request as _process
+    return _process(*args, **kwargs)
+
+def should_revise(*args, **kwargs):
+    from .graph import should_revise as _should
+    return _should(*args, **kwargs)
 
 __all__ = [
     "AgentState",

@@ -32,4 +32,11 @@ class WhisperService:
         return transcript.strip()
 
 
-whisper_service = WhisperService()
+_whisper_service: WhisperService | None = None
+
+
+def get_whisper_service() -> WhisperService:
+    global _whisper_service
+    if _whisper_service is None:
+        _whisper_service = WhisperService()
+    return _whisper_service

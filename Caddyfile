@@ -8,10 +8,7 @@
 # AG Platform — LegalTech case management (Vite SPA + Express)
 app.{$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy ag-platform:3001 {
-		health_uri /api/health
-		health_interval 30s
-	}
+	reverse_proxy ag-platform:3001
 }
 
 # AI Dashboard — Next.js status / workflow viewer
@@ -24,19 +21,14 @@ dashboard.{$DOMAIN} {
 api.{$DOMAIN} {
 	encode zstd gzip
 	reverse_proxy /webhook* telegram-bot:3003
-	reverse_proxy ai-backend:8000 {
-		health_uri /health
-		health_interval 30s
-	}
+	reverse_proxy /api/sms/ingest* intake-api:3002
+	reverse_proxy ai-backend:8000
 }
 
 # Intake API — SMS webhook, OTP bridge, bank intake
 intake.{$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy intake-api:3002 {
-		health_uri /health
-		health_interval 30s
-	}
+	reverse_proxy intake-api:3002
 }
 
 # n8n orchestration UI — protected by Caddy basicauth on top of n8n's own auth

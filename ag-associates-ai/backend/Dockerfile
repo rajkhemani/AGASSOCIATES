@@ -31,7 +31,7 @@ COPY --from=builder --chown=appuser:appuser /opt/hf-cache /opt/hf-cache
 ENV PATH=/home/appuser/.local/bin:$PATH \
     HF_HOME=/opt/hf-cache \
     SENTENCE_TRANSFORMERS_HOME=/opt/hf-cache \
-    UVICORN_WORKERS=4 \
+    UVICORN_WORKERS=2 \
     OUTPUT_DIR=/app/output
 
 # Application code
