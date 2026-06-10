@@ -133,6 +133,18 @@ REPORT_PERMISSIONS = [
     Permission("reports.export", "Export case data", Role.ADVOCATE.value),
 ]
 
+AGENT_PERMISSIONS = [
+    Permission("agent.auditor.access", "Access Auditor agent", Role.EXECUTIVE.value),
+    Permission("agent.vyasa.access", "Access Vyasa agent", Role.CLERK.value),
+    Permission("agent.bouncer.access", "Access Bouncer agent", Role.EXECUTIVE.value),
+    Permission(
+        "agent.accountant.access", "Access Accountant agent", Role.ADVOCATE.value
+    ),
+    Permission("agent.noi.access", "Access NOI agent", Role.ADVOCATE.value),
+    Permission("agent.executor.access", "Access Executor agent", Role.PRINCIPAL.value),
+    Permission("agent.drafter.access", "Access Drafter agent", Role.ADVOCATE.value),
+]
+
 ALL_PERMISSIONS = (
     FIRM_PERMISSIONS
     + CASE_PERMISSIONS
@@ -144,6 +156,7 @@ ALL_PERMISSIONS = (
     + DASHBOARD_PERMISSIONS
     + NON_RPA_PERMISSIONS
     + REPORT_PERMISSIONS
+    + AGENT_PERMISSIONS
 )
 
 PERMISSION_MAP: dict[str, Permission] = {p.code: p for p in ALL_PERMISSIONS}

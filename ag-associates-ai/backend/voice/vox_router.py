@@ -57,4 +57,11 @@ class VoxRouter:
             return {"tool": None, "error": "routing failed"}
 
 
-vox_router = VoxRouter()
+_vox_router: VoxRouter | None = None
+
+
+def get_vox_router() -> VoxRouter:
+    global _vox_router
+    if _vox_router is None:
+        _vox_router = VoxRouter()
+    return _vox_router
