@@ -30,6 +30,7 @@ COPY --from=builder /app/dist ./dist
 COPY package.json package-lock.json .npmrc ./
 COPY server.ts ./
 COPY src/server/ ./src/server/
+COPY src/lib/ ./src/lib/
 COPY tsconfig.json tsconfig.node.json ./
 
 RUN npm ci --omit=dev
