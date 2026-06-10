@@ -51,8 +51,9 @@ jobs:
             context: ag-platform/services/intake-api
             build_args: ""
           - name: email-intake
-            context: ag-associates-ai/backend/email_intake
+            context: ag-associates-ai/backend
             build_args: ""
+            dockerfile: email_intake/Dockerfile
     steps:
       - uses: actions/checkout@v4
 

@@ -5,8 +5,8 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt email_intake/
-RUN pip install --no-cache-dir -r email_intake/requirements.txt
+COPY email_intake/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
