@@ -33,3 +33,4 @@ soundfile>=0.12.1
 gspread>=6.1.0
 crewai>=0.80.0
 sentry-sdk>=2.15.0
+python-multipart

@@ -20,4 +20,4 @@ ENV TELEGRAM_HEALTH_PORT=3004
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -fsS http://127.0.0.1:3004/health || exit 1
 
-CMD ["python", "telegram_bot/bot.py"]
+CMD ["python", "/app/bot.py"]
