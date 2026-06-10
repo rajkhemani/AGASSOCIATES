@@ -1332,6 +1332,13 @@ def main():
     health_thread = threading.Thread(target=run_health_check, daemon=True)
     health_thread.start()
 
+    try:
+        from agents.agent_init import register_all
+        register_all()
+        logger.info("All agents registered successfully")
+    except ImportError as e:
+        logger.warning("Agent registration skipped (not all modules available): %s", e)
+
     async def post_init(app: Application):
         asyncio.create_task(_sms_listener(app))
         asyncio.create_task(_cleanup_loop(app))
