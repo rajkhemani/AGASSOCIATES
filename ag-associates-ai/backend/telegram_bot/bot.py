@@ -1,20 +1,32 @@
-"""Telegram Bot — OTP bridge + Aisha AI + Voice mode + Auto-forward.
+"""Telegram Bot — OTP bridge + Multi-Agent AI + Voice mode + Auto-forward.
 
-Commands:
+Agent Commands:
+  /auditor <query>    — Financial audit, bank statements, anomalies
+  /vyasa <query>        — Legal research, property law, compliance
+  /bouncer <query>    — Math validation, stamp duty calculations
+  /accountant <query> — Financial reports, billing, receivables
+  /noi <subcommand>   — NOI case management (new/list/status)
+  /noiagent <query>   — NOI workflow specialist (conversation)
+  /executor <query>   — RPA automation, portal operations
+  /drafter <query>    — Draft legal documents, agreements, notices
+  /agents             — List all available agents with RBAC
+  /agent <name> <msg> — Talk to any agent by name
+
+General:
   /start       — Register, show all features
   /help        — Command reference
-  /aisha       — Toggle Aisha chat mode (text msgs → Aisha)
+  /aisha       — Toggle Aisha chat mode
   /aisha <msg> — Ask Aisha directly
   /voicemode   — Toggle spoken voice replies (TTS)
   /hindi       — Toggle Hindi voice (hi-IN-SwaraNeural)
-  /audit       — Upload Excel for financial audit
   /otp         — Request next available OTP
-  /otp gras    — Request OTP for specific portal
   /autootp     — Auto-forward ALL incoming OTPs here
   /claim       — Claim orphan OTPs (no sender matched)
   /history     — View recent OTP history
   /status      — Show pending OTP requests
   /cancel      — Cancel my pending OTP request
+  /task        — Case task management
+  /challan     — Challan creation and approval
 
 Voice messages → always routed to Aisha (no /aisha toggle needed).
 Voice mode ON → Aisha replies with text + spoken voice (TTS).
@@ -217,20 +229,92 @@ async def _call_aisha_and_reply(
         await update.message.reply_text("❌ Aisha is unavailable. Try later.")
 
 
-# ── Excel audit ──────────────────────────────────────────────────────────
+# ── Agent command helper ────────────────────────────────────────────────
 
 
-async def audit_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def _handle_agent_command(
+    update: Update,
+    ctx: ContextTypes.DEFAULT_TYPE,
+    agent_name: str,
+    display_name: str,
+    emoji: str = "🤖",
+):
+    if not ctx.args:
+        await update.message.reply_text(
+            f"{emoji} <b>{display_name}</b>\n\n"
+            f"Usage: /{agent_name} &lt;your question&gt;\n"
+            f"Example: /{agent_name} is property ke liye kya compliance chahiye?\n\n"
+            f"Or just describe your query and I'll help you.",
+            parse_mode="HTML",
+        )
+        return
+
+    message = " ".join(ctx.args)
+
+    agent = get_agent(agent_name)
+    if not agent:
+        await update.message.reply_text(
+            f"❌ {display_name} agent unavailable. Try /agent {agent_name} &lt;message&gt;"
+        )
+        return
+
+    await update.message.reply_chat_action("typing")
     await update.message.reply_text(
-        "📊 <b>Financial Auditor</b>\n\n"
-        "Send me an Excel file (.xlsx) and I'll analyze it:\n"
-        "• Bank statements → transactions, balances, anomalies\n"
-        "• Balance sheets → A=L+E check, ratios\n"
-        "• Profit & Loss → margins, trends\n"
-        "• Any financial sheet → numeric summary\n\n"
-        "Just upload the file or forward it here.",
-        parse_mode="HTML",
+        f"{emoji} <b>{display_name}</b> soch raha hai...", parse_mode="HTML"
     )
+
+    try:
+        user_role = "CLERK"
+        response = await agent.process_request(
+            user_message=message,
+            user_id=str(update.effective_chat.id),
+            user_role=user_role,
+        )
+        if response:
+            text = response.text
+            if len(text) > 4000:
+                for i in range(0, len(text), 4000):
+                    await update.message.reply_text(
+                        text[i : i + 4000], parse_mode="HTML"
+                    )
+            else:
+                await update.message.reply_text(text, parse_mode="HTML")
+        else:
+            await update.message.reply_text(f"{emoji} Koi response nahi mila.")
+    except Exception as e:
+        logger.error("Agent %s command error: %s", agent_name, e)
+        await update.message.reply_text(f"❌ {display_name} error: {e}")
+
+
+# ── Agent-specific commands ─────────────────────────────────────────────
+
+
+async def auditor_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await _handle_agent_command(update, ctx, "auditor", "Auditor", "📊")
+
+
+async def vyasa_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await _handle_agent_command(update, ctx, "vyasa", "Vyasa", "⚖️")
+
+
+async def bouncer_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await _handle_agent_command(update, ctx, "bouncer", "Bouncer", "🧮")
+
+
+async def accountant_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await _handle_agent_command(update, ctx, "accountant", "Accountant", "💰")
+
+
+async def noi_agent_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await _handle_agent_command(update, ctx, "noi", "NOI Specialist", "📋")
+
+
+async def executor_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await _handle_agent_command(update, ctx, "executor", "Executor", "⚡")
+
+
+async def drafter_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await _handle_agent_command(update, ctx, "drafter", "Drafter", "📝")
 
 
 # ── Multi-modal handlers ─────────────────────────────────────────────────
@@ -1361,8 +1445,14 @@ def main():
     app.add_handler(CommandHandler("history", history_command))
     app.add_handler(CommandHandler("status", status_handler))
     app.add_handler(CommandHandler("cancel", cancel))
-    app.add_handler(CommandHandler("audit", audit_command))
+    app.add_handler(CommandHandler("auditor", auditor_command))
+    app.add_handler(CommandHandler("vyasa", vyasa_command))
+    app.add_handler(CommandHandler("bouncer", bouncer_command))
+    app.add_handler(CommandHandler("accountant", accountant_command))
     app.add_handler(CommandHandler("noi", noi_command))
+    app.add_handler(CommandHandler("noiagent", noi_agent_command))
+    app.add_handler(CommandHandler("executor", executor_command))
+    app.add_handler(CommandHandler("drafter", drafter_command))
     app.add_handler(CommandHandler("task", task_command))
     app.add_handler(CommandHandler("challan", challan_command))
     app.add_handler(CommandHandler("agents", agents_command))
