@@ -120,6 +120,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
+      - name: Delayed container diagnostics (120s)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            sleep 120
+            echo "=== Delayed diagnostics (120s post-deploy) ==="
+            echo "=== ai-backend logs ==="
+            docker logs ag_ai_backend --tail 50 2>&1 || true
+            echo "=== ag-platform logs ==="
+            docker logs ag_platform --tail 50 2>&1 || true
+            echo "=== email-intake logs ==="
+            docker logs ag_email_intake --tail 20 2>&1 || true
+            echo "=== all containers ==="
+            docker ps -a --filter name=ag_ --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>&1 || true
+
       - name: Smoke test — all endpoints
         run: |
           for i in 1 2 3 4 5 6; do
