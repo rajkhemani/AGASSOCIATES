@@ -866,7 +866,9 @@ async def voice_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🎙️ Couldn't understand. Try again.")
         return
 
-    await update.message.reply_text(f"🎙️ <i>Heard:</i> {transcribed}", parse_mode="HTML")
+    await update.message.reply_text(
+        f"🎙️ <i>Heard:</i> {transcribed}", parse_mode="HTML"
+    )
     await _call_aisha_and_reply(update, transcribed, ctx)
 
 
@@ -1424,6 +1426,7 @@ def main():
 
     try:
         from agents.agent_init import register_all
+
         register_all()
         logger.info("All agents registered successfully")
     except ImportError as e:
