@@ -13,6 +13,7 @@ COPY . .
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 USER appuser
 
+ENV PYTHONPATH=/app
 ENV TELEGRAM_BOT_PORT=3003
 ENV TELEGRAM_HEALTH_PORT=3004
 
