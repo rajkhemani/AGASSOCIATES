@@ -63,11 +63,8 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
-from agents.agent_registry import list_agents
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 # ── Config ───────────────────────────────────────────────────────────────
@@ -1340,6 +1337,7 @@ async def challan_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def agents_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    from agents.agent_registry import list_agents
     user_role = "CLERK"
     agents = list_agents(user_role)
     lines = ["🤖 <b>AG Agents</b>\n"]
