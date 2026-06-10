@@ -2,6 +2,7 @@ import { Router } from "express";
 import { streamText, generateText, generateObject, embed } from "ai";
 import { google } from "@ai-sdk/google";
 import { createClient } from "@supabase/supabase-js";
+import WebSocket from "ws";
 import { Resend } from "resend";
 import { z } from "zod";
 import dotenv from "dotenv";
@@ -24,7 +25,9 @@ function getResendClient(): Resend {
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://placeholder.supabase.co";
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "placeholder";
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  realtime: { transport: WebSocket as any },
+});
 
 // Middleware to track AI credits (Tokens)
 async function checkAndTrackTokens(orgId: string, tokensToConsume: number = 0) {
