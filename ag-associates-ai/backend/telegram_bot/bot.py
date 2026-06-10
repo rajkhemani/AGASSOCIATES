@@ -627,9 +627,15 @@ async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ("/history", "Recent OTP history"),
         ("/status", "Pending OTP requests"),
         ("/cancel", "Cancel OTP request"),
-        ("/audit", "Upload Excel for financial audit"),
+        ("/auditor [query]", "Financial audit (Excel, bank stmts)"),
+        ("/vyasa [query]", "Legal research & compliance"),
+        ("/bouncer [query]", "Math & stamp duty validation"),
+        ("/accountant [query]", "Financial reports & billing"),
+        ("/noiagent [query]", "NOI workflow specialist"),
+        ("/executor [query]", "RPA & portal automation"),
+        ("/drafter [query]", "Draft legal documents & notices"),
         ("/agents", "List all available AI agents"),
-        ("/agent", "<name> <msg> — Chat with a specific agent"),
+        ("/agent", "&lt;name&gt; &lt;msg&gt; — Chat with a specific agent"),
     ]
     lines = [f"<b>{c}</b> — {d}" for c, d in cmds]
     await update.message.reply_text(
@@ -1340,7 +1346,7 @@ async def agents_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             lines.append(f"✅ <b>{a['name']}</b> — {a['description']}")
         else:
             lines.append(f"🔒 <b>{a['name']}</b> — needs {a['min_role']}")
-    lines.append("\n/agent <name> <message> — Chat with an agent")
+    lines.append("\n/agent &lt;name&gt; &lt;message&gt; — Chat with an agent")
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
