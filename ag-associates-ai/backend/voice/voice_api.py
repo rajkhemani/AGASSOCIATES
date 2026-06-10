@@ -55,8 +55,11 @@ except Exception:
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/voice", tags=["Voice Automation"])
 
-TEMP_DIR = os.environ.get("VOICE_TEMP_DIR", "temp_audio")
-os.makedirs(TEMP_DIR, exist_ok=True)
+TEMP_DIR = os.environ.get("VOICE_TEMP_DIR", "/app/output/temp_audio")
+try:
+    os.makedirs(TEMP_DIR, exist_ok=True)
+except OSError as e:
+    logger.warning("Could not create TEMP_DIR %s: %s", TEMP_DIR, e)
 
 VOICE_ADMIN_KEY = os.environ.get("VOICE_ADMIN_KEY", "")
 N8N_WHATSAPP_INBOUND_KEY = os.environ.get("N8N_WHATSAPP_INBOUND_KEY", "")

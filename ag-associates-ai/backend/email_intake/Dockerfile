@@ -5,8 +5,8 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt email_intake/
+RUN pip install --no-cache-dir -r email_intake/requirements.txt
 
 COPY . .
 
@@ -18,4 +18,4 @@ ENV EMAIL_INTAKE_PORT=3004
 HEALTHCHECK --interval=60s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -fsS http://127.0.0.1:3004/health || exit 1
 
-CMD ["python", "agent.py"]
+CMD ["python", "email_intake/agent.py"]

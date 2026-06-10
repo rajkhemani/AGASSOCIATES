@@ -267,7 +267,8 @@ services:
 
   email-intake:
     build:
-      context: ./ag-associates-ai/backend/email_intake
+      context: ./ag-associates-ai/backend
+      dockerfile: email_intake/Dockerfile
     image: ghcr.io/rajkhemani/email-intake:${IMAGE_TAG:-latest}
     container_name: ag_email_intake
     <<: [*restart, *logging]
