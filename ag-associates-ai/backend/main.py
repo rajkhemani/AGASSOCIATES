@@ -377,6 +377,11 @@ async def aisha_chat(
 
     identity = None
     display_name = request.display_name or ""
+    # Deterministic KDF settings for deriving a non-reversible identity suffix
+    api_identity_salt = os.getenv("API_IDENTITY_SALT", "ag-aisha-api-identity-salt").encode(
+        "utf-8"
+    )
+    api_identity_iterations = 200_000
 
     # 1. API key takes priority (Telegram bot, n8n, etc.)
     if x_api_key:
@@ -384,7 +389,7 @@ async def aisha_chat(
         identity = (
             x_user_id
             or request.platform_identity
-            or f"api_{hashlib.sha256(x_api_key.encode()).hexdigest()[:8]}"
+            or f"api_{hashlib.pbkdf2_hmac('sha256', x_api_key.encode('utf-8'), api_identity_salt, api_identity_iterations).hex()[:8]}"
         )
     # 2. Session cookie (web dashboard users)
     elif ag_session:
