@@ -164,6 +164,38 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // 4. Telegram Agsms Bot Webhook (receives forwarded SMS from @Agsms_bot)
+  typedFastify.post(
+    '/agsms-webhook',
+    {
+      schema: {
+        body: z.object({
+          update_id: z.number().optional(),
+          message: z.object({
+            text: z.string().optional(),
+            chat: z.object({ id: z.number() }).optional(),
+            from: z.object({ id: z.number() }).optional(),
+          }).optional(),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+      if (secret) {
+        const header = request.headers['x-telegram-bot-api-secret-token'];
+        if (!header || header !== secret) {
+          fastify.log.warn({ header: header ? 'present' : 'missing' }, 'agsms-webhook: invalid secret token');
+          return reply.status(401).send({ status: 'error', reason: 'invalid secret token' });
+        }
+      }
+      const msg = request.body.message;
+      const text = msg?.text || '';
+      const sender = msg?.chat?.id?.toString() || 'telegram:unknown';
+      if (!text) return reply.status(200).send({ status: 'skipped', reason: 'no text' });
+      return processSms(text, sender, reply);
+    }
+  );
+
   // Centralized Error Handling
   fastify.setErrorHandler((error: FastifyError, request, reply) => {
     if (error.validation) {

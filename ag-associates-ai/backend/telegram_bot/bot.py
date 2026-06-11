@@ -70,6 +70,7 @@ logger = logging.getLogger(__name__)
 # ── Config ───────────────────────────────────────────────────────────────
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
 BOT_PORT = int(os.environ.get("TELEGRAM_BOT_PORT", "3003"))
@@ -86,6 +87,10 @@ AUTOFORWARD_SET_KEY = "otp_autoforward"
 STAFF_SET_KEY = "otp_staff_registered"
 OTP_HISTORY_KEY = "otp_history"
 ORPHAN_KEY = "otp_orphans"
+
+AISHA_MODE_KEY = "bot:toggles:aisha"
+VOICE_MODE_KEY = "bot:toggles:voice"
+HINDI_KEY = "bot:toggles:hindi"
 
 RATE_LIMIT_SECONDS = 10
 _ratelimit: dict[int, float] = {}
@@ -117,10 +122,69 @@ async def get_redis() -> aioredis.Redis:
     global redis_client
     if redis_client is None:
         url = REDIS_URL
-        if REDIS_PASSWORD and "redis://" in url:
+        if REDIS_PASSWORD and "redis://" in url and ":@" not in url:
             url = url.replace("redis://", f"redis://:{REDIS_PASSWORD}@")
         redis_client = aioredis.from_url(url, decode_responses=True)
     return redis_client
+
+
+_listener_redis: Optional[aioredis.Redis] = None
+
+
+async def _get_listener_redis() -> aioredis.Redis:
+    global _listener_redis
+    if _listener_redis is None:
+        url = REDIS_URL
+        if REDIS_PASSWORD and "redis://" in url and ":@" not in url:
+            url = url.replace("redis://", f"redis://:{REDIS_PASSWORD}@")
+        _listener_redis = aioredis.from_url(
+            url, decode_responses=True,
+            socket_keepalive=True,
+            socket_connect_timeout=10,
+            socket_timeout=35,
+        )
+    return _listener_redis
+
+
+async def _load_toggles(r: aioredis.Redis):
+    """Load chat toggle modes from Redis into in-memory sets."""
+    global _aisha_chat_modes, _voice_mode_chats, _hindi_chats
+    for key, target in [
+        (AISHA_MODE_KEY, _aisha_chat_modes),
+        (VOICE_MODE_KEY, _voice_mode_chats),
+        (HINDI_KEY, _hindi_chats),
+    ]:
+        try:
+            members = await r.smembers(key)
+            target.clear()
+            for m in members:
+                try:
+                    target.add(int(m))
+                except (ValueError, TypeError):
+                    pass
+        except Exception as e:
+            logger.warning("Failed to load toggles from %s: %s", key, e)
+
+
+async def _save_toggle(key: str, chat_id: int, enabled: bool):
+    """Persist a single chat toggle to Redis."""
+    try:
+        r = await get_redis()
+        if enabled:
+            await r.sadd(key, str(chat_id))
+        else:
+            await r.srem(key, str(chat_id))
+    except Exception as e:
+        logger.warning("Failed to save toggle %s: %s", key, e)
+
+
+async def _load_all_toggles():
+    """Load all toggle sets from Redis into in-memory state."""
+    try:
+        r = await get_redis()
+        await _load_toggles(r)
+    except Exception:
+        logger.warning("Toggle loading skipped (Redis may be connecting)")
 
 
 def _pending_key(portal: str) -> str:
@@ -312,6 +376,50 @@ async def executor_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def drafter_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await _handle_agent_command(update, ctx, "drafter", "Drafter", "📝")
+
+
+async def supervisor_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Route user message through the Supervisor agent → auto-routes to specialist."""
+    if not ctx.args:
+        await update.message.reply_text(
+            "🧠 <b>Supervisor</b>\n\n"
+            "Main aapka AI Chief of Staff hoon. Aapke query ko padhkar sahi specialist agent ko route karta hoon.\n\n"
+            "Usage: /supervisor <your query>\n"
+            "Example: /supervisor property registration ke liye kya karna hai?\n\n"
+            "Ya phir sirf /supervisor se specialist agents ki list dekh sakte hain.",
+            parse_mode="HTML",
+        )
+        return
+
+    message = " ".join(ctx.args)
+    await update.message.reply_chat_action("typing")
+    await update.message.reply_text("🧠 Supervisor analysis kar raha hai...", parse_mode="HTML")
+
+    try:
+        from agents.supervisor.agent import supervisor as sup_agent
+
+        user_role = "CLERK"
+        response = await sup_agent.process_request(
+            user_message=message,
+            user_id=str(update.effective_chat.id),
+            user_role=user_role,
+        )
+
+        if response and response.text:
+            text = response.text
+            if len(text) > 4000:
+                for i in range(0, len(text), 4000):
+                    await update.message.reply_text(text[i:i+4000], parse_mode="HTML")
+            else:
+                await update.message.reply_text(text, parse_mode="HTML")
+        else:
+            await update.message.reply_text(
+                "🤖 Aapke query ke liye koi specialist agent nahi mila. "
+                "Aisha se baat kar raha hoon..."
+            )
+    except Exception as e:
+        logger.error("Supervisor command error: %s", e)
+        await update.message.reply_text(f"❌ Supervisor error: {e}")
 
 
 # ── Multi-modal handlers ─────────────────────────────────────────────────
@@ -612,33 +720,61 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    cmds = [
-        ("/start", "Register, show menu"),
-        ("/help", "This help"),
-        ("/aisha [msg]", "Toggle Aisha mode or ask one-off"),
-        ("/voicemode", "Toggle spoken TTS replies"),
-        ("/hindi", "Toggle Hindi voice (Swara)"),
-        ("/otp [portal]", "Request OTP (gras/igr/cersai/sbi/noc)"),
-        ("/autootp", "Auto-forward all OTPs here"),
-        ("/claim", "Claim orphan OTPs"),
-        ("/history", "Recent OTP history"),
-        ("/status", "Pending OTP requests"),
-        ("/cancel", "Cancel OTP request"),
-        ("/auditor [query]", "Financial audit (Excel, bank stmts)"),
-        ("/vyasa [query]", "Legal research & compliance"),
-        ("/bouncer [query]", "Math & stamp duty validation"),
-        ("/accountant [query]", "Financial reports & billing"),
-        ("/noiagent [query]", "NOI workflow specialist"),
-        ("/executor [query]", "RPA & portal automation"),
-        ("/drafter [query]", "Draft legal documents & notices"),
-        ("/agents", "List all available AI agents"),
-        ("/agent", "&lt;name&gt; &lt;msg&gt; — Chat with a specific agent"),
-    ]
-    lines = [f"<b>{c}</b> — {d}" for c, d in cmds]
-    await update.message.reply_text(
-        "🤖 <b>AG Bot Commands</b>\n\n" + "\n".join(lines),
-        parse_mode="HTML",
+    await menu_command(update, ctx)
+
+
+async def menu_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    menu = (
+        "🏛️ <b>AG Associates — Full-Stack AI System</b>\n\n"
+
+        "🤖 <b>AI Multi-Agent Workforce</b>\n"
+        "├ /aisha — Conversational assistant (Hinglish)\n"
+        "├ /auditor — Financial audit (bank stmts, Excel)\n"
+        "├ /vyasa — Legal research & compliance\n"
+        "├ /bouncer — Math & stamp duty validation\n"
+        "├ /accountant — Financial reports & billing\n"
+        "├ /noiagent — NOI workflow specialist\n"
+        "├ /executor — RPA & portal automation\n"
+        "├ /drafter — Legal document drafting\n"
+        "└ /agents — List all AI agents\n\n"
+
+        "🔐 <b>OTP Bridge & SMS Forwarding</b>\n"
+        "├ /otp [portal] — Request OTP (gras/igr/sbi/etc)\n"
+        "├ /autootp — Auto-forward all OTPs here\n"
+        "├ /claim — Claim orphan OTPs\n"
+        "├ /history — View OTP history\n"
+        "├ /status — Pending OTP requests\n"
+        "└ /cancel — Cancel OTP request\n\n"
+
+        "📋 <b>Case & Workflow Management</b>\n"
+        "├ /noi — NOI case management (new/list/status)\n"
+        "├ /challan — Challan creation & approval\n"
+        "├ /task — Case task management\n"
+        "└ <a href='https://app.advadiityagade.com'>Case Portal ↗</a>\n\n"
+
+        "🗣️ <b>Voice & Multimedia</b>\n"
+        "├ /voicemode — Toggle TTS spoken replies\n"
+        "├ /hindi — Toggle Hindi voice (Swara)\n"
+        "└ File upload — OCR, transcription, Excel audit\n\n"
+
+        "📊 <b>Platform & Dashboards</b>\n"
+        "├ <a href='https://app.advadiityagade.com'>Case Portal ↗</a>\n"
+        "├ <a href='https://dashboard.advadiityagade.com'>AI Dashboard ↗</a>\n"
+        "├ <a href='https://intake.advadiityagade.com'>Intake Gateway ↗</a>\n"
+        "├ <a href='https://n8n.advadiityagade.com'>n8n Orchestration ↗</a>\n"
+        "└ <a href='https://docs.advadiityagade.com'>Documentation ↗</a>\n\n"
+
+        "🌐 <b>RPA Government Portal Automation</b>\n"
+        "├ GRAS — Challan generation\n"
+        "├ IGR — Document filing (OTP auth)\n"
+        "└ NESL — Property registration\n\n"
+
+        "⚙️ <b>System</b>\n"
+        "├ /start — Register & show this menu\n"
+        "├ /help — Command reference\n"
+        "└ <a href='https://advadiityagade.com'>Landing Page ↗</a>"
     )
+    await update.message.reply_text(menu, parse_mode="HTML", disable_web_page_preview=True)
 
 
 async def aisha_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -649,9 +785,11 @@ async def aisha_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     if cid in _aisha_chat_modes:
         _aisha_chat_modes.discard(cid)
+        await _save_toggle(AISHA_MODE_KEY, cid, False)
         await update.message.reply_text("🚫 Aisha mode off.")
     else:
         _aisha_chat_modes.add(cid)
+        await _save_toggle(AISHA_MODE_KEY, cid, True)
         await update.message.reply_text("✅ Aisha mode on! Send any message.")
 
 
@@ -659,9 +797,11 @@ async def voicemode_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cid = update.effective_chat.id
     if cid in _voice_mode_chats:
         _voice_mode_chats.discard(cid)
+        await _save_toggle(VOICE_MODE_KEY, cid, False)
         await update.message.reply_text("🔇 Voice replies off.")
     else:
         _voice_mode_chats.add(cid)
+        await _save_toggle(VOICE_MODE_KEY, cid, True)
         await update.message.reply_text("🔊 Voice replies on! Aisha speaks back.")
 
 
@@ -669,9 +809,11 @@ async def hindi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cid = update.effective_chat.id
     if cid in _hindi_chats:
         _hindi_chats.discard(cid)
+        await _save_toggle(HINDI_KEY, cid, False)
         await update.message.reply_text("🇮🇳 Hindi voice off. Using English voice.")
     else:
         _hindi_chats.add(cid)
+        await _save_toggle(HINDI_KEY, cid, True)
         await update.message.reply_text(
             "🇮🇳 <b>Hindi voice on!</b> 🎤\n\n"
             "Aisha will speak in <b>Hindi</b> (female voice).\n"
@@ -1009,7 +1151,7 @@ async def cleanup_orphans(ctx: Optional[ContextTypes.DEFAULT_TYPE] = None):
 
 
 async def _sms_listener(app: Application):
-    r = await get_redis()
+    r = await _get_listener_redis()
     while True:
         try:
             result = await r.blpop(SMS_INCOMING_KEY, timeout=30)
@@ -1412,6 +1554,9 @@ def get_agent(name: str):
         return None
 
 
+# ── Main ──────────────────────────────────────────────────────────────────
+
+
 def main():
     if not TELEGRAM_BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN not set")
@@ -1431,6 +1576,13 @@ def main():
         logger.warning("Agent registration skipped (not all modules available): %s", e)
 
     async def post_init(app: Application):
+        await _load_all_toggles()
+        logger.info(
+            "Loaded toggles: aisha=%d voice=%d hindi=%d",
+            len(_aisha_chat_modes),
+            len(_voice_mode_chats),
+            len(_hindi_chats),
+        )
         asyncio.create_task(_sms_listener(app))
         asyncio.create_task(_cleanup_loop(app))
         webhook_url = os.environ.get("TELEGRAM_WEBHOOK_URL", "")
@@ -1443,6 +1595,8 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("menu", menu_command))
+    app.add_handler(CommandHandler("capabilities", menu_command))
     app.add_handler(CommandHandler("aisha", aisha_command))
     app.add_handler(CommandHandler("voicemode", voicemode_command))
     app.add_handler(CommandHandler("hindi", hindi_command))
@@ -1460,6 +1614,7 @@ def main():
     app.add_handler(CommandHandler("noiagent", noi_agent_command))
     app.add_handler(CommandHandler("executor", executor_command))
     app.add_handler(CommandHandler("drafter", drafter_command))
+    app.add_handler(CommandHandler("supervisor", supervisor_command))
     app.add_handler(CommandHandler("task", task_command))
     app.add_handler(CommandHandler("challan", challan_command))
     app.add_handler(CommandHandler("agents", agents_command))
@@ -1487,7 +1642,7 @@ def main():
                 url_path="webhook",
                 webhook_url=webhook_url,
                 allowed_updates=["message", "callback_query"],
-                secret_token=None,
+                secret_token=TELEGRAM_WEBHOOK_SECRET or None,
             )
         except Exception as e:
             logger.warning("Webhook mode failed (%s), falling back to polling", e)

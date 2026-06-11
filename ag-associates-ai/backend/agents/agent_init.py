@@ -19,6 +19,7 @@ from .accountant.agent import accountant
 from .noi.agent import noi
 from .executor.agent import executor
 from .drafter.agent import drafter
+from .supervisor.agent import supervisor
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ _bus_tasks: list[asyncio.Task] = []
 
 def register_all():
     """Register all agents in the registry."""
+    agent_registry.register("supervisor", supervisor)
     agent_registry.register("auditor", auditor)
     agent_registry.register("vyasa", vyasa)
     agent_registry.register("bouncer", bouncer)
@@ -42,6 +44,7 @@ async def start_bus_listeners():
     loop = asyncio.get_event_loop()
 
     for name, instance in [
+        ("supervisor", supervisor),
         ("auditor", auditor),
         ("vyasa", vyasa),
         ("bouncer", bouncer),

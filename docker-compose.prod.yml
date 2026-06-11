@@ -229,6 +229,7 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
     depends_on:
       redis: { condition: service_healthy }
     healthcheck:
@@ -250,6 +251,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       TELEGRAM_BOT_PORT: 3003
       TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
       AISHA_API_URL: http://ai-backend:8000/api/aisha/chat
       N8N_WEBHOOK_KEY: ${N8N_WEBHOOK_KEY}
       LLM_API_KEY: ${LLM_API_KEY}

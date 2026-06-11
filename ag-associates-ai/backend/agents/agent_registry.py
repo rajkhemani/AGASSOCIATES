@@ -31,6 +31,7 @@ AGENT_PERMISSION_MAP = {p.code: p for p in AGENT_PERMISSIONS}
 # Default role levels per agent
 AGENT_ROLE_MAP: dict[str, Role] = {
     "aisha": Role.CLERK,
+    "supervisor": Role.CLERK,
     "auditor": Role.EXECUTIVE,
     "vyasa": Role.CLERK,
     "bouncer": Role.EXECUTIVE,
@@ -42,6 +43,7 @@ AGENT_ROLE_MAP: dict[str, Role] = {
 
 AGENT_DESCRIPTIONS: dict[str, str] = {
     "aisha": "Chief of Staff — general assistant, coordination, admin tasks",
+    "supervisor": "Supervisor — intent router, orchestrates specialist agents",
     "auditor": "Financial Auditor — bank statements, Excel audit, anomalies",
     "vyasa": "Legal Researcher — case law, property law, compliance",
     "bouncer": "Math Validator — stamp duty calculations, numeric sanity checks",
