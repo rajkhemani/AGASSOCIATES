@@ -396,22 +396,26 @@ async def supervisor_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🧠 Supervisor analysis kar raha hai...", parse_mode="HTML")
 
     try:
-        from agents.supervisor.agent import supervisor as sup_agent
+        api_key = os.environ.get("N8N_WEBHOOK_KEY", "")
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                f"{AI_BACKEND_URL}/api/supervisor/route",
+                json={
+                    "message": message,
+                    "platform": "telegram",
+                    "platform_identity": str(update.effective_chat.id),
+                    "display_name": update.effective_chat.first_name or "",
+                },
+                headers={"x-api-key": api_key} if api_key else {},
+            )
+            resp.raise_for_status()
+            data = resp.json()
 
-        user_role = "CLERK"
-        response = await sup_agent.process_request(
-            user_message=message,
-            user_id=str(update.effective_chat.id),
-            user_role=user_role,
-        )
-
-        if response and response.text:
-            text = response.text
-            if len(text) > 4000:
-                for i in range(0, len(text), 4000):
-                    await update.message.reply_text(text[i:i+4000], parse_mode="HTML")
-            else:
-                await update.message.reply_text(text, parse_mode="HTML")
+        text = data.get("response", "")
+        if text:
+            chunks = [text[i : i + 4000] for i in range(0, len(text), 4000)]
+            for chunk in chunks:
+                await update.message.reply_text(chunk, parse_mode="HTML")
         else:
             await update.message.reply_text(
                 "🤖 Aapke query ke liye koi specialist agent nahi mila. "

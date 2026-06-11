@@ -8,6 +8,7 @@ The Supervisor:
 5. Returns aggregated result to the user
 """
 
+import asyncio
 import json
 import logging
 from typing import Optional
@@ -41,10 +42,11 @@ class SupervisorAgent(BaseAgent):
         if self._classifier_llm is None:
             from langchain_openai import ChatOpenAI
             import os
+            from config import LLM_BASE_URL, LLM_MODEL_NAME
 
             self._classifier_llm = ChatOpenAI(
-                model="qwen2.5-7b-instruct",
-                openai_api_base="http://localhost:8000/v1",
+                model=LLM_MODEL_NAME or "qwen2.5-7b-instruct",
+                openai_api_base=LLM_BASE_URL,
                 openai_api_key=os.environ.get("LLM_API_KEY", "") or "not-needed",
                 temperature=0.1,
             )
@@ -64,7 +66,7 @@ class SupervisorAgent(BaseAgent):
 
         try:
             llm = self._get_classifier_llm()
-            response = llm.invoke(prompt)
+            response = await asyncio.to_thread(llm.invoke, prompt)
             text = response.content if hasattr(response, "content") else str(response)
             text = text.strip()
             if text.startswith("```"):

@@ -417,6 +417,64 @@ async def aisha_chat(
     return AishaChatResponse(**result)
 
 
+class SupervisorRouteRequest(BaseModel):
+    message: str
+    platform: str = "telegram"
+    platform_identity: str = ""
+    display_name: str = ""
+
+
+class SupervisorRouteResponse(BaseModel):
+    response: str = ""
+    routed_to: list[str] = []
+    error: str = ""
+
+
+@app.post("/api/supervisor/route", tags=["Supervisor"])
+async def supervisor_route(
+    request: SupervisorRouteRequest,
+    x_api_key: Optional[str] = Header(default=None, alias="x-api-key"),
+):
+    """
+    Route a user message through the Supervisor agent.
+    Classifies intent → routes to specialist agent(s) → returns response.
+    """
+    if x_api_key:
+        _verify_n8n_key(x_api_key)
+    else:
+        raise HTTPException(status_code=401, detail="x-api-key required")
+
+    try:
+        from agents import agent_init
+        from agents.supervisor.agent import supervisor as sup_agent
+
+        agent_init.register_all()
+
+        identity = request.platform_identity or "supervisor_anon"
+        response = await sup_agent.process_request(
+            user_message=request.message,
+            user_id=identity,
+            user_role="CLERK",
+        )
+        if response:
+            return SupervisorRouteResponse(response=response.text)
+
+        from aisha_core import handle_message as aisha_handle
+        import asyncio
+
+        result = await asyncio.to_thread(
+            aisha_handle,
+            request.message,
+            platform=request.platform or "telegram",
+            platform_identity=identity,
+            display_name=request.display_name or "",
+        )
+        fallback_text = result.get("response", "") if isinstance(result, dict) else str(result)
+        return SupervisorRouteResponse(response=fallback_text)
+    except Exception as e:
+        return SupervisorRouteResponse(response="", error=str(e))
+
+
 @app.post("/api/aisha/sms", tags=["Aisha"])
 async def aisha_sms_webhook(
     From: Optional[str] = None,
