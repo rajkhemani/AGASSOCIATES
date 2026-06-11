@@ -28,6 +28,17 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")
 LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "qwen2.5-7b-instruct")
 LLM_MOCK_MODE = _env_bool("LLM_MOCK_MODE", default=False)
 
+# Vision Model Configuration (for image/PDF OCR + analysis)
+LLM_VISION_MODEL = os.getenv("LLM_VISION_MODEL", "gemini-2.0-flash")
+LLM_VISION_BASE_URL = os.getenv(
+    "LLM_VISION_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
+)
+LLM_VISION_API_KEY = os.getenv("LLM_VISION_API_KEY", "")
+
+# Agent Configuration
+AGENT_MAX_TOOL_CALLS = int(os.getenv("AGENT_MAX_TOOL_CALLS", "5"))
+AGENT_REACT_TIMEOUT = float(os.getenv("AGENT_REACT_TIMEOUT", "120"))
+
 # Embedding Model Configuration
 EMBEDDING_MODEL_NAME = os.getenv(
     "EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"

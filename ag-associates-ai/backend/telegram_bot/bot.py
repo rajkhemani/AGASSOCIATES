@@ -427,6 +427,150 @@ async def supervisor_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Supervisor error: {e}")
 
 
+# ── Analyze & Research commands ────────────────────────────────────────
+
+
+async def analyze_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Analyze a file (image/PDF/Excel) using any-to-any input router."""
+    if not ctx.args:
+        await update.message.reply_text(
+            "🔍 <b>Analyze</b> — Send me a file to analyze\n\n"
+            "Usage:\n"
+            "  • Reply to a file with /analyze\n"
+            "  • Or send /analyze followed by a description\n"
+            "  • Send a photo, PDF, or Excel file and I'll analyze it\n\n"
+            "Example: /analyze Tell me about this rental agreement",
+            parse_mode="HTML",
+        )
+        return
+
+    message = " ".join(ctx.args)
+    reply = update.message.reply_to_message
+    file_bytes = None
+    filename = ""
+
+    if reply and reply.document:
+        doc = reply.document
+        await update.message.reply_chat_action("typing")
+        await update.message.reply_text("🔍 Analyzing file...")
+        f = await ctx.bot.get_file(doc.file_id)
+        file_bytes = await f.download_as_bytearray()
+        filename = doc.file_name or "file"
+    elif reply and reply.photo:
+        photo = reply.photo[-1]
+        await update.message.reply_chat_action("typing")
+        await update.message.reply_text("🖼️ Analyzing image...")
+        f = await ctx.bot.get_file(photo.file_id)
+        file_bytes = await f.download_as_bytearray()
+        filename = "photo.jpg"
+    else:
+        await update.message.reply_text(
+            "Please reply to a file/photo with /analyze, or send /research for text-only research."
+        )
+        return
+
+    try:
+        from agents.input_router import AnyInputRouter
+        from agents.output_generator import OutputGenerator
+
+        router = AnyInputRouter()
+        result = await router.process(
+            file_bytes=bytes(file_bytes), filename=filename
+        )
+
+        if result.agent_name == "reasoner":
+            from agents.reasoner import reasoner as r_agent
+            response = await r_agent.process_request(
+                user_message=f"{message}\n\nFile content:\n{result.extracted_text[:3000]}",
+                user_id=str(update.effective_chat.id),
+            )
+        else:
+            agent = get_agent(result.agent_name)
+            if agent:
+                response = await agent.process_request(
+                    user_message=f"{message}\n\nFile content:\n{result.extracted_text[:3000]}",
+                    user_id=str(update.effective_chat.id),
+                )
+            else:
+                response = None
+
+        if response:
+            text = (
+                f"📄 <b>Analysis</b> ({result.input_type}) → {result.content_type}\n\n"
+                f"{response.text}"
+            )
+            _send_long_message(update, text)
+        else:
+            await update.message.reply_text(
+                f"📄 Extracted text ({result.content_type}):\n\n"
+                f"{result.extracted_text[:3500]}",
+                parse_mode="HTML",
+            )
+    except Exception as e:
+        logger.error("Analyze error: %s", e)
+        await update.message.reply_text(f"❌ Analysis error: {e}")
+
+
+async def research_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Deep legal research using the Vyasa Reasoner agent."""
+    if not ctx.args:
+        await update.message.reply_text(
+            "🧠 <b>Deep Research</b> — Vyasa Reasoner\n\n"
+            "Multi-step legal reasoning with knowledge base search, "
+            "cross-referencing, and citation generation.\n\n"
+            "Usage: /research &lt;your legal question&gt;\n"
+            "Example: /research Is 3-month notice required for all Maharashtra rent agreements?",
+            parse_mode="HTML",
+        )
+        return
+
+    message = " ".join(ctx.args)
+    await update.message.reply_chat_action("typing")
+    await update.message.reply_text(
+        "🧠 Vyasa Deep Reasoner soch raha hai... (multi-step reasoning)"
+    )
+
+    try:
+        reasoner = get_agent("reasoner")
+        if not reasoner:
+            from agents.reasoner import reasoner as r
+            reasoner = r
+
+        response = await reasoner.process_request(
+            user_message=message,
+            user_id=str(update.effective_chat.id),
+        )
+
+        if response:
+            if response.thinking:
+                text = (
+                    f"🧠 <b>Reasoning Process:</b>\n\n"
+                    f"{response.thinking[:1500]}\n\n"
+                    f"━━━━━━━━━━━━━━━━━━\n\n"
+                    f"📋 <b>Conclusion:</b>\n{response.text}"
+                )
+            else:
+                text = response.text
+            _send_long_message(update, text)
+        else:
+            await update.message.reply_text("🧠 Koi response nahi mila.")
+    except Exception as e:
+        logger.error("Research error: %s", e)
+        await update.message.reply_text(f"❌ Research error: {e}")
+
+
+async def reasoner_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Direct access to the Vyasa Reasoner agent."""
+    await _handle_agent_command(update, ctx, "reasoner", "Reasoner", "🧠")
+
+
+def _send_long_message(update: Update, text: str):
+    """Helper: send text split into 3900-char chunks."""
+    for i in range(0, len(text), 3900):
+        chunk = text[i : i + 3900]
+        asyncio.create_task(update.message.reply_text(chunk, parse_mode="HTML"))
+
+
 # ── Multi-modal handlers ─────────────────────────────────────────────────
 
 
@@ -1638,6 +1782,9 @@ def main():
     app.add_handler(CommandHandler("challan", challan_command))
     app.add_handler(CommandHandler("agents", agents_command))
     app.add_handler(CommandHandler("agent", agent_command))
+    app.add_handler(CommandHandler("analyze", analyze_command))
+    app.add_handler(CommandHandler("research", research_command))
+    app.add_handler(CommandHandler("reasoner", reasoner_command))
 
     app.add_handler(MessageHandler(filters.Document.ALL, document_handler))
     app.add_handler(

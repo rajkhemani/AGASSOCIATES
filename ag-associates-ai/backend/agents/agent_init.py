@@ -20,6 +20,7 @@ from .noi.agent import noi
 from .executor.agent import executor
 from .drafter.agent import drafter
 from .supervisor.agent import supervisor
+from .reasoner.agent import reasoner
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ def register_all():
     agent_registry.register("noi", noi)
     agent_registry.register("executor", executor)
     agent_registry.register("drafter", drafter)
+    agent_registry.register("reasoner", reasoner)
     logger.info("[INIT] All agents registered")
 
 
@@ -52,6 +54,7 @@ async def start_bus_listeners():
         ("noi", noi),
         ("executor", executor),
         ("drafter", drafter),
+        ("reasoner", reasoner),
     ]:
         task = loop.create_task(
             agent_bus.listen_agent(name, instance.handle_bus_message)
