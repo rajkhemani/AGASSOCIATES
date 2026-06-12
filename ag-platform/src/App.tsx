@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { MarketingLanding } from './components/home/MarketingLanding';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { ApplicantDashboard } from './components/applicant/ApplicantDashboard';
 import { AdvisorCockpit } from './components/admin/AdvisorCockpit';
 import { BankPortal } from './components/bank/BankPortal';
@@ -13,6 +12,17 @@ import { useAuthStore } from './store/useAuthStore';
 import { Building2, UserCircle2, Briefcase, Landmark, LogOut, Loader2 } from 'lucide-react';
 import { TimeTracker } from './components/collaboration/TimeTracker';
 import config from './lib/config';
+
+// Editorial-theme screens from the claude.ai/design handoff — lazy-loaded so the
+// design system (fonts, large page components) stays out of the main chunk.
+const EditorialLanding = lazy(() => import('./components/home/EditorialLanding'));
+const ConsoleApp = lazy(() => import('./components/console/ConsoleApp'));
+
+// Routes that ship their own full-page chrome (nav, footer, background).
+function useChromeless() {
+  const { pathname } = useLocation();
+  return pathname === '/' || pathname.startsWith('/console');
+}
 
 function LoadingScreen() {
   return (
@@ -35,6 +45,7 @@ function LoadingScreen() {
 
 function Navigation() {
   const location = useLocation();
+  const chromeless = useChromeless();
   const { user, signOut } = useAuthStore();
 
   const getLinkStyle = (path: string) => {
@@ -46,7 +57,7 @@ function Navigation() {
     }`;
   };
 
-  if (location.pathname === '/login') return null;
+  if (location.pathname === '/login' || chromeless) return null;
 
   return (
     <header className="glass-nav px-6 py-3 flex items-center justify-between">
@@ -114,59 +125,74 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <div className="min-h-screen flex flex-col font-sans text-white relative overflow-x-hidden">
-          {/* Background Mesh Gradient */}
-          <div className="fixed inset-0 pointer-events-none z-0">
-            <div className="absolute inset-0 bg-gradient-mesh" />
-            <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
-          </div>
-
-          <Navigation />
-          <main className="flex-1 flex flex-col w-full relative z-10">
-            <Routes>
-              <Route path="/" element={<MarketingLanding />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/privacy" element={<PrivacyPolicy />} />
-
-              <Route path="/applicant/*" element={
-                <ProtectedRoute allowedRoles={['applicant', 'admin']}>
-                  <ApplicantDashboard />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/admin/*" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <Routes>
-                    <Route index element={<AdvisorCockpit />} />
-                    <Route path="workforce" element={<WorkforceControl />} />
-                  </Routes>
-                </ProtectedRoute>
-              } />
-
-              <Route path="/bank/*" element={
-                <ProtectedRoute allowedRoles={['staff', 'admin']}>
-                  <BankPortal />
-                </ProtectedRoute>
-              } />
-
-              {/* Catch-all redirect */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </main>
-
-          <footer className="glass-card mx-6 mb-4 py-4 px-6 text-center text-xs text-white/50">
-            <p>© 2024 {config.app.name}. All rights reserved.</p>
-            <Link to="/privacy" className="hover:text-violet-300 hover:underline transition-all duration-300 mt-1 inline-block">
-              Privacy Policy
-            </Link>
-          </footer>
-
-          {/* Global Floating Time Tracker for Advocates */}
-          <TimeTracker />
-        </div>
+        <AppShell />
       </BrowserRouter>
     </ErrorBoundary>
+  );
+}
+
+function AppShell() {
+  const chromeless = useChromeless();
+
+  return (
+    <div className={`min-h-screen flex flex-col font-sans relative overflow-x-hidden ${chromeless ? '' : 'text-white'}`}>
+      {/* Background Mesh Gradient — hidden on editorial-theme routes */}
+      {!chromeless && (
+        <div className="fixed inset-0 pointer-events-none z-0">
+          <div className="absolute inset-0 bg-gradient-mesh" />
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
+        </div>
+      )}
+
+      <Navigation />
+      <main className="flex-1 flex flex-col w-full relative z-10">
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/" element={<EditorialLanding />} />
+            <Route path="/console" element={<ConsoleApp />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+
+            <Route path="/applicant/*" element={
+              <ProtectedRoute allowedRoles={['applicant', 'admin']}>
+                <ApplicantDashboard />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/admin/*" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <Routes>
+                  <Route index element={<AdvisorCockpit />} />
+                  <Route path="workforce" element={<WorkforceControl />} />
+                </Routes>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/bank/*" element={
+              <ProtectedRoute allowedRoles={['staff', 'admin']}>
+                <BankPortal />
+              </ProtectedRoute>
+            } />
+
+            {/* Catch-all redirect */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </main>
+
+      {!chromeless && (
+        <footer className="glass-card mx-6 mb-4 py-4 px-6 text-center text-xs text-white/50">
+          <p>© 2024 {config.app.name}. All rights reserved.</p>
+          <Link to="/privacy" className="hover:text-violet-300 hover:underline transition-all duration-300 mt-1 inline-block">
+            Privacy Policy
+          </Link>
+        </footer>
+      )}
+
+      {/* Global Floating Time Tracker for Advocates */}
+      <TimeTracker />
+    </div>
   );
 }
 

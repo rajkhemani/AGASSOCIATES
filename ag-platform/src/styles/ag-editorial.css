@@ -1,0 +1,117 @@
+/* AG Associates — Editorial theme (from claude.ai/design handoff bundle).
+   Scoped under .ag-editorial so it cannot leak into the rest of the app. */
+
+.ag-editorial {
+  /* landing + console palette merged; console adds paper/status colors */
+  --bg: #f5f1e8;
+  --paper: #fbf8f0;
+  --paper-2: #f0ead9;
+  --ink: #1a1f2e;
+  --ink-2: #2a3142;
+  --muted: #6b6557;
+  --line: rgba(26, 31, 46, 0.12);
+  --line-strong: rgba(26, 31, 46, 0.25);
+  --accent: #9a6b1e; /* deep gold */
+  --accent-soft: #c79a4a;
+  --green: #3d7a4a;
+  --red: #a8392b;
+  --blue: #3a5b8a;
+
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ag-editorial ::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+.ag-editorial a {
+  color: inherit;
+}
+
+/* Landing page only: warm radial wash + faint grid */
+.ag-landing {
+  background:
+    radial-gradient(800px 600px at 90% 10%, rgba(154, 107, 30, 0.07), transparent 60%),
+    var(--bg);
+  overflow-x: hidden;
+}
+
+.ag-grid-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(26, 31, 46, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26, 31, 46, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.ag-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 32px;
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes ag-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ag-rise-lg {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ag-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ag-pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@keyframes ag-draw-line {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* console reveal (.55s) and landing reveal (.9s) */
+.ag-rise {
+  animation: ag-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ag-fade {
+  animation: ag-fade 0.55s ease both;
+}
+.ag-rise-lg {
+  opacity: 0;
+  animation: ag-rise-lg 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.ag-editorial ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.ag-editorial ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ag-editorial ::-webkit-scrollbar-thumb {
+  background: rgba(26, 31, 46, 0.15);
+  border-radius: 4px;
+}
+.ag-editorial ::-webkit-scrollbar-thumb:hover {
+  background: rgba(26, 31, 46, 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-rise,
+  .ag-fade,
+  .ag-rise-lg {
+    animation: none;
+    opacity: 1;
+  }
+}
