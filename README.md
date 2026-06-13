@@ -144,16 +144,47 @@ This repository contains the firm's **AI-orchestrated "Zero-Staff" platform** �
 
 ## 🤖 The AI "Agentic" Workforce
 
-A multi-agent AI workforce simulates a traditional law firm hierarchy at machine speed — LangGraph pipeline + specialist agents + service-layer bots:
+The platform deploys two layers of AI agents — a **LangGraph document pipeline** for automated document processing, and a **multi-agent conversational system** with Hinglish personalities, Redis Streams coordination, RBAC, and multi-modal capabilities.
+
+### Document Pipeline (LangGraph)
+
+A `StateGraph` pipeline processing raw intake → structured data → drafted document → audited output:
 
 | Agent | Role | What It Does |
 |-------|------|-------------|
-| **Aisha** | Intake | Processes incoming case requests, extracts structured data from documents, classifies case type |
-| **Vyasa** | Research | Legal opinion generation, Title Search analysis, precedent research |
-| **Drafter** | Legal Architect | Automates creation of Title Reports, Legal Scrutiny Reports, Public Notices, Agreement drafts |
-| **Executor** | Workflow Manager | Manages workflow triggers, SLA tracking, field assignment, OTP relay via Telegram |
-| **Auditor** | Compliance | Legal compliance verification, error-checking, quality scoring (pass ≥ 85/100) |
-| **Accountant** | Finance | Ingests bank statements (pdfplumber), parses UTR/Loan numbers, reconciles with master ledgers |
+| **Aisha** | Intake | Parses incoming case requests, extracts structured JSON (tenant, landlord, rent, dates, deposit) via vLLM, classifies case type |
+| **Drafter** | Legal Architect | Retrieves best template from pgvector RAG, injects extracted fields, generates Markdown + PDF via ReportLab |
+| **Auditor** | Compliance | Scores draft 0–100 against extracted fields; loops back to Drafter up to 3 revisions if score < 85 |
+
+Routing via `should_revise()`: fail → loop to Drafter (max 3), then force finish.
+
+### Conversational Agents (7 Specialists)
+
+A separate multi-agent system running on **Redis Streams** (agent bus, consumer groups, max 5 hops) with PostgreSQL conversation memory and RBAC-gated access:
+
+| Agent | Role | Personality | What It Does |
+|-------|------|-------------|-------------|
+| **Auditor** | Financial Auditor | Hinglish | Bank statement analysis, anomaly detection, Excel audit reports |
+| **Vyasa** | Legal Researcher | Hinglish | Property law research, compliance checks, precedent analysis |
+| **Bouncer** | Math Validator | Hinglish | Stamp duty calculations, numerical verification |
+| **Accountant** | Financial Reporter | Hinglish | Billing, receivables, financial reports |
+| **NOI** | NOI Specialist | Hinglish | Notice of Intimation workflow with full state machine |
+| **Executor** | RPA Runner | Hinglish | Automation execution, workflow triggers |
+| **Drafter** | Document Drafter | Hinglish | Legal document drafting, agreement generation |
+
+All agents share `Qwen2.5-7B-Instruct` via local vLLM, communicate via Redis Streams, and support multi-modal input (audio → Whisper, images → OCR, PDF/Excel/DOCX → text extraction).
+
+### Supervisor Agent
+
+Orchestrates the conversational agents, handles webhook hardening with toggle persistence, and manages agent lifecycle via HTTP deployment to the ai-backend service.
+
+### Telegram Integration
+
+- **OTP Relay** — `/otp`, `/autootp` commands with Redis-backed OTP bridge
+- **Agent Commands** — `/agents` (list), `/agent <name> <message>` (direct talk)
+- **Voice Mode** — `/voicemode`, Hindi support `/hindi`
+- **Finance** — `/audit` for on-demand financial audits
+- **Private Messenger** — Agents can send proactive Telegram DMs to whitelisted users
 
 > **"Zero human data entry = Zero errors."**
 
@@ -162,13 +193,15 @@ A multi-agent AI workforce simulates a traditional law firm hierarchy at machine
 ## 📋 Key Modules
 
 ### 🤖 AI Document Pipeline (`ag-associates-ai/`)
-- **FastAPI** backend with modular `agents/` directory (6 LangGraph pipeline agents + 6 specialist agents)
-- **LangGraph** orchestrated pipeline: Aisha → Drafter → Auditor
-- **NOI (Notice of Intimidation)** processing with Redis-backed ticking timebomb dashboard
+- **FastAPI** backend with LangGraph pipeline (Aisha → Drafter → Auditor) + 7 conversational agents
+- **Multi-Agent System** — Redis Streams agent bus, PostgreSQL conversation memory, RBAC per agent
+- **Multi-Modal Pipeline** — any-to-any file understanding: audio → Whisper, images → OCR (Qwen2.5-VL), PDF → pdfplumber, Excel → openpyxl, DOCX → python-docx
+- **Supervisor Agent** — orchestrates agents with HTTP deploys, webhook hardening, toggle persistence
+- **NOI (Notice of Intimation)** processing with full state machine (DOCUMENTS_RECEIVED → COMPLETED, 9 states)
 - **NeSL e-Filing** integration for legal notice submission
 - **PDF Generation** via ReportLab (Title Reports, Legal Scrutiny Reports)
 - **RAG** with pgvector (384-dim) for legal template retrieval
-- **Telegram Bot** microservice — OTP relay, voice mode, Hindi support, finance audit
+- **Telegram Bot** microservice — OTP relay, voice mode, Hindi support, 7 agent commands, private messenger
 - **Circuit Breaker** pattern for external API resilience
 
 ### 📱 Legal Operations Platform (`ag-platform/`)
@@ -179,11 +212,13 @@ A multi-agent AI workforce simulates a traditional law firm hierarchy at machine
 - **Time Tracking & Billing** — floating live timer, auto-generated utilization reports
 - **Client Portal** — passwordless Magic Links with progress bars
 - **Supabase Auth** — magic link, OAuth, RBAC with role-based views
+- **Landing Page** — Editorial-theme GSAP scroll storytelling at `landing/index.html`
 
 ### 📬 Intake & Communications
-- **Intake API** (Fastify/Express) — SMS webhook, OTP bridge with Redis
-- **Telegram Bot** — `/otp`, `/autootp`, `/claim`, `/aisha`, `/voicemode`, `/hindi`, `/audit` commands
-- **Email Intake** — IMAP-based case creation from forwarded emails
+- **Intake API** (Fastify) — high-performance gateway for bank-panel intake, SMS webhook, Redis-backed OTP bridge at `services/intake-api/`
+- **Coordinator Bot** (Telegraf) — hierarchical agent orchestration via Telegram at `services/coordinator/`
+- **Telegram Bot** — `/agents`, `/agent <name> <message>`, `/otp`, `/autootp`, `/claim`, `/voicemode`, `/hindi`, `/audit` commands
+- **Email Intake** — IMAP-based case creation from forwarded emails at `services/email-intake/`
 - **WhatsApp Webhook** — `/webhooks/whatsapp` endpoint for Meta API integration
 
 ---
@@ -195,16 +230,34 @@ AGASSOCIATES/
 │
 ├── ag-associates-ai/              # 🤖 AI Document Pipeline
 │   ├── backend/
-│   │   ├── agents/                #   6 LangGraph pipeline agents + utilities
-│   │   ├── telegram_bot/          #   Standalone Telegram microservice (bot.py, db.py)
-│   │   ├── main.py                #   FastAPI entry (NOI, NeSL, Aisha, SMS, HITL...)
-│   │   ├── agents.py              #   LangGraph 6-agent pipeline (legacy entry)
+│   │   ├── agents/                #   7 conversational agents (Auditor, Vyasa, Bouncer, etc.)
+│   │   │   ├── agent_bus.py       #   Redis Streams communication bus
+│   │   │   ├── base_agent.py      #   BaseAgent class for all agents
+│   │   │   ├── agent_registry.py  #   Agent discovery + RBAC mapping
+│   │   │   ├── agent_memory.py    #   PostgreSQL conversation memory
+│   │   │   ├── agent_init.py      #   init_agents() at startup
+│   │   │   ├── auditor/           #   Hinglish financial auditor
+│   │   │   ├── vyasa/             #   Hinglish legal researcher
+│   │   │   ├── bouncer/           #   Hinglish math validator
+│   │   │   ├── accountant/        #   Hinglish accounting agent
+│   │   │   ├── noi/               #   Hinglish NOI specialist
+│   │   │   ├── executor/          #   Hinglish RPA executor
+│   │   │   └── drafter/           #   Hinglish document drafter
+│   │   ├── telegram_bot/          #   Standalone Telegram microservice
+│   │   │   └── private_messenger.py # Agent-initiated proactive DMs
+│   │   ├── media/                 #   Multi-modal file processors
+│   │   │   ├── processors.py      #   Audio/Image/PDF/Excel/DOCX
+│   │   │   └── router.py          #   File type → processor routing
+│   │   ├── main.py                #   FastAPI entry (NOI, NeSL, voice, agents...)
+│   │   ├── agents.py              #   LangGraph pipeline (Aisha → Drafter → Auditor)
+│   │   ├── noi_agent.py           #   NOI workflow state machine
 │   │   ├── config.py              #   Environment configuration w/ defaults
 │   │   ├── pdf_generator.py       #   ReportLab legal document output
 │   │   └── requirements.txt       #   Python dependencies
 │   ├── frontend/                  #   Next.js 15 dashboard (NOI, chat, cases)
 │   ├── database/
-│   │   └── init.sql               #   PostgreSQL + pgvector schema
+│   │   ├── init.sql               #   PostgreSQL + pgvector schema
+│   │   └── agent_migrations.sql   #   Multi-agent DB tables
 │   └── docker-compose.yml         #   PostgreSQL + n8n services
 │
 ├── ag-platform/                   # 📋 Legal Operations Platform
@@ -218,19 +271,25 @@ AGASSOCIATES/
 │   │   ├── types/                 #   Shared TypeScript interfaces
 │   │   └── ui/                    #   Shared shadcn/ui components
 │   ├── services/
-│   │   ├── intake-api/            #   🚀 Fastify Intake Bot & OTP Bridge
-│   │   └── coordinator/           #   🤖 Telegraf Telegram bot for agent orchestration
+│   │   ├── intake-api/            #   🚀 Fastify gateway for bank intake + OTP
+│   │   ├── coordinator/           #   🤖 Telegraf Telegram bot orchestration
+│   │   └── email-intake/          #   📧 IMAP-based email → case creation
+│   ├── tests/                     #   Vitest test suite
 │   ├── supabase/migrations/       #   Database migrations
 │   └── server.ts                  #   Express + Vite middleware entry
 │
+├── landing/
+│   └── index.html                # 🎨 Editorial-theme GSAP scroll landing page
 ├── docker-compose.prod.yml       # 🐳 10-service production stack
 ├── Caddyfile                     # 🌐 Caddy reverse proxy + auto-TLS
-├── Makefile                      # 🔧 19 automation targets
+├── Makefile                      # 🔧 Automation targets (ci, dev, lint, etc.)
 ├── scripts/                      # 📜 Provision, deploy, bootstrap helpers
 ├── .github/workflows/            # ⚙️ CI + Deploy + Tagging workflows
+├── tasks/                        # 📋 Task tracking (todo.md) + lessons (lessons.md)
+├── docs/                         # 📚 ADRs, NOI pipeline, strategic plan
+├── content/                      # 📄 Static marketing content (GitHub Pages)
 ├── CLAUDE.md                     # 📖 AI agent playbook (architecture, gotchas)
-├── tasks/                        # 📋 Task tracking & shared agent lessons
-└── docs/                         # 📚 ADRs, NOI pipeline, strategic plan
+└── *_GUIDELINES.md               # 📐 Domain-specific engineering policies
 ```
 
 ---
@@ -243,8 +302,9 @@ AGASSOCIATES/
 - Python 3.10+ (AI pipeline)
 - Node.js 20+ (platform)
 - Supabase account (PostgreSQL + auth)
+- Redis (for agent bus, OTP cache, job queue)
 
-### AI Pipeline
+### AI Pipeline (LangGraph)
 
 ```bash
 git clone https://github.com/rajkhemani/AGASSOCIATES.git
@@ -258,10 +318,30 @@ cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 python generate_embeddings.py    # seed pgvector (one-time)
-python main.py                   # API at http://localhost:8000
+python main.py                   # API at http://localhost:8001
 ```
 
-### Frontend Dashboard
+### vLLM (for conversational agents)
+
+```bash
+# Required for 7-agent conversational system
+python -m vllm.entrypoints.openai.api_server \
+  --model Qwen/Qwen2.5-7B-Instruct \
+  --host 0.0.0.0 --port 8000
+```
+
+### Multi-Agent System (Redis Streams)
+
+```bash
+# Multi-agent DB tables (one-time)
+cd ag-associates-ai/backend
+psql -U agadmin -d agdb -f database/agent_migrations.sql
+
+# Then start main.py (agents initialize automatically)
+python main.py
+```
+
+### AI Frontend Dashboard
 
 ```bash
 cd AGASSOCIATES/ag-associates-ai/frontend
@@ -275,6 +355,29 @@ npm run dev                      # Next.js at http://localhost:3000
 cd AGASSOCIATES/ag-platform
 npm install
 npm run dev                      # Vite + Express at http://localhost:3001
+npm test                         # Vitest test suite
+```
+
+### Platform Services
+
+```bash
+# Intake API (Fastify gateway)
+cd AGASSOCIATES/ag-platform/services/intake-api
+npm install
+npm run dev                      # Fastify at http://localhost:3002
+
+# Coordinator Telegram bot
+cd AGASSOCIATES/ag-platform/services/coordinator
+npm install
+npm run dev                      # Telegraf bot (separate process)
+```
+
+### Pre-commit Hooks
+
+```bash
+cd AGASSOCIATES
+pre-commit install               # ruff lint+fix + eslint on commit
+pre-commit run --all-files       # run all hooks manually
 ```
 
 ### Production Deploy
@@ -333,7 +436,9 @@ All services share a Docker bridge network and log to `docker logs`. Healthcheck
 
 ### CI/CD Pipeline
 
-Every push to `main` touching `ag-associates-ai/`, `ag-platform/`, or the compose file triggers `deploy.yml`:
+Three CI workflows run on push to `main`:
+
+**1. Docker Deploy (`deploy.yml`)** — triggers on changes to `ag-associates-ai/`, `ag-platform/`, or compose files:
 
 ```
 Push → Git checkout → docker/build-push-action × 3
@@ -351,6 +456,10 @@ SSH into VPS (deploy@46.225.185.91):
 
 Smoke test: GET https://api.advadiityagade.com/health → 200 OK
 ```
+
+**2. GitHub Pages (`nextjs.yml`)** — builds and deploys the Next.js dashboard to GitHub Pages on every push to `main` (CNAME at root → `advadiityagade.com`).
+
+**3. CodeQL (`codeql.yml`)** — security analysis on `javascript-typescript` and `python` for pushes/PRs to `main` and weekly.
 
 Secrets required in the GitHub repository:
 
@@ -406,11 +515,12 @@ A self-hosted GitHub Actions runner (`ag-prod-runner`) can be installed as an al
 
 | File | Purpose | Key Variables |
 |------|---------|---------------|
+| `.env.example` (repo root) | Single source of truth for all env vars | `SUPABASE_*`, `LLM_*`, `TELEGRAM_*`, `REDIS_*`, `N8N_*`, `WHATSAPP_*`, `NESL_*`, `IGR_*`, `STRIPE_*`, `SENTRY_*` |
 | `ag-associates-ai/backend/config.py` | Python backend (env-based defaults) | `LLM_BASE_URL`, `LLM_MODEL_NAME`, `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
 | `ag-platform/.env` | Platform + Supabase | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GEMINI_API_KEY` |
 | `docker-compose.prod.yml` | Production stack | `POSTGRES_*`, `REDIS_*`, `CADDY_*`, `SENTRY_*`, `N8N_*` |
 
-> **Note:** A single `.env.example` exists at repo root with all required vars. Subdirectory `.env.example` files do not exist — trust `config.py` defaults for backend vars.
+> **Note:** `.env.example` at repo root is the single authoritative source with 89 variables across 15 categories. Copy it to `.env` and customize before running. Backend defaults in `config.py` include `secure_password_123` (dev-only).
 
 ---
 
@@ -426,7 +536,19 @@ A self-hosted GitHub Actions runner (`ag-prod-runner`) can be installed as an al
 - [x] Bank portal with RLS isolation
 - [x] Telegram OTP relay + voice mode
 
-### Phase 2: White-Label SaaS
+### Phase 2: Multi-Agent Intelligence ✅
+- [x] 7 conversational agents with Hinglish personalities (Auditor, Vyasa, Bouncer, Accountant, NOI, Executor, Drafter)
+- [x] Redis Streams agent bus with consumer groups (max 5 hops)
+- [x] RBAC-gated agent access (per-agent permissions)
+- [x] Multi-modal pipeline (audio, images, PDF, Excel, DOCX)
+- [x] Telegram agent commands (`/agents`, `/agent <name>`)
+- [x] Supervisor agent with webhook hardening
+- [x] NOI workflow state machine (9 states)
+- [x] Agent-initiated private messenger (proactive Telegram DMs)
+- [x] Intake API (Fastify gateway) + Coordinator bot (Telegraf)
+- [x] Editorial-theme landing page (GSAP scroll storytelling)
+
+### Phase 3: White-Label SaaS
 - [ ] Multi-tenant architecture (org_id parameterized)
 - [ ] Theming engine (logo, colors, fonts per firm)
 - [ ] Maharashtra-specific legal module (SRO data, stamp duty rates)
@@ -437,11 +559,15 @@ A self-hosted GitHub Actions runner (`ag-prod-runner`) can be installed as an al
 ## 🔒 Security
 
 - **Row-Level Security**: Supabase RLS isolates bank/client data at the database level
+- **Agent RBAC**: Per-agent access control (`agent.<name>.access`) — users see only agents they're authorized for
 - **Data Sovereignty**: Deployed in `ap-south-1` (Mumbai) for Indian banking compliance
 - **Audit Logging**: Every case state transition logged to immutable `case_audit_logs`
+- **Conversation Memory**: Per-agent PostgreSQL tables with RBAC-gated access
 - **Document Vault**: Private buckets with 60-second signed URLs
 - **Magic Links**: Passwordless client access with time-limited tokens
 - **Webhook Auth**: `x-api-key` verification via `secrets.compare_digest`
+- **Secret Scanning**: Pre-commit hook (`detect-private-key`) prevents credential leaks
+- **Circuit Breaker**: External API resilience with failover patterns
 
 See [SECURITY.md](./SECURITY.md) for vulnerability reporting.
 
@@ -462,12 +588,16 @@ This codebase is built by — and welcomes contributions from — multiple AI en
 
 ### Engineering Guidelines
 
-Domain-specific conventions are split across topic files:
+Domain-specific policies are encoded in root-level `*_GUIDELINES.md` files — read the relevant one before touching that domain:
 
 - [`GIT_GUIDELINES.md`](./GIT_GUIDELINES.md) · [`TDD_GUIDELINES.md`](./TDD_GUIDELINES.md) · [`REFACTORING_GUIDELINES.md`](./REFACTORING_GUIDELINES.md)
 - [`ERROR_HANDLING_GUIDELINES.md`](./ERROR_HANDLING_GUIDELINES.md) · [`HALLUCINATION_MITIGATION_GUIDELINES.md`](./HALLUCINATION_MITIGATION_GUIDELINES.md)
 - [`FRONTEND_UI_GUIDELINES.md`](./FRONTEND_UI_GUIDELINES.md) · [`RAG_AND_MEMORY_GUIDELINES.md`](./RAG_AND_MEMORY_GUIDELINES.md)
 - [`GOAL_DRIVEN_EXECUTION_GUIDELINES.md`](./GOAL_DRIVEN_EXECUTION_GUIDELINES.md) · [`DEPLOYMENT_PLAYBOOK.md`](./DEPLOYMENT_PLAYBOOK.md)
+
+### Pre-commit Enforcement
+
+[`.pre-commit-config.yaml`](./.pre-commit-config.yaml) runs `ruff` (lint + format) on Python and `eslint` on `.[jt]sx?` files plus standard hygiene hooks (trailing-whitespace, large-files, detect-private-key). Install once with `pre-commit install`; run on demand with `pre-commit run --all-files`.
 
 ---
 
