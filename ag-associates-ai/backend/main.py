@@ -120,6 +120,9 @@ async def _shutdown_nesl():
 @app.on_event("startup")
 async def _startup_store():
     ensure_tables()
+    from agents.agent_init import init_agents
+
+    await init_agents()
 
 
 @app.post("/webhooks/whatsapp", tags=["Ingestion"])

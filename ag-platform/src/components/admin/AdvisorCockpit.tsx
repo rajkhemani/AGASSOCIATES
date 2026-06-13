@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Send, AlertCircle, Loader2, History, X } from 'lucide-react';
 import { Case, CaseStatus } from '../../types/domain';
+import { SkeletonList } from '../ui/Skeleton';
+import { ErrorState } from '../ui/ErrorState';
+import { EmptyState } from '../ui/EmptyState';
 
 export function AdvisorCockpit() {
   const [cases, setCases] = useState<Case[]>([]);
@@ -67,25 +70,20 @@ export function AdvisorCockpit() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center space-y-4" role="status" aria-label="Loading cases">
-        <Loader2 className="animate-spin text-indigo-600" size={32} aria-hidden="true" />
-        <span className="text-slate-500 font-medium">Loading Pipeline...</span>
+      <div className="flex-1 p-6" role="status" aria-label="Loading cases">
+        <SkeletonList rows={4} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center" role="alert">
-        <AlertCircle className="text-rose-500 mb-4" size={48} aria-hidden="true" />
-        <h2 className="text-xl font-bold text-slate-900 mb-2">Connection Error</h2>
-        <p className="text-slate-600 mb-6 max-w-md">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition"
-        >
-          Retry Connection
-        </button>
+      <div className="flex-1 flex items-center justify-center p-6">
+        <ErrorState
+          title="Failed to load pipeline"
+          message={error}
+          onRetry={() => window.location.reload()}
+        />
       </div>
     );
   }
@@ -271,7 +269,7 @@ function CaseCard({ kase, onUpdateStatus }: { kase: Case, onUpdateStatus: (id: s
         <div className="flex gap-2">
           <button
             onClick={() => setShowTimeline(!showTimeline)}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-md transition"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-md transition min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="View timeline"
             title="View Timeline"
           >
@@ -279,7 +277,7 @@ function CaseCard({ kase, onUpdateStatus }: { kase: Case, onUpdateStatus: (id: s
           </button>
           <button
             onClick={handleNextStatus}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white p-1.5 rounded-md transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white p-1.5 rounded-md transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label={`Advance status for ${kase.borrower_name}`}
             title="Advance Status"
           >

@@ -23,6 +23,62 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* Blueprint theme — dark, tech-forward with blue/purple accents */
+.ag-editorial[data-theme="blueprint"] {
+  --bg: #05070d;
+  --ink: #f1f1f4;
+  --ink-2: #c8cbd6;
+  --muted: #7c8295;
+  --line: rgba(120, 160, 220, 0.10);
+  --line-strong: rgba(120, 160, 220, 0.20);
+  --accent: #d4a017;
+  --accent-soft: #e0b843;
+  --accent-2: #5b8def;
+  --accent-3: #9b7eff;
+  --green: #22c55e;
+  --red: #ef4444;
+  --blue: #5b8def;
+  background:
+    radial-gradient(1200px 700px at 80% -10%, rgba(155, 126, 255, 0.10), transparent 60%),
+    radial-gradient(900px 600px at 0% 10%, rgba(91, 141, 239, 0.10), transparent 60%),
+    var(--bg);
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+}
+
+.ag-editorial[data-theme="blueprint"] .ag-grid-bg {
+  background-image:
+    linear-gradient(rgba(91, 141, 239, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(91, 141, 239, 0.07) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, #000 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, #000 30%, transparent 80%);
+}
+
+/* Brutalist theme — high-contrast mono, yellow accent, hard edges */
+.ag-editorial[data-theme="brutalist"] {
+  --bg: #f4f4ec;
+  --paper: #efefe5;
+  --paper-2: #e4e4d8;
+  --ink: #0a0a0a;
+  --ink-2: #2a2a2a;
+  --muted: #666666;
+  --line: #0a0a0a;
+  --line-strong: #0a0a0a;
+  --accent: #e9ff32;
+  --accent-soft: #f0ff66;
+  --accent-2: #0a0a0a;
+  --accent-3: #ff4d2e;
+  --green: #2a7a3a;
+  --red: #cc2a1a;
+  --blue: #2a4a7a;
+  background: var(--bg);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.ag-editorial[data-theme="brutalist"] .ag-grid-bg {
+  display: none;
+}
+
 .ag-editorial ::selection {
   background: var(--accent);
   color: #fff;
@@ -105,6 +161,34 @@
 }
 .ag-editorial ::-webkit-scrollbar-thumb:hover {
   background: rgba(26, 31, 46, 0.3);
+}
+
+@media (max-width: 768px) {
+  .ag-container {
+    padding: 0 20px;
+  }
+
+  .ag-editorial .ag-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ag-editorial .ag-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .ag-editorial .ag-agent-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .ag-container {
+    padding: 0 14px;
+  }
+
+  .ag-editorial .ag-kpi-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

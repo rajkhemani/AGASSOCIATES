@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { LiveDot, MONO, SERIF } from '../ag/primitives';
 import { Rail, TopBar } from './ConsoleShell';
 import type { ConsoleRoute } from './ConsoleShell';
-import { Dashboard, CasesScreen, CaseDetail, ClientPortal, DeedPreview, AgentsScreen } from './screens';
+import { CasesScreen, CaseDetail, ClientPortal, DeedPreview, AgentsScreen } from './screens';
+import { ConnectionIndicator } from './ConnectionIndicator';
+import { LiveDashboard } from './LiveDashboard';
 import '../../styles/ag-editorial.css';
 
 const TITLES: Record<ConsoleRoute, [string, string]> = {
@@ -15,11 +17,17 @@ const TITLES: Record<ConsoleRoute, [string, string]> = {
   agents: ['Workforce', 'Six agents · one chamber'],
 };
 
-export default function ConsoleApp() {
+interface ConsoleAppProps {
+  publicView?: boolean;
+}
+
+export default function ConsoleApp({ publicView = false }: ConsoleAppProps) {
   const [route, setRoute] = useState<ConsoleRoute>('dashboard');
 
+  const activeRoute = publicView && route !== 'dashboard' ? 'dashboard' : route;
+
   const screens: Record<ConsoleRoute, JSX.Element> = {
-    dashboard: <Dashboard />,
+    dashboard: <LiveDashboard />,
     cases: <CasesScreen />,
     detail: <CaseDetail />,
     portal: <ClientPortal />,
@@ -27,13 +35,11 @@ export default function ConsoleApp() {
     agents: <AgentsScreen />,
   };
 
-  const [sub, title] = TITLES[route];
+  const [sub, title] = TITLES[activeRoute];
 
   const right = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted)', fontFamily: MONO }}>
-        <LiveDot /> 7 LIVE · 3 IDLE
-      </span>
+      <ConnectionIndicator />
       <div
         style={{
           width: 36,
@@ -56,10 +62,10 @@ export default function ConsoleApp() {
 
   return (
     <div className="ag-editorial" style={{ display: 'flex', minHeight: '100vh' }}>
-      <Rail route={route} setRoute={setRoute} />
+      <Rail route={activeRoute} setRoute={publicView ? () => {} : setRoute} publicView={publicView} />
       <main style={{ flex: 1, minWidth: 0 }}>
         <TopBar title={title} subtitle={sub} right={right} />
-        <div key={route}>{screens[route]}</div>
+        <div key={activeRoute}>{screens[activeRoute]}</div>
       </main>
     </div>
   );

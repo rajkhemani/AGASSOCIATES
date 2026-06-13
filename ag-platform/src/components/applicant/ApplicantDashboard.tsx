@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, UploadCloud, FileText, Loader2 } from 'lucide-react';
 import { Case } from '../../types/domain';
+import { LoadingState } from '../ui/LoadingState';
+import { EmptyState } from '../ui/EmptyState';
 
 export function ApplicantDashboard() {
   const [activeCase, setActiveCase] = useState<Case | null>(null);
@@ -27,15 +29,18 @@ export function ApplicantDashboard() {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center p-12">
-        <Loader2 className="animate-spin text-indigo-600" size={32} />
+        <LoadingState message="Loading your application..." rows={3} />
       </div>
     );
   }
 
   if (!activeCase) {
     return (
-      <div className="flex-1 flex items-center justify-center p-12 text-slate-500">
-        No active applications found.
+      <div className="flex-1 flex items-center justify-center p-12">
+        <EmptyState
+          title="No active applications"
+          message="You don't have any active loan applications. Start one to track your progress."
+        />
       </div>
     );
   }

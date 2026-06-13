@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ApplicantDashboard } from './components/applicant/ApplicantDashboard';
 import { AdvisorCockpit } from './components/admin/AdvisorCockpit';
 import { BankPortal } from './components/bank/BankPortal';
@@ -8,8 +9,9 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { WorkforceControl } from './components/admin/WorkforceControl';
 import { PrivacyPolicy } from './components/privacy/PrivacyPolicy';
 import { ErrorBoundary } from './components/ui';
+import { ThemeProvider } from './components/theme/ThemeProvider';
 import { useAuthStore } from './store/useAuthStore';
-import { Building2, UserCircle2, Briefcase, Landmark, LogOut, Loader2 } from 'lucide-react';
+import { Building2, UserCircle2, Briefcase, Landmark, LogOut, Loader2, Menu, X, Activity, FileText } from 'lucide-react';
 import { TimeTracker } from './components/collaboration/TimeTracker';
 import config from './lib/config';
 
@@ -17,11 +19,13 @@ import config from './lib/config';
 // design system (fonts, large page components) stays out of the main chunk.
 const EditorialLanding = lazy(() => import('./components/home/EditorialLanding'));
 const ConsoleApp = lazy(() => import('./components/console/ConsoleApp'));
+const WorkflowDashboard = lazy(() => import('./components/admin/WorkflowDashboard'));
+const NoiPipeline = lazy(() => import('./components/admin/NoiPipeline'));
 
 // Routes that ship their own full-page chrome (nav, footer, background).
 function useChromeless() {
   const { pathname } = useLocation();
-  return pathname === '/' || pathname.startsWith('/console');
+  return pathname === '/' || pathname.startsWith('/console') || pathname.startsWith('/admin/console');
 }
 
 function LoadingScreen() {
@@ -47,6 +51,7 @@ function Navigation() {
   const location = useLocation();
   const chromeless = useChromeless();
   const { user, signOut } = useAuthStore();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const getLinkStyle = (path: string) => {
     const isActive = location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
@@ -57,10 +62,14 @@ function Navigation() {
     }`;
   };
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   if (location.pathname === '/login' || chromeless) return null;
 
   return (
-    <header className="glass-nav px-6 py-3 flex items-center justify-between">
+    <header className="glass-nav px-4 md:px-6 py-3 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <div className="relative w-10 h-10 flex items-center justify-center">
           <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-indigo-500/20 rounded-xl blur-lg" />
@@ -73,13 +82,21 @@ function Navigation() {
           <span className="text-[10px] uppercase font-mono tracking-wider text-white/50">{config.app.description}</span>
         </div>
       </div>
-      <nav className="flex items-center space-x-1 p-1 rounded-xl glass-card">
+
+      {/* Desktop nav */}
+      <nav className="hidden md:flex items-center space-x-1 p-1 rounded-xl glass-card">
         <Link to="/" className={getLinkStyle('/')}> 🌐 Marketing </Link>
         <Link to="/applicant" className={getLinkStyle('/applicant')}>
           <UserCircle2 size={16} /> Applicant
         </Link>
         <Link to="/admin" className={getLinkStyle('/admin')}>
-          <Briefcase size={16} /> Advisor
+          <Briefcase size={16} /> Pipeline
+        </Link>
+        <Link to="/admin/dashboard" className={getLinkStyle('/admin/dashboard')}>
+          <Activity size={16} /> Dashboard
+        </Link>
+        <Link to="/admin/noi-cases" className={getLinkStyle('/admin/noi-cases')}>
+          <FileText size={16} /> NOI
         </Link>
         <Link to="/bank" className={getLinkStyle('/bank')}>
           <Landmark size={16} /> Bank Portal
@@ -97,6 +114,67 @@ function Navigation() {
           </Link>
         )}
       </nav>
+
+      {/* Hamburger toggle (mobile) */}
+      <button
+        className="md:hidden flex items-center justify-center w-10 h-10 text-white/70 hover:text-white transition-colors"
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-expanded={mobileMenuOpen}
+      >
+        {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+      </button>
+
+      {/* Mobile slide-in drawer */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <motion.nav
+              className="fixed top-0 right-0 z-50 h-full w-64 glass-card rounded-l-2xl flex flex-col gap-1 p-6 pt-20 md:hidden"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            >
+              <Link to="/" className={getLinkStyle('/')}> 🌐 Marketing </Link>
+              <Link to="/applicant" className={getLinkStyle('/applicant')}>
+                <UserCircle2 size={16} /> Applicant
+              </Link>
+              <Link to="/admin" className={getLinkStyle('/admin')}>
+                <Briefcase size={16} /> Pipeline
+              </Link>
+              <Link to="/admin/dashboard" className={getLinkStyle('/admin/dashboard')}>
+                <Activity size={16} /> Dashboard
+              </Link>
+              <Link to="/admin/noi-cases" className={getLinkStyle('/admin/noi-cases')}>
+                <FileText size={16} /> NOI Cases
+              </Link>
+              <Link to="/bank" className={getLinkStyle('/bank')}>
+                <Landmark size={16} /> Bank Portal
+              </Link>
+              {user ? (
+                <button
+                  onClick={() => signOut()}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-300 mt-4"
+                >
+                  <LogOut size={16} /> Logout
+                </button>
+              ) : (
+                <Link to="/login" className={getLinkStyle('/login')}>
+                  Login
+                </Link>
+              )}
+            </motion.nav>
+          </>
+        )}
+      </AnimatePresence>
     </header>
   );
 }
@@ -124,9 +202,11 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-        <AppShell />
-      </BrowserRouter>
+      <ThemeProvider>
+        <BrowserRouter>
+          <AppShell />
+        </BrowserRouter>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }
@@ -150,7 +230,12 @@ function AppShell() {
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<EditorialLanding />} />
-            <Route path="/console" element={<ConsoleApp />} />
+            <Route path="/console" element={<ConsoleApp publicView />} />
+            <Route path="/admin/console" element={
+              <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                <ConsoleApp />
+              </ProtectedRoute>
+            } />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
 
@@ -165,6 +250,8 @@ function AppShell() {
                 <Routes>
                   <Route index element={<AdvisorCockpit />} />
                   <Route path="workforce" element={<WorkforceControl />} />
+                  <Route path="dashboard" element={<WorkflowDashboard />} />
+                  <Route path="noi-cases" element={<NoiPipeline />} />
                 </Routes>
               </ProtectedRoute>
             } />

@@ -1,9 +1,12 @@
 // AG Associates landing — Editorial theme, ported from the claude.ai/design handoff.
 import type { CSSProperties } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Eyebrow, AgLogo, MONO, SERIF } from '../ag/primitives';
 import { LANDING_AGENTS, LANDING_STEPS, COMPARE, FLYWHEEL } from '../ag/landingData';
 import type { LandingAgent } from '../ag/landingData';
+import { TweaksPanel, TweakSection, TweakRadio, TweakToggle, shouldShowTweaks, getThemeFromUrl, DEFAULT_TWEAKS } from '../dev/TweaksPanel';
+import type { AGTheme, AGTweakState } from '../dev/TweaksPanel';
 import '../../styles/ag-editorial.css';
 
 const sectionHeading: CSSProperties = {
@@ -448,6 +451,199 @@ function Flywheel() {
   );
 }
 
+function HeroBlueprint() {
+  return (
+    <section style={{ padding: '120px 0 80px', position: 'relative' }}>
+      <div className="ag-container">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'center' }}>
+          <div>
+            <div
+              className="ag-rise-lg"
+              style={{
+                fontFamily: MONO, fontSize: 11, letterSpacing: '.3em', textTransform: 'uppercase',
+                color: 'var(--accent-2)', borderBottom: '1px solid var(--line)',
+                paddingBottom: 12, marginBottom: 28,
+              }}
+            >
+              AG ASSOCIATES · INTELLIGENCE PLATFORM v2.0
+            </div>
+            <h1
+              className="ag-rise-lg"
+              style={{
+                fontFamily: SERIF, fontWeight: 300,
+                fontSize: 'clamp(56px, 8vw, 112px)', lineHeight: 0.9,
+                letterSpacing: '-.04em', margin: '0 0 32px', animationDelay: '.1s',
+              }}
+            >
+              The banking panel <em style={{ color: 'var(--accent-3)' }}>without</em> associates.
+            </h1>
+            <p
+              className="ag-rise-lg"
+              style={{
+                fontSize: 18, lineHeight: 1.5, color: 'var(--ink-2)', maxWidth: 520,
+                margin: '0 0 32px', animationDelay: '.2s',
+              }}
+            >
+              Six autonomous agents process home loan files from bank intake through CERSAI registration in under four hours. No junior associates. No shift handoffs. No errors.
+            </p>
+            <div className="ag-rise-lg" style={{ display: 'flex', gap: 20, alignItems: 'center', animationDelay: '.35s' }}>
+              <Link
+                to="/console"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '12px 24px', borderRadius: 6,
+                  background: 'linear-gradient(135deg, var(--accent-2), var(--accent-3))',
+                  color: '#fff', fontWeight: 500, fontSize: 14, textDecoration: 'none',
+                }}
+              >
+                Live Dashboard →
+              </Link>
+              <a
+                href="#workflow"
+                style={{ fontSize: 14, color: 'var(--accent-2)', borderBottom: '1px solid var(--accent-2)', paddingBottom: 2, textDecoration: 'none' }}
+              >
+                How it works →
+              </a>
+            </div>
+          </div>
+
+          {/* right — agent metrics panel mockup */}
+          <div className="ag-rise-lg" style={{ animationDelay: '.3s' }}>
+            <div
+              style={{
+                border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden',
+                background: 'rgba(255,255,255,.04)', backdropFilter: 'blur(12px)',
+              }}
+            >
+              <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--line)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--muted)' }}>Agent Cluster · Online</span>
+                  <span style={{ fontFamily: MONO, fontSize: 11, color: '#22c55e' }}>● All 6 active</span>
+                </div>
+                {['Aisha', 'Kasun', 'Ravi', 'Lakshmi', 'Priya', 'Arjun'].map((name, i) => (
+                  <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderTop: i > 0 ? '1px solid var(--line)' : 'none' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(91, 141, 239, 0.2)', display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 10, color: 'var(--accent-2)' }}>
+                      {String.fromCharCode(65 + i)}
+                    </div>
+                    <span style={{ flex: 1, fontSize: 13 }}>{name}</span>
+                    <div style={{ width: 80, height: 4, borderRadius: 2, background: 'rgba(255,255,255,.1)', overflow: 'hidden' }}>
+                      <div style={{ width: `${60 + i * 6}%`, height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, var(--accent-2), var(--accent-3))' }} />
+                    </div>
+                    <span style={{ fontFamily: MONO, fontSize: 10, color: 'var(--muted)' }}>{60 + i * 6}%</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: '14px 24px', background: 'rgba(255,255,255,.03)', display: 'flex', justifyContent: 'space-between', fontFamily: MONO, fontSize: 11, color: 'var(--muted)' }}>
+                <span>Today: 23 files</span>
+                <span>Avg TAT: 3.2h</span>
+                <span>CERSAI: 19 filed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="ag-rise-lg" style={{ marginTop: 80, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 32, borderTop: '1px solid var(--line)', paddingTop: 28, animationDelay: '.5s' }}>
+          {([
+            ['4 hrs', 'Avg. file-to-CERSAI'],
+            ['6', 'Autonomous agents'],
+            ['3.2', 'Median TAT (hours)'],
+            ['100%', 'Local inference'],
+          ]).map(([v, l]) => (
+            <div key={l}>
+              <div style={{ fontFamily: SERIF, fontSize: 56, fontWeight: 300, lineHeight: 1, letterSpacing: '-.04em', color: 'var(--accent-3)' }}>{v}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.18em', marginTop: 8, fontFamily: MONO }}>{l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HeroBrutalist() {
+  return (
+    <section style={{ padding: '120px 0 80px', position: 'relative' }}>
+      <div className="ag-container">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'baseline' }}>
+          <div>
+            <div
+              className="ag-rise-lg"
+              style={{
+                fontFamily: MONO, fontSize: 11, fontWeight: 600, letterSpacing: '.15em', textTransform: 'uppercase',
+                color: 'var(--accent-3)', marginBottom: 28,
+              }}
+            >
+              ⚡ AG ASSOCIATES / THANE
+            </div>
+            <h1
+              className="ag-rise-lg"
+              style={{
+                fontFamily: MONO, fontWeight: 600,
+                fontSize: 'clamp(52px, 7vw, 96px)', lineHeight: 0.85,
+                letterSpacing: '-.04em', margin: '0 0 32px', textTransform: 'uppercase',
+                animationDelay: '.1s', color: 'var(--ink)',
+              }}
+            >
+              BANKING PANEL <span style={{ background: 'var(--accent)', color: '#000', padding: '0 8px' }}>WITHOUT</span> THE STAFF
+            </h1>
+            <p
+              className="ag-rise-lg"
+              style={{
+                fontFamily: MONO, fontSize: 13, lineHeight: 1.45, color: 'var(--muted)',
+                maxWidth: 500, margin: '0 0 28px', animationDelay: '.2s',
+              }}
+            >
+              Six agents. Zero associates. Full SARFAESI compliance. Title search to CERSAI deed in under four hours — running entirely on local inference.
+            </p>
+            <div className="ag-rise-lg" style={{ display: 'flex', gap: 16, alignItems: 'center', animationDelay: '.35s' }}>
+              <Link
+                to="/console"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '14px 28px', border: '3px solid var(--ink)', background: 'var(--accent)',
+                  color: '#000', fontWeight: 700, fontSize: 13, textDecoration: 'none',
+                  fontFamily: MONO, textTransform: 'uppercase',
+                }}
+              >
+                → Live Dashboard
+              </Link>
+              <a
+                href="#workforce"
+                style={{ fontFamily: MONO, fontSize: 12, color: 'var(--ink)', textDecoration: 'underline', textUnderlineOffset: 4 }}
+              >
+                Meet the agents ↓
+              </a>
+            </div>
+          </div>
+
+          {/* right — bold stat board */}
+          <div className="ag-rise-lg" style={{ animationDelay: '.3s' }}>
+            <div style={{ border: '3px solid var(--ink)', background: '#fff', padding: 0 }}>
+              <div style={{ borderBottom: '3px solid var(--ink)', padding: '16px 24px', background: 'var(--ink)', color: 'var(--accent)' }}>
+                <span style={{ fontFamily: MONO, fontWeight: 700, fontSize: 12, letterSpacing: '.2em', textTransform: 'uppercase' }}>SYS.REPORT / $(date)</span>
+              </div>
+              {([
+                ['TODAY', '23', 'files processed'],
+                ['MEDIAN TAT', '3.2h', 'bank→CERSAI'],
+                ['ERROR RATE', '0.0%', 'last 500 files'],
+                ['HUMAN STAFF', '0', 'full-time equivalent'],
+              ] as [string, string, string][]).map(([label, val, unit], i) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: i < 3 ? '1px solid var(--line)' : 'none' }}>
+                  <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontFamily: MONO, fontSize: 28, fontWeight: 700, lineHeight: 1, color: 'var(--ink)' }}>{val}</span>
+                    <span style={{ fontFamily: MONO, fontSize: 10, color: 'var(--muted)', display: 'block', marginTop: 2 }}>{unit}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Footer() {
   return (
     <footer id="dashboard" style={{ padding: '64px 0 48px', borderTop: '1px solid var(--line)' }}>
@@ -503,16 +699,56 @@ function Footer() {
 }
 
 export default function EditorialLanding() {
+  const [tweaks, setTweaks] = useState<AGTweakState>(() => {
+    const urlTheme = getThemeFromUrl();
+    return { ...DEFAULT_TWEAKS, ...(urlTheme ? { theme: urlTheme } : {}) };
+  });
+
+  const showTweaks = shouldShowTweaks();
+
+  useEffect(() => {
+    if (showTweaks) {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.has('theme') && tweaks.theme !== DEFAULT_TWEAKS.theme) {
+        params.set('theme', tweaks.theme);
+        window.history.replaceState(null, '', `?${params.toString()}`);
+      }
+    }
+  }, [tweaks.theme, showTweaks]);
+
+  const setTheme = (theme: AGTheme) => setTweaks((t) => ({ ...t, theme }));
+
+  const HeroComponent = tweaks.theme === 'blueprint' ? HeroBlueprint : tweaks.theme === 'brutalist' ? HeroBrutalist : Hero;
+
   return (
-    <div className="ag-editorial ag-landing">
+    <div className="ag-editorial ag-landing" data-theme={tweaks.theme}>
       <div className="ag-grid-bg" aria-hidden="true" />
       <Nav />
-      <Hero />
+      <HeroComponent />
       <Manifesto />
       <Roster />
-      <Workflow />
-      <Flywheel />
+      {tweaks.showWorkflow && <Workflow />}
+      {tweaks.showFlywheel && <Flywheel />}
       <Footer />
+
+      {showTweaks && (
+        <TweaksPanel title="AG Tweaks">
+          <TweakSection label="Theme" />
+          <TweakRadio
+            label="Variant"
+            value={tweaks.theme}
+            options={[
+              { value: 'blueprint', label: 'Blueprint' },
+              { value: 'editorial', label: 'Editorial' },
+              { value: 'brutalist', label: 'Brutalist' },
+            ]}
+            onChange={(v) => setTheme(v as AGTheme)}
+          />
+          <TweakSection label="Sections" />
+          <TweakToggle label="Show Workflow" value={tweaks.showWorkflow} onChange={(v) => setTweaks((t) => ({ ...t, showWorkflow: v }))} />
+          <TweakToggle label="Show Flywheel" value={tweaks.showFlywheel} onChange={(v) => setTweaks((t) => ({ ...t, showFlywheel: v }))} />
+        </TweaksPanel>
+      )}
     </div>
   );
 }

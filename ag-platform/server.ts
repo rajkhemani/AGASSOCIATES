@@ -10,9 +10,15 @@ import jwt from "jsonwebtoken";
 import caseRoutes from "./src/server/routes/cases.ts";
 import timesheetRoutes from "./src/server/routes/timesheets.ts";
 import documentRoutes from "./src/server/routes/documents.ts";
+import dashboardRoutes from "./src/server/routes/dashboard.ts";
+import neslRoutes from "./src/server/routes/nesl.ts";
+
+// Sentry error tracking (optional, requires SENTRY_DSN env)
+import { initSentry, Sentry } from "./src/server/sentry.ts";
 
 // Load environment variables
 dotenv.config();
+initSentry();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -83,6 +89,9 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
+  // Sentry request handler (must be before other middleware/routes)
+  app.use(Sentry.Handlers.requestHandler());
+
   // Step 5: Add Request ID
   app.use((req, res, next) => {
     req.headers['x-request-id'] = req.headers['x-request-id'] || crypto.randomUUID();
@@ -125,6 +134,8 @@ async function startServer() {
   app.use("/api", caseRoutes);
   app.use("/api", timesheetRoutes);
   app.use("/api", documentRoutes);
+  app.use("/api", dashboardRoutes);
+  app.use("/api", neslRoutes);
 
   app.use("/api/ai", aiLimiter, aiRoutes);
 
@@ -145,6 +156,9 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  // Sentry error handler (must be after all routes, before other error handlers)
+  app.use(Sentry.Handlers.errorHandler());
 
   // Step 5: Global Structured Error Handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

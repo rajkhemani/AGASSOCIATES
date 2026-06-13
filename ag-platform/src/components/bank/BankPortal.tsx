@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Building, Search, FileText, CheckCircle, Clock } from 'lucide-react';
 import { Case, CaseStatus } from '../../types/domain';
+import { LoadingState } from '../ui/LoadingState';
+import { EmptyState } from '../ui/EmptyState';
 
 export function BankPortal() {
   const [cases, setCases] = useState<Case[]>([]);
@@ -47,7 +49,9 @@ export function BankPortal() {
         </header>
 
         {isLoading ? (
-          <div className="flex items-center justify-center p-12 text-slate-500">Loading cases...</div>
+          <div className="flex items-center justify-center p-12">
+            <LoadingState message="Loading cases..." rows={4} />
+          </div>
         ) : (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <table className="w-full text-left border-collapse">
@@ -63,7 +67,9 @@ export function BankPortal() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {cases.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-slate-500">No cases found for this bank.</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center">
+                    <EmptyState title="No cases found" message="No cases are currently assigned to this bank." />
+                  </td></tr>
                 ) : (
                   cases.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50 transition-colors">

@@ -141,7 +141,7 @@ export const TimeTracker: React.FC = () => {
               <select
                 id="case-select"
                 disabled={isActive || submitState === 'loading'}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-base text-white focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
                 value={selectedCase}
                 onChange={(e) => setSelectedCase(e.target.value)}
                 aria-required="true"
@@ -160,7 +160,7 @@ export const TimeTracker: React.FC = () => {
                 type="text"
                 disabled={isActive || submitState === 'loading'}
                 placeholder="What are you working on?"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-base text-white focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
                 value={taskDescription}
                 onChange={(e) => setTaskDescription(e.target.value)}
                 aria-required="true"

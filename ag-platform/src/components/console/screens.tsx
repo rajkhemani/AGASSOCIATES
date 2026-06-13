@@ -174,7 +174,7 @@ export function CasesScreen() {
             border: '1px solid var(--line)',
             borderRadius: 6,
             background: 'var(--paper)',
-            fontSize: 14,
+            fontSize: 16,
             fontFamily: SANS,
             color: 'var(--ink)',
           }}

@@ -35,13 +35,18 @@ MAX_HOPS = 5
 
 def _redis_url() -> str:
     url = REDIS_URL
-    if REDIS_PASSWORD and "redis://" in url:
+    if REDIS_PASSWORD and "redis://" in url and "@" not in url:
         url = url.replace("redis://", f"redis://:{REDIS_PASSWORD}@")
     return url
 
 
 async def get_bus_redis() -> aioredis.Redis:
-    return aioredis.from_url(_redis_url(), decode_responses=True)
+    return aioredis.from_url(
+        _redis_url(),
+        decode_responses=True,
+        socket_connect_timeout=10,
+        socket_timeout=None,
+    )
 
 
 async def ensure_bus_group():

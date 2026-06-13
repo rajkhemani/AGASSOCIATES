@@ -21,7 +21,7 @@ const railLabel = {
   color: 'var(--muted)',
 };
 
-export function Rail({ route, setRoute }: { route: ConsoleRoute; setRoute: (r: ConsoleRoute) => void }) {
+export function Rail({ route, setRoute, publicView }: { route: ConsoleRoute; setRoute: (r: ConsoleRoute) => void; publicView?: boolean }) {
   return (
     <aside
       style={{
@@ -41,9 +41,9 @@ export function Rail({ route, setRoute }: { route: ConsoleRoute; setRoute: (r: C
         <div style={{ ...railLabel, marginTop: 10, letterSpacing: '.18em' }}>Banking Panel · Thane MH</div>
       </div>
 
-      <nav style={{ padding: '18px 14px' }} aria-label="Console">
+        <nav style={{ padding: '18px 14px' }} aria-label="Console">
         <div style={{ ...railLabel, padding: '0 8px 10px' }}>Console</div>
-        {NAV_ITEMS.map((it) => {
+        {NAV_ITEMS.filter(it => !publicView || it.id === 'dashboard').map((it) => {
           const active = route === it.id;
           return (
             <button
