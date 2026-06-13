@@ -14,8 +14,14 @@
 # Platform (TypeScript Turborepo)
 /ag-platform/                    @LUXORANOVA9
 
+# Coordinator Telegram bot
+/ag-platform/services/coordinator/ @LUXORANOVA9
+
 # Intake API
 /ag-platform/services/intake-api/ @LUXORANOVA9
+
+# Email intake
+/ag-platform/services/email-intake/ @LUXORANOVA9
 
 # Documentation + ADRs
 /docs/                           @LUXORANOVA9

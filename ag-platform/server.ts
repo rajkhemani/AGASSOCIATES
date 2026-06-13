@@ -37,8 +37,8 @@ interface AuthUser {
 function authMiddleware(allowedRoles?: string[]) {
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (!SUPABASE_JWT_SECRET) {
-      (req as any).user = { sub: 'dev-user', role: 'admin', email: 'dev@local' };
-      next();
+      console.error('SUPABASE_JWT_SECRET not configured. Authentication required.');
+      res.status(500).json({ error: { code: 'CONFIG_ERROR', message: 'Server authentication not configured' } });
       return;
     }
     const authHeader = req.headers.authorization;

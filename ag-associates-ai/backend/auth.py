@@ -15,11 +15,14 @@ def verify_supabase_token(
 ) -> dict:
     """
     Verify Supabase JWT token and extract user information.
-    If SUPABASE_JWT_SECRET is not set, it bypasses authentication (for local dev).
+    SUPABASE_JWT_SECRET is required in production. Without it, the server refuses to start.
     """
     if not SUPABASE_JWT_SECRET:
-        logger.warning("SUPABASE_JWT_SECRET not configured. Bypassing authentication.")
-        return {"sub": "anonymous", "role": "anon"}
+        logger.error("SUPABASE_JWT_SECRET not configured. Authentication is required.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Server authentication is not configured. Contact the administrator.",
+        )
 
     if not credentials:
         raise HTTPException(

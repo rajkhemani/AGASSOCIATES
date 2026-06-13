@@ -31,6 +31,14 @@ app.post('/agent', async (c) => {
 });
 
 app.post('/telegram/webhook', async (c) => {
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (secret) {
+    const header = c.req.header('x-telegram-bot-api-secret-token');
+    if (!header || header !== secret) {
+      console.warn('coordinator: invalid telegram webhook secret');
+      return c.json({ error: 'invalid secret token' }, 401);
+    }
+  }
   const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN || '');
 
   bot.on('text', async (ctx) => {
@@ -55,6 +63,12 @@ app.post('/telegram/webhook', async (c) => {
 
   return c.json({ ok: true });
 });
+
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+if (!TELEGRAM_BOT_TOKEN) {
+  console.error('TELEGRAM_BOT_TOKEN is required but not set. Exiting.');
+  process.exit(1);
+}
 
 const port = parseInt(process.env.COORDINATOR_PORT || '3002');
 
