@@ -46,4 +46,5 @@ The following are in scope for security reports:
 - **Signed URLs**: Document vault uses 60-second expiring signed URLs
 - **Credential Management**: All secrets via environment variables, never hardcoded in source
 - **Audit Logging**: Case state transitions logged to immutable `case_audit_logs` table
+- **PII Encryption at Rest**: Sensitive fields (PAN, phone numbers) encrypted with AES-256-GCM via `PII_ENCRYPTION_KEY`. Encryption utilities at `backend/utils/encryption.py` (Python) and `src/server/lib/encryption.ts` (TypeScript)
 - **Data Sovereignty**: Deployed in `ap-south-1` (Mumbai) for Indian banking compliance

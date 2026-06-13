@@ -30,6 +30,7 @@ soundfile>=0.12.1
 # openwakeword>=0.6.0
 # sounddevice>=0.4.6
 
+cryptography>=42.0.0
 gspread>=6.1.0
 crewai>=0.80.0
 sentry-sdk>=2.15.0
