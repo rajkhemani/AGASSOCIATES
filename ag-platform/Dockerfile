@@ -4,6 +4,7 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++
 
 COPY package.json package-lock.json .npmrc ./
+COPY packages/ packages/
 RUN npm ci
 
 COPY tsconfig.json tsconfig.node.json vite.config.ts tailwind.config.js postcss.config.js ./
