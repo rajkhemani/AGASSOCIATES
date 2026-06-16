@@ -20,7 +20,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     icon: './assets/icon.png',
     scheme: 'agfield',
     userInterfaceStyle: 'automatic',
-      /* /* splash: { image: "./assets/splash.png", resizeMode: "contain", backgroundColor: "#0f172a" }, */
+    // @ts-ignore
+    splash: {
+        image: './assets/splash.png',
+        resizeMode: 'contain',
+        backgroundColor: '#0f172a',
+    },
     ios: {
         supportsTablet: false,
         bundleIdentifier: 'com.agassociates.field',
