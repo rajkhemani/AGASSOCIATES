@@ -19,7 +19,7 @@ import logging
 import os
 import re
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -28,7 +28,6 @@ from config import (
     LLM_BASE_URL,
     LLM_MODEL_NAME,
     AGENT_MAX_TOOL_CALLS,
-    AGENT_REACT_TIMEOUT,
 )
 from auth.rbac import Role, can as rbac_can
 
@@ -270,7 +269,6 @@ class BaseAgent:
 
         Returns: {"thinking": "...", "text": "...", "tool_calls": [...]}
         """
-        tools = self._all_tools()
         thinking_log = []
         tool_results = []
         history = list(context_messages)

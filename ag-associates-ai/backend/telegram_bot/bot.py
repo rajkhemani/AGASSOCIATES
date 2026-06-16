@@ -42,6 +42,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from db import update_task_status
+import httpx
 import redis.asyncio as aioredis
 from db import (
     create_case,
@@ -76,7 +77,8 @@ REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
 BOT_PORT = int(os.environ.get("TELEGRAM_BOT_PORT", "3003"))
 HEALTH_PORT = int(os.environ.get("TELEGRAM_HEALTH_PORT", "3004"))
 DOMAIN = os.environ.get("DOMAIN", "")
-AISHA_API_URL = os.environ.get("AISHA_API_URL", "http://localhost:8001/api/aisha/chat")
+AI_BACKEND_URL = os.environ.get("AI_BACKEND_URL", "http://localhost:8001")
+AISHA_API_URL = f"{AI_BACKEND_URL}/api/aisha/chat"
 AISHA_API_KEY = os.environ.get("N8N_WEBHOOK_KEY", "")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.groq.com/openai/v1")
@@ -471,7 +473,6 @@ async def analyze_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     try:
         from agents.input_router import AnyInputRouter
-        from agents.output_generator import OutputGenerator
 
         router = AnyInputRouter()
         result = await router.process(
@@ -746,6 +747,13 @@ async def process_incoming_sms(sms_text: str, sender: str, app: Application) -> 
         return False
     otp_code = otp_match.group(1)
 
+    detected = "any"
+    all_pats = {**PORTAL_MAP, **BANK_PATTERNS}
+    for p, pat in all_pats.items():
+        if re.search(pat, sms_text, re.IGNORECASE):
+            detected = p
+            break
+
     bypass_group = int(TELEGRAM_GROUP_ID) if TELEGRAM_GROUP_ID else None
     if bypass_group:
         label = _portal_label(detected) if detected != "any" else "BANK"
@@ -759,14 +767,6 @@ async def process_incoming_sms(sms_text: str, sender: str, app: Application) -> 
             logger.info("OTP bypass → NOI group %s", bypass_group)
         except Exception as e:
             logger.error("OTP bypass to NOI group failed: %s", e)
-
-    detected = "any"
-    all_pats = {**PORTAL_MAP, **BANK_PATTERNS}
-    for p, pat in all_pats.items():
-        if re.search(pat, sms_text, re.IGNORECASE):
-            detected = p
-            break
-
     for pk in (detected, "any"):
         raw = await r.lpop(_pending_key(pk))
         if raw is None:

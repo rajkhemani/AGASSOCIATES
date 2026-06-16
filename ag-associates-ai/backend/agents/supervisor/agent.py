@@ -17,7 +17,6 @@ from agents.base_agent import BaseAgent, AgentResponse
 from agents.agent_memory import (
     get_or_create_conversation,
     add_message,
-    get_context_window,
 )
 from agents import agent_registry
 from agents import agent_bus
