@@ -7,7 +7,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.su
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder_key';
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   realtime: {
-    transport: (typeof window === "undefined" ? ws : undefined) as any
+    transport: (typeof window === "undefined" ? (ws as any) : undefined)
   }
 });
 
