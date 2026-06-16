@@ -24,7 +24,9 @@ def encrypt_plaintext(plaintext: str) -> Optional[str]:
 
     key = _get_key_bytes()
     if key is None or len(key) != 32:
-        logger.warning("PII_ENCRYPTION_KEY not configured or invalid. Skipping encryption.")
+        logger.warning(
+            "PII_ENCRYPTION_KEY not configured or invalid. Skipping encryption."
+        )
         return None
 
     nonce = os.urandom(12)
@@ -38,7 +40,9 @@ def decrypt_ciphertext(encoded: str) -> Optional[str]:
 
     key = _get_key_bytes()
     if key is None or len(key) != 32:
-        logger.warning("PII_ENCRYPTION_KEY not configured or invalid. Skipping decryption.")
+        logger.warning(
+            "PII_ENCRYPTION_KEY not configured or invalid. Skipping decryption."
+        )
         return None
 
     try:

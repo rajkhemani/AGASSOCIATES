@@ -226,10 +226,13 @@ class BaseAgent:
                 "(4) What is my final conclusion?"
             )
 
-        sys_prompt = self.persona_prompt.format(
-            current_time=datetime.now().isoformat(),
-            tools=tools_desc,
-        ) + cot_instruction
+        sys_prompt = (
+            self.persona_prompt.format(
+                current_time=datetime.now().isoformat(),
+                tools=tools_desc,
+            )
+            + cot_instruction
+        )
 
         prompt = ChatPromptTemplate.from_messages(
             [
@@ -304,7 +307,9 @@ class BaseAgent:
             try:
                 chain = prompt | llm
                 response = chain.invoke({"message": message})
-                raw = response.content if hasattr(response, "content") else str(response)
+                raw = (
+                    response.content if hasattr(response, "content") else str(response)
+                )
             except Exception as e:
                 logger.error("[%s] ReAct LLM error (turn %d): %s", self.name, turn, e)
                 return {
@@ -316,14 +321,14 @@ class BaseAgent:
             parsed = self._parse_react_json(raw)
             if parsed is None:
                 # Couldn't parse JSON — treat as direct answer
-                thinking_log.append(f"[Turn {turn+1}] " + raw[:200])
+                thinking_log.append(f"[Turn {turn + 1}] " + raw[:200])
                 return {
                     "thinking": "\n".join(thinking_log),
                     "text": raw,
                     "tool_calls": tool_results,
                 }
 
-            thinking_log.append(f"[Turn {turn+1}] {parsed.get('thinking', '')}")
+            thinking_log.append(f"[Turn {turn + 1}] {parsed.get('thinking', '')}")
 
             action = parsed.get("action")
             final = parsed.get("final")

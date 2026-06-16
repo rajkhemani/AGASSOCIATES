@@ -54,9 +54,7 @@ class SupervisorAgent(BaseAgent):
     async def classify_intent(self, message: str) -> list[dict]:
         """Classify user message → ordered list of target agents with reasons."""
         available = agent_registry.list_agents()
-        agent_list = ", ".join(
-            f"{a['name']} ({a['description']})" for a in available
-        )
+        agent_list = ", ".join(f"{a['name']} ({a['description']})" for a in available)
 
         prompt = SUPERVISOR_CLASSIFIER_PROMPT.format(
             message=message[:1000],
@@ -154,12 +152,16 @@ class SupervisorAgent(BaseAgent):
         if responses:
             summary_lines = []
             for r in responses:
-                summary_lines.append(f"🤖 <b>{r['agent'].title()}</b> ne kaha:\n{r['response']}")
+                summary_lines.append(
+                    f"🤖 <b>{r['agent'].title()}</b> ne kaha:\n{r['response']}"
+                )
             combined = "\n\n---\n\n".join(summary_lines)
             add_message(self.name, conv_id, "assistant", combined)
             return AgentResponse(combined)
 
-        add_message(self.name, conv_id, "assistant", "[no specialist matched, routing to aisha]")
+        add_message(
+            self.name, conv_id, "assistant", "[no specialist matched, routing to aisha]"
+        )
         return None
 
 

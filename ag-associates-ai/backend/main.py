@@ -472,7 +472,9 @@ async def supervisor_route(
             platform_identity=identity,
             display_name=request.display_name or "",
         )
-        fallback_text = result.get("response", "") if isinstance(result, dict) else str(result)
+        fallback_text = (
+            result.get("response", "") if isinstance(result, dict) else str(result)
+        )
         return SupervisorRouteResponse(response=fallback_text)
     except Exception as e:
         return SupervisorRouteResponse(response="", error=str(e))

@@ -128,9 +128,7 @@ async def process_image(file_bytes: bytes, filename: str = "") -> str:
 
     try:
         async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                f"{LLM_BASE_URL}/chat/completions", json=payload
-            )
+            resp = await client.post(f"{LLM_BASE_URL}/chat/completions", json=payload)
             if resp.status_code == 200:
                 return resp.json()["choices"][0]["message"]["content"]
             logger.error("vLLM vision error: %s", resp.text[:200])
@@ -162,11 +160,17 @@ async def process_image_structured(
     raw_text = await process_image(file_bytes, filename)
 
     if not raw_text:
-        return {"raw_text": "", "fields": {}, "document_type": "unknown", "confidence": 0}
+        return {
+            "raw_text": "",
+            "fields": {},
+            "document_type": "unknown",
+            "confidence": 0,
+        }
 
     # Use LLM to extract structured fields from the raw vision output
     schema_text = (
-        f"Extract fields for: {schema_hint}" if schema_hint
+        f"Extract fields for: {schema_hint}"
+        if schema_hint
         else "Extract all structured fields from this document image"
     )
 
@@ -195,9 +199,7 @@ async def process_image_structured(
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"{LLM_BASE_URL}/chat/completions", json=payload
-            )
+            resp = await client.post(f"{LLM_BASE_URL}/chat/completions", json=payload)
             if resp.status_code == 200:
                 text = resp.json()["choices"][0]["message"]["content"]
                 text = text.strip()
@@ -242,14 +244,14 @@ async def process_pdf(file_bytes: bytes, filename: str = "") -> str:
             for i, page in enumerate(pdf.pages):
                 text = page.extract_text()
                 if text:
-                    texts.append(f"[Page {i+1}]\n{text}")
+                    texts.append(f"[Page {i + 1}]\n{text}")
                 else:
                     empty_pages += 1
                 tables = page.extract_tables()
                 for table in tables:
                     formatted = _format_table(table)
                     if formatted.strip():
-                        table_texts.append(f"[Page {i+1} Table]\n{formatted}")
+                        table_texts.append(f"[Page {i + 1} Table]\n{formatted}")
     except Exception as e:
         logger.error("PDF processing failed: %s", e)
         return f"PDF processing error: {e}"
@@ -267,7 +269,11 @@ async def process_pdf(file_bytes: bytes, filename: str = "") -> str:
         if ocr_texts:
             return " [OCR result - scanned PDF]\n".join(ocr_texts)
 
-    return full_text if texts or table_texts else "No text could be extracted from this PDF."
+    return (
+        full_text
+        if texts or table_texts
+        else "No text could be extracted from this PDF."
+    )
 
 
 async def process_pdf_structured(
@@ -357,11 +363,13 @@ async def _pdf_ocr_fallback(file_bytes: bytes, max_pages: int = 5) -> list[str]:
 
     texts = []
     try:
-        images = convert_from_bytes(file_bytes, dpi=150, first_page=1, last_page=max_pages)
+        images = convert_from_bytes(
+            file_bytes, dpi=150, first_page=1, last_page=max_pages
+        )
         for i, img in enumerate(images):
             buf = io.BytesIO()
             img.save(buf, format="PNG")
-            page_text = await process_image(buf.getvalue(), f"page_{i+1}.png")
+            page_text = await process_image(buf.getvalue(), f"page_{i + 1}.png")
             if page_text:
                 texts.append(page_text)
     except Exception as e:
