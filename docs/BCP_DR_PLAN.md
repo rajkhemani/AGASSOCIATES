@@ -223,7 +223,7 @@ This plan uses the same severity classification as the Incident Response Plan:
    # API health
    curl -f https://api.advadiityagade.com/health
    curl -f https://intake.advadiityagade.com/health
-   
+
    # Container health
    docker ps --filter name=ag_ --format "table {{.Names}}\t{{.Status}}"
    ```
