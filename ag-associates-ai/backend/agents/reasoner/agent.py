@@ -25,6 +25,7 @@ async def search_legal_knowledge(query: str) -> str:
     """Search pgvector for relevant legal documents."""
     try:
         from ..db import similarity_search
+
         results = similarity_search(query, limit=5)
         if not results:
             return "No relevant legal documents found for this query."
@@ -61,21 +62,25 @@ async def cross_reference_documents(documents: list[str]) -> str:
     )
 
     docs_text = "\n\n---\n".join(
-        f"Document {i+1}:\n{doc[:1000]}"
-        for i, doc in enumerate(documents)
+        f"Document {i + 1}:\n{doc[:1000]}" for i, doc in enumerate(documents)
     )
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", (
-            "You are a legal document cross-referencing expert. "
-            "Compare these documents and identify:\n"
-            "1. Consistency issues (conflicting facts, dates, amounts)\n"
-            "2. Missing information across documents\n"
-            "3. Potential compliance issues\n"
-            "Return a structured analysis."
-        )),
-        ("human", "{docs}"),
-    ])
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                (
+                    "You are a legal document cross-referencing expert. "
+                    "Compare these documents and identify:\n"
+                    "1. Consistency issues (conflicting facts, dates, amounts)\n"
+                    "2. Missing information across documents\n"
+                    "3. Potential compliance issues\n"
+                    "Return a structured analysis."
+                ),
+            ),
+            ("human", "{docs}"),
+        ]
+    )
 
     try:
         chain = prompt | llm
@@ -104,16 +109,21 @@ async def cite_legal_sources(claim: str) -> str:
         temperature=0.1,
     )
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", (
-            "You are a legal citation expert. For the given legal claim, "
-            "provide relevant citations from Indian law (Maharashtra Rent "
-            "Control Act, Transfer of Property Act, Registration Act, "
-            "Stamp Act, etc.). Include: act name, section number, and "
-            "a brief explanation of applicability."
-        )),
-        ("human", "{claim}"),
-    ])
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                (
+                    "You are a legal citation expert. For the given legal claim, "
+                    "provide relevant citations from Indian law (Maharashtra Rent "
+                    "Control Act, Transfer of Property Act, Registration Act, "
+                    "Stamp Act, etc.). Include: act name, section number, and "
+                    "a brief explanation of applicability."
+                ),
+            ),
+            ("human", "{claim}"),
+        ]
+    )
 
     try:
         chain = prompt | llm
@@ -137,6 +147,7 @@ class ReasoningAgent(BaseAgent):
             min_role=None,
         )
         from auth.rbac import Role
+
         self.min_role = Role.CLERK
 
     async def process_request(

@@ -20,6 +20,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     icon: './assets/icon.png',
     scheme: 'agfield',
     userInterfaceStyle: 'automatic',
+    // @ts-ignore
     splash: {
         image: './assets/splash.png',
         resizeMode: 'contain',

@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RouterResult:
     """Result from the any-to-any input router."""
+
     input_type: str  # text, image, pdf, audio, excel, docx
     content_type: str  # legal, financial, general
     extracted_text: str  # Text extracted from the file
@@ -40,28 +41,81 @@ class AnyInputRouter:
     """Universal input router: accepts any input, routes to the right agent."""
 
     EXTENSION_MAP = {
-        ".jpg": "image", ".jpeg": "image", ".png": "image", ".gif": "image",
-        ".webp": "image", ".bmp": "image",
+        ".jpg": "image",
+        ".jpeg": "image",
+        ".png": "image",
+        ".gif": "image",
+        ".webp": "image",
+        ".bmp": "image",
         ".pdf": "pdf",
-        ".xls": "excel", ".xlsx": "excel", ".csv": "excel", ".tsv": "excel",
-        ".docx": "docx", ".doc": "docx",
-        ".mp3": "audio", ".wav": "audio", ".ogg": "audio", ".m4a": "audio",
-        ".txt": "text", ".md": "text", ".json": "text", ".xml": "text",
+        ".xls": "excel",
+        ".xlsx": "excel",
+        ".csv": "excel",
+        ".tsv": "excel",
+        ".docx": "docx",
+        ".doc": "docx",
+        ".mp3": "audio",
+        ".wav": "audio",
+        ".ogg": "audio",
+        ".m4a": "audio",
+        ".txt": "text",
+        ".md": "text",
+        ".json": "text",
+        ".xml": "text",
     }
 
     CONTENT_KEYWORDS = {
         "legal": [
-            "agreement", "contract", "lease", "rental", "tenant", "landlord",
-            "stamp duty", "registration", "property", "deed", "power of attorney",
-            "maharashtra rent control", "transfer of property", "section", "act",
-            "notice", "notice period", "eviction", "petition", "suit", "plaintiff",
-            "defendant", "court", "tribunal", "order", "judgment", "compliance",
+            "agreement",
+            "contract",
+            "lease",
+            "rental",
+            "tenant",
+            "landlord",
+            "stamp duty",
+            "registration",
+            "property",
+            "deed",
+            "power of attorney",
+            "maharashtra rent control",
+            "transfer of property",
+            "section",
+            "act",
+            "notice",
+            "notice period",
+            "eviction",
+            "petition",
+            "suit",
+            "plaintiff",
+            "defendant",
+            "court",
+            "tribunal",
+            "order",
+            "judgment",
+            "compliance",
         ],
         "financial": [
-            "balance sheet", "profit and loss", "p&l", "income statement",
-            "invoice", "receipt", "payment", "bank statement", "transaction",
-            "credit", "debit", "gst", "tax", "tds", "billing", "receivables",
-            "payables", "ledger", "trial balance", "audit", "anomaly",
+            "balance sheet",
+            "profit and loss",
+            "p&l",
+            "income statement",
+            "invoice",
+            "receipt",
+            "payment",
+            "bank statement",
+            "transaction",
+            "credit",
+            "debit",
+            "gst",
+            "tax",
+            "tds",
+            "billing",
+            "receivables",
+            "payables",
+            "ledger",
+            "trial balance",
+            "audit",
+            "anomaly",
         ],
     }
 
@@ -93,9 +147,7 @@ class AnyInputRouter:
             logger.info("Router detected type: %s (file: %s)", input_type, filename)
 
             # Route to processor
-            extracted_text = await _route_to_processor(
-                input_type, file_bytes, filename
-            )
+            extracted_text = await _route_to_processor(input_type, file_bytes, filename)
 
             # Try structured extraction for documents
             if input_type in ("pdf", "image"):
@@ -139,9 +191,7 @@ def _detect_type(filename: str, mime_type: str = "") -> str:
     return AnyInputRouter.EXTENSION_MAP.get(ext, "text")
 
 
-async def _route_to_processor(
-    input_type: str, file_bytes: bytes, filename: str
-) -> str:
+async def _route_to_processor(input_type: str, file_bytes: bytes, filename: str) -> str:
     """Route to the correct media processor."""
     from media.processors import (
         process_audio,
@@ -176,9 +226,11 @@ async def _structured_extraction(
     try:
         if input_type == "pdf":
             from media.processors import process_pdf_structured
+
             return await process_pdf_structured(file_bytes, filename)
         elif input_type == "image":
             from media.processors import process_image_structured
+
             return await process_image_structured(file_bytes, filename)
     except Exception as e:
         logger.error("Structured extraction failed: %s", e)

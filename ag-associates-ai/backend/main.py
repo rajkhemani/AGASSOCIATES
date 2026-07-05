@@ -28,13 +28,13 @@ from pydantic import BaseModel, Field  # noqa: E402
 from voice.voice_api import router as voice_router  # noqa: E402
 from workforce import workforce_router  # noqa: E402
 from auth import oauth_router, require_permission, AuthContext  # noqa: E402
-from playground import (
+from playground import (  # noqa: E402
     playground_router,
     session_manager as _playground_sm,
 )  # noqa: E402
 from payment.router import router as payment_router  # noqa: E402
 from controller_agent import UnifiedController  # noqa: E402
-from aisha_core import (
+from aisha_core import (  # noqa: E402
     handle_message as aisha_handle_message,
     ensure_tables,
 )  # noqa: E402
@@ -472,7 +472,9 @@ async def supervisor_route(
             platform_identity=identity,
             display_name=request.display_name or "",
         )
-        fallback_text = result.get("response", "") if isinstance(result, dict) else str(result)
+        fallback_text = (
+            result.get("response", "") if isinstance(result, dict) else str(result)
+        )
         return SupervisorRouteResponse(response=fallback_text)
     except Exception as e:
         return SupervisorRouteResponse(response="", error=str(e))

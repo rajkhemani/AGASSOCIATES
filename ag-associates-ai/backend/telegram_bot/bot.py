@@ -42,6 +42,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from db import update_task_status
+import httpx
 import redis.asyncio as aioredis
 from db import (
     create_case,
@@ -64,7 +65,9 @@ from telegram.ext import (
     filters,
 )
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # ── Config ───────────────────────────────────────────────────────────────
@@ -76,7 +79,8 @@ REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
 BOT_PORT = int(os.environ.get("TELEGRAM_BOT_PORT", "3003"))
 HEALTH_PORT = int(os.environ.get("TELEGRAM_HEALTH_PORT", "3004"))
 DOMAIN = os.environ.get("DOMAIN", "")
-AISHA_API_URL = os.environ.get("AISHA_API_URL", "http://localhost:8001/api/aisha/chat")
+AI_BACKEND_URL = os.environ.get("AI_BACKEND_URL", "http://localhost:8001")
+AISHA_API_URL = f"{AI_BACKEND_URL}/api/aisha/chat"
 AISHA_API_KEY = os.environ.get("N8N_WEBHOOK_KEY", "")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.groq.com/openai/v1")
@@ -139,7 +143,8 @@ async def _get_listener_redis() -> aioredis.Redis:
         if REDIS_PASSWORD and "redis://" in url and ":@" not in url:
             url = url.replace("redis://", f"redis://:{REDIS_PASSWORD}@")
         _listener_redis = aioredis.from_url(
-            url, decode_responses=True,
+            url,
+            decode_responses=True,
             socket_keepalive=True,
             socket_connect_timeout=10,
             socket_timeout=35,
@@ -394,7 +399,9 @@ async def supervisor_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     message = " ".join(ctx.args)
     await update.message.reply_chat_action("typing")
-    await update.message.reply_text("🧠 Supervisor analysis kar raha hai...", parse_mode="HTML")
+    await update.message.reply_text(
+        "🧠 Supervisor analysis kar raha hai...", parse_mode="HTML"
+    )
 
     try:
         api_key = os.environ.get("N8N_WEBHOOK_KEY", "")
@@ -471,15 +478,13 @@ async def analyze_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     try:
         from agents.input_router import AnyInputRouter
-        from agents.output_generator import OutputGenerator
 
         router = AnyInputRouter()
-        result = await router.process(
-            file_bytes=bytes(file_bytes), filename=filename
-        )
+        result = await router.process(file_bytes=bytes(file_bytes), filename=filename)
 
         if result.agent_name == "reasoner":
             from agents.reasoner import reasoner as r_agent
+
             response = await r_agent.process_request(
                 user_message=f"{message}\n\nFile content:\n{result.extracted_text[:3000]}",
                 user_id=str(update.effective_chat.id),
@@ -534,6 +539,7 @@ async def research_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         reasoner = get_agent("reasoner")
         if not reasoner:
             from agents.reasoner import reasoner as r
+
             reasoner = r
 
         response = await reasoner.process_request(
@@ -746,20 +752,6 @@ async def process_incoming_sms(sms_text: str, sender: str, app: Application) -> 
         return False
     otp_code = otp_match.group(1)
 
-    bypass_group = int(TELEGRAM_GROUP_ID) if TELEGRAM_GROUP_ID else None
-    if bypass_group:
-        label = _portal_label(detected) if detected != "any" else "BANK"
-        try:
-            await app.bot.send_message(
-                chat_id=bypass_group,
-                text=f"🔐 <b>OTP for {label}</b>\n\n<code>{otp_code}</code>\n\n"
-                     f"Sender: {sender}\nSMS: {sms_text[:200]}",
-                parse_mode="HTML",
-            )
-            logger.info("OTP bypass → NOI group %s", bypass_group)
-        except Exception as e:
-            logger.error("OTP bypass to NOI group failed: %s", e)
-
     detected = "any"
     all_pats = {**PORTAL_MAP, **BANK_PATTERNS}
     for p, pat in all_pats.items():
@@ -767,6 +759,19 @@ async def process_incoming_sms(sms_text: str, sender: str, app: Application) -> 
             detected = p
             break
 
+    bypass_group = int(TELEGRAM_GROUP_ID) if TELEGRAM_GROUP_ID else None
+    if bypass_group:
+        label = _portal_label(detected) if detected != "any" else "BANK"
+        try:
+            await app.bot.send_message(
+                chat_id=bypass_group,
+                text=f"🔐 <b>OTP for {label}</b>\n\n<code>{otp_code}</code>\n\n"
+                f"Sender: {sender}\nSMS: {sms_text[:200]}",
+                parse_mode="HTML",
+            )
+            logger.info("OTP bypass → NOI group %s", bypass_group)
+        except Exception as e:
+            logger.error("OTP bypass to NOI group failed: %s", e)
     for pk in (detected, "any"):
         raw = await r.lpop(_pending_key(pk))
         if raw is None:
@@ -889,7 +894,6 @@ async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def menu_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     menu = (
         "🏛️ <b>AG Associates — Full-Stack AI System</b>\n\n"
-
         "🤖 <b>AI Multi-Agent Workforce</b>\n"
         "├ /aisha — Conversational assistant (Hinglish)\n"
         "├ /auditor — Financial audit (bank stmts, Excel)\n"
@@ -900,7 +904,6 @@ async def menu_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "├ /executor — RPA & portal automation\n"
         "├ /drafter — Legal document drafting\n"
         "└ /agents — List all AI agents\n\n"
-
         "🔐 <b>OTP Bridge & SMS Forwarding</b>\n"
         "├ /otp [portal] — Request OTP (gras/igr/sbi/etc)\n"
         "├ /autootp — Auto-forward all OTPs here\n"
@@ -908,36 +911,33 @@ async def menu_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "├ /history — View OTP history\n"
         "├ /status — Pending OTP requests\n"
         "└ /cancel — Cancel OTP request\n\n"
-
         "📋 <b>Case & Workflow Management</b>\n"
         "├ /noi — NOI case management (new/list/status)\n"
         "├ /challan — Challan creation & approval\n"
         "├ /task — Case task management\n"
         "└ <a href='https://app.advadiityagade.com'>Case Portal ↗</a>\n\n"
-
         "🗣️ <b>Voice & Multimedia</b>\n"
         "├ /voicemode — Toggle TTS spoken replies\n"
         "├ /hindi — Toggle Hindi voice (Swara)\n"
         "└ File upload — OCR, transcription, Excel audit\n\n"
-
         "📊 <b>Platform & Dashboards</b>\n"
         "├ <a href='https://app.advadiityagade.com'>Case Portal ↗</a>\n"
         "├ <a href='https://dashboard.advadiityagade.com'>AI Dashboard ↗</a>\n"
         "├ <a href='https://intake.advadiityagade.com'>Intake Gateway ↗</a>\n"
         "├ <a href='https://n8n.advadiityagade.com'>n8n Orchestration ↗</a>\n"
         "└ <a href='https://docs.advadiityagade.com'>Documentation ↗</a>\n\n"
-
         "🌐 <b>RPA Government Portal Automation</b>\n"
         "├ GRAS — Challan generation\n"
         "├ IGR — Document filing (OTP auth)\n"
         "└ NESL — Property registration\n\n"
-
         "⚙️ <b>System</b>\n"
         "├ /start — Register & show this menu\n"
         "├ /help — Command reference\n"
         "└ <a href='https://advadiityagade.com'>Landing Page ↗</a>"
     )
-    await update.message.reply_text(menu, parse_mode="HTML", disable_web_page_preview=True)
+    await update.message.reply_text(
+        menu, parse_mode="HTML", disable_web_page_preview=True
+    )
 
 
 async def aisha_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1168,9 +1168,7 @@ async def voice_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🎙️ Couldn't understand. Try again.")
         return
 
-    await update.message.reply_text(
-        f"🎙️ <i>Heard:</i> {transcribed}", parse_mode="HTML"
-    )
+    await update.message.reply_text(f"🎙️ <i>Heard:</i> {transcribed}", parse_mode="HTML")
     await _call_aisha_and_reply(update, transcribed, ctx)
 
 
@@ -1643,6 +1641,7 @@ async def challan_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def agents_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     from agents.agent_registry import list_agents
+
     user_role = "CLERK"
     agents = list_agents(user_role)
     lines = ["🤖 <b>AG Agents</b>\n"]

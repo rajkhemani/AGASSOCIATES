@@ -17,7 +17,6 @@ from __future__ import annotations
 import io
 import json
 import logging
-import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -27,6 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GeneratedOutput:
     """Output from the generator."""
+
     format: str  # text, json, pdf, audio
     text: str = ""
     data: bytes = b""
@@ -72,17 +72,13 @@ class OutputGenerator:
 
     # ── Formatters ───────────────────────────────────────────────────────
 
-    def _format_text(
-        self, text: str, data: Optional[dict] = None
-    ) -> GeneratedOutput:
+    def _format_text(self, text: str, data: Optional[dict] = None) -> GeneratedOutput:
         """Format as plain text (Telegram/WhatsApp)."""
         if data:
             text += "\n\n" + json.dumps(data, indent=2, ensure_ascii=False)
         return GeneratedOutput(format="text", text=text, mime_type="text/plain")
 
-    def _format_json(
-        self, text: str, data: Optional[dict] = None
-    ) -> GeneratedOutput:
+    def _format_json(self, text: str, data: Optional[dict] = None) -> GeneratedOutput:
         """Format as structured JSON."""
         result = {
             "response": text,
@@ -140,7 +136,9 @@ class OutputGenerator:
             )
             for para in text.split("\n\n"):
                 if para.strip():
-                    story.append(Paragraph(para.strip().replace("\n", "<br/>"), body_style))
+                    story.append(
+                        Paragraph(para.strip().replace("\n", "<br/>"), body_style)
+                    )
 
             doc.build(story)
             return GeneratedOutput(
