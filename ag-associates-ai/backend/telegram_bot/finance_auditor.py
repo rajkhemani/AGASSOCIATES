@@ -4,8 +4,10 @@ Detects document type, extracts transactions, runs audit checks,
 and returns a structured report.
 """
 
+import re
 import io
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -14,32 +16,10 @@ logger = logging.getLogger(__name__)
 # ── Column detection ─────────────────────────────────────────────────────
 
 _DATE_KEYWORDS = ["date", "transaction date", "value date", "txn date", "posting date"]
-_DESC_KEYWORDS = [
-    "description",
-    "narration",
-    "particulars",
-    "details",
-    "transaction",
-    "remarks",
-    "narrative",
-]
-_DEBIT_KEYWORDS = [
-    "debit",
-    "dr",
-    "withdrawal",
-    "withdrawn",
-    "paid",
-    "issue",
-    "debit amount",
-]
+_DESC_KEYWORDS = ["description", "narration", "particulars", "details", "transaction", "remarks", "narrative"]
+_DEBIT_KEYWORDS = ["debit", "dr", "withdrawal", "withdrawn", "paid", "issue", "debit amount"]
 _CREDIT_KEYWORDS = ["credit", "cr", "deposit", "deposited", "received", "credit amount"]
-_BALANCE_KEYWORDS = [
-    "balance",
-    "running balance",
-    "closing balance",
-    "available balance",
-    "bal",
-]
+_BALANCE_KEYWORDS = ["balance", "running balance", "closing balance", "available balance", "bal"]
 
 _RATIO_THRESHOLDS = {
     "current_ratio": {"min": 1.2, "max": 3.0},
@@ -75,7 +55,6 @@ def _parse_number(val: Any) -> Optional[float]:
 
 # ── Document type detection ──────────────────────────────────────────────
 
-
 def _detect_doc_type(headers: List[str], sample_rows: List[List]) -> str:
     hl = " ".join(str(h).lower() for h in headers)
 
@@ -94,35 +73,14 @@ def _detect_doc_type(headers: List[str], sample_rows: List[List]) -> str:
     if _find_col(headers, _BALANCE_KEYWORDS) is not None:
         score_bank += 1
 
-    bs_terms = [
-        "balance sheet",
-        "assets",
-        "liabilities",
-        "equity",
-        "property",
-        "plant",
-        "fixed asset",
-        "current asset",
-        "current liability",
-        "shareholder",
-    ]
+    bs_terms = ["balance sheet", "assets", "liabilities", "equity", "property", "plant",
+                 "fixed asset", "current asset", "current liability", "shareholder"]
     for t in bs_terms:
         if t in hl:
             score_bs += 1
 
-    pl_terms = [
-        "profit",
-        "loss",
-        "income",
-        "revenue",
-        "expense",
-        "statement",
-        "p&l",
-        "turnover",
-        "cost",
-        "gross",
-        "net profit",
-    ]
+    pl_terms = ["profit", "loss", "income", "revenue", "expense", "statement", "p&l",
+                "turnover", "cost", "gross", "net profit"]
     for t in pl_terms:
         if t in hl:
             score_pl += 1
@@ -137,7 +95,6 @@ def _detect_doc_type(headers: List[str], sample_rows: List[List]) -> str:
 
 
 # ── Bank statement auditor ───────────────────────────────────────────────
-
 
 def _audit_bank_statement(headers: List[str], rows: List[List]) -> Dict:
     date_col = _find_col(headers, _DATE_KEYWORDS)
@@ -165,21 +122,9 @@ def _audit_bank_statement(headers: List[str], rows: List[List]) -> Dict:
         if desc_col is not None:
             txn["desc"] = str(row[desc_col]).strip() if desc_col < len(row) else ""
 
-        debit = (
-            _parse_number(row[debit_col])
-            if debit_col is not None and debit_col < len(row)
-            else None
-        )
-        credit = (
-            _parse_number(row[credit_col])
-            if credit_col is not None and credit_col < len(row)
-            else None
-        )
-        balance = (
-            _parse_number(row[bal_col])
-            if bal_col is not None and bal_col < len(row)
-            else None
-        )
+        debit = _parse_number(row[debit_col]) if debit_col is not None and debit_col < len(row) else None
+        credit = _parse_number(row[credit_col]) if credit_col is not None and credit_col < len(row) else None
+        balance = _parse_number(row[bal_col]) if bal_col is not None and bal_col < len(row) else None
 
         if debit is not None and debit > 0:
             txn["debit"] = debit
@@ -201,16 +146,12 @@ def _audit_bank_statement(headers: List[str], rows: List[List]) -> Dict:
     # Running balance check
     if bal_col is not None and len(transactions) > 1:
         for i in range(1, len(transactions)):
-            expected = (
-                transactions[i - 1].get("balance", 0)
-                - transactions[i].get("debit", 0)
-                + transactions[i].get("credit", 0)
-            )
+            expected = (transactions[i - 1].get("balance", 0)
+                        - transactions[i].get("debit", 0)
+                        + transactions[i].get("credit", 0))
             actual = transactions[i].get("balance", 0)
             if expected and actual and abs(expected - actual) > 0.5:
-                anomalies.append(
-                    f"Balance mismatch on row {i + 2}: expected {expected:.2f}, got {actual:.2f}"
-                )
+                anomalies.append(f"Balance mismatch on row {i + 2}: expected {expected:.2f}, got {actual:.2f}")
 
     # Date range
     dates = [t.get("date", "") for t in transactions if t.get("date")]
@@ -218,22 +159,12 @@ def _audit_bank_statement(headers: List[str], rows: List[List]) -> Dict:
         date_range = (min(dates), max(dates))
 
     # Large transactions
-    large_threshold = (
-        max(total_credit, total_debit) * 0.1
-        if max(total_credit, total_debit) > 0
-        else 0
-    )
+    large_threshold = max(total_credit, total_debit) * 0.1 if max(total_credit, total_debit) > 0 else 0
     if large_threshold > 0:
-        large_txns = [
-            t
-            for t in transactions
-            if t.get("debit", 0) > large_threshold
-            or t.get("credit", 0) > large_threshold
-        ]
+        large_txns = [t for t in transactions
+                      if t.get("debit", 0) > large_threshold or t.get("credit", 0) > large_threshold]
         if len(large_txns) > 5:
-            anomalies.append(
-                f"{len(large_txns)} transactions exceed 10% of total volume"
-            )
+            anomalies.append(f"{len(large_txns)} transactions exceed 10% of total volume")
 
     net_flow = total_credit - total_debit
 
@@ -251,7 +182,6 @@ def _audit_bank_statement(headers: List[str], rows: List[List]) -> Dict:
 
 
 # ── Balance sheet auditor ────────────────────────────────────────────────
-
 
 def _audit_balance_sheet(headers: List[str], rows: List[List]) -> Dict:
     total_assets = 0.0
@@ -272,32 +202,9 @@ def _audit_balance_sheet(headers: List[str], rows: List[List]) -> Dict:
 
         # Detect section headers
         section_keywords = {
-            "assets": [
-                "asset",
-                "property",
-                "plant",
-                "equipment",
-                "investment",
-                "receivable",
-                "cash",
-                "inventory",
-            ],
-            "liabilities": [
-                "liabilit",
-                "loan",
-                "creditor",
-                "payable",
-                "debt",
-                "borrowing",
-            ],
-            "equity": [
-                "equity",
-                "capital",
-                "reserve",
-                "retained",
-                "shareholder",
-                "stock",
-            ],
+            "assets": ["asset", "property", "plant", "equipment", "investment", "receivable", "cash", "inventory"],
+            "liabilities": ["liabilit", "loan", "creditor", "payable", "debt", "borrowing"],
+            "equity": ["equity", "capital", "reserve", "retained", "shareholder", "stock"],
         }
 
         for section, kws in section_keywords.items():
@@ -329,12 +236,8 @@ def _audit_balance_sheet(headers: List[str], rows: List[List]) -> Dict:
 
     current_ratio = None
     debt_equity = None
-    current_assets = sum(
-        v for k, items in sections.items() if "asset" in k for _, v in items
-    )
-    current_liabilities = sum(
-        v for k, items in sections.items() if "liabilit" in k for _, v in items
-    )
+    current_assets = sum(v for k, items in sections.items() if "asset" in k for _, v in items)
+    current_liabilities = sum(v for k, items in sections.items() if "liabilit" in k for _, v in items)
     if current_liabilities > 0:
         current_ratio = round(current_assets / current_liabilities, 2)
     if total_equity > 0:
@@ -353,7 +256,6 @@ def _audit_balance_sheet(headers: List[str], rows: List[List]) -> Dict:
 
 
 # ── Profit & Loss auditor ────────────────────────────────────────────────
-
 
 def _audit_profit_loss(headers: List[str], rows: List[List]) -> Dict:
     total_income = 0.0
@@ -374,29 +276,9 @@ def _audit_profit_loss(headers: List[str], rows: List[List]) -> Dict:
             continue
 
         cat_keywords = {
-            "income": [
-                "income",
-                "revenue",
-                "sales",
-                "fee",
-                "interest",
-                "commission",
-                "gain",
-            ],
-            "expense": [
-                "expense",
-                "cost",
-                "salary",
-                "rent",
-                "utility",
-                "depreciation",
-                "maintenance",
-                "professional",
-                "legal",
-                "office",
-                "travel",
-                "insurance",
-            ],
+            "income": ["income", "revenue", "sales", "fee", "interest", "commission", "gain"],
+            "expense": ["expense", "cost", "salary", "rent", "utility", "depreciation",
+                        "maintenance", "professional", "legal", "office", "travel", "insurance"],
         }
 
         for cat, kws in cat_keywords.items():
@@ -416,17 +298,13 @@ def _audit_profit_loss(headers: List[str], rows: List[List]) -> Dict:
                 total_expenses += value
 
     net_profit = round(total_income - total_expenses, 2)
-    profit_margin = (
-        round((net_profit / total_income) * 100, 2) if total_income > 0 else None
-    )
+    profit_margin = round((net_profit / total_income) * 100, 2) if total_income > 0 else None
 
     anomalies = []
     if profit_margin is not None and profit_margin < 0:
         anomalies.append(f"Net loss: {abs(net_profit):.2f} (margin: {profit_margin}%)")
     if total_income > 0 and total_expenses > total_income * 0.95:
-        anomalies.append(
-            f"Expenses consume {round(total_expenses / total_income * 100, 1)}% of income — thin margin"
-        )
+        anomalies.append(f"Expenses consume {round(total_expenses/total_income*100, 1)}% of income — thin margin")
 
     return {
         "type": "profit_loss",
@@ -441,7 +319,6 @@ def _audit_profit_loss(headers: List[str], rows: List[List]) -> Dict:
 
 # ── General financial auditor ────────────────────────────────────────────
 
-
 def _audit_general(headers: List[str], rows: List[List]) -> Dict:
     numeric_cols = []
     for i, h in enumerate(headers):
@@ -454,19 +331,15 @@ def _audit_general(headers: List[str], rows: List[List]) -> Dict:
         vals = [_parse_number(r[col_idx]) for r in rows if col_idx < len(r)]
         vals = [v for v in vals if v is not None]
         if vals:
-            col_name = (
-                str(headers[col_idx]) if col_idx < len(headers) else f"Col{col_idx}"
-            )
-            summary.append(
-                {
-                    "column": col_name,
-                    "sum": round(sum(vals), 2),
-                    "avg": round(sum(vals) / len(vals), 2),
-                    "min": round(min(vals), 2),
-                    "max": round(max(vals), 2),
-                    "count": len(vals),
-                }
-            )
+            col_name = str(headers[col_idx]) if col_idx < len(headers) else f"Col{col_idx}"
+            summary.append({
+                "column": col_name,
+                "sum": round(sum(vals), 2),
+                "avg": round(sum(vals) / len(vals), 2),
+                "min": round(min(vals), 2),
+                "max": round(max(vals), 2),
+                "count": len(vals),
+            })
 
     return {
         "type": "general",
@@ -479,7 +352,6 @@ def _audit_general(headers: List[str], rows: List[List]) -> Dict:
 
 
 # ── Main entry point ─────────────────────────────────────────────────────
-
 
 def audit_excel(file_bytes: bytes, filename: str = "report.xlsx") -> str:
     """Analyze an Excel financial file and return a formatted audit report."""
@@ -521,19 +393,16 @@ def audit_excel(file_bytes: bytes, filename: str = "report.xlsx") -> str:
 
 # ── Formatting helpers ───────────────────────────────────────────────────
 
-
 def _fmt_bank_report(sheet: str, r: Dict) -> str:
     lines = [f"━━━ <b>Bank Statement</b>: {sheet} ━━━"]
     if r.get("date_range"):
         lines.append(f"📅 {r['date_range'][0]} → {r['date_range'][1]}")
-    lines.extend(
-        [
-            f"📝 Transactions: <b>{r['transactions']}</b>",
-            f"💰 Credits: <b>{r['total_credit']:,.2f}</b>",
-            f"💸 Debits:  <b>{r['total_debit']:,.2f}</b>",
-            f"📊 Net flow: <b>{r['net_flow']:+,.2f}</b>",
-        ]
-    )
+    lines.extend([
+        f"📝 Transactions: <b>{r['transactions']}</b>",
+        f"💰 Credits: <b>{r['total_credit']:,.2f}</b>",
+        f"💸 Debits:  <b>{r['total_debit']:,.2f}</b>",
+        f"📊 Net flow: <b>{r['net_flow']:+,.2f}</b>",
+    ])
     if r.get("min_balance") is not None:
         lines.append(f"📉 Min balance: {r['min_balance']:,.2f}")
     if r.get("max_balance") is not None:
@@ -547,23 +416,17 @@ def _fmt_bank_report(sheet: str, r: Dict) -> str:
 
 def _fmt_bs_report(sheet: str, r: Dict) -> str:
     lines = [f"━━━ <b>Balance Sheet</b>: {sheet} ━━━"]
-    lines.extend(
-        [
-            f"🏢 Assets:      <b>{r['total_assets']:,.2f}</b>",
-            f"📋 Liabilities: <b>{r['total_liabilities']:,.2f}</b>",
-            f"👥 Equity:      <b>{r['total_equity']:,.2f}</b>",
-        ]
-    )
+    lines.extend([
+        f"🏢 Assets:      <b>{r['total_assets']:,.2f}</b>",
+        f"📋 Liabilities: <b>{r['total_liabilities']:,.2f}</b>",
+        f"👥 Equity:      <b>{r['total_equity']:,.2f}</b>",
+    ])
     if r.get("current_ratio") is not None:
         status = "✅" if 1.2 <= r["current_ratio"] <= 3.0 else "⚠️"
-        lines.append(
-            f"{status} Current ratio: <b>{r['current_ratio']}</b> (healthy: 1.2–3.0)"
-        )
+        lines.append(f"{status} Current ratio: <b>{r['current_ratio']}</b> (healthy: 1.2–3.0)")
     if r.get("debt_equity_ratio") is not None:
         status = "✅" if r["debt_equity_ratio"] <= 2.0 else "⚠️"
-        lines.append(
-            f"{status} Debt/Equity: <b>{r['debt_equity_ratio']}</b> (healthy: ≤2.0)"
-        )
+        lines.append(f"{status} Debt/Equity: <b>{r['debt_equity_ratio']}</b> (healthy: ≤2.0)")
     lines.append(f"📦 Items: {r.get('item_count', '?')}")
     if r.get("anomalies"):
         lines.append(f"\n⚠️ <b>{len(r['anomalies'])} anomaly/ies:</b>")
@@ -574,13 +437,11 @@ def _fmt_bs_report(sheet: str, r: Dict) -> str:
 
 def _fmt_pl_report(sheet: str, r: Dict) -> str:
     lines = [f"━━━ <b>Profit & Loss</b>: {sheet} ━━━"]
-    lines.extend(
-        [
-            f"📈 Income:   <b>{r['total_income']:,.2f}</b>",
-            f"📉 Expenses: <b>{r['total_expenses']:,.2f}</b>",
-            f"🎯 Net:      <b>{r['net_profit']:+,.2f}</b>",
-        ]
-    )
+    lines.extend([
+        f"📈 Income:   <b>{r['total_income']:,.2f}</b>",
+        f"📉 Expenses: <b>{r['total_expenses']:,.2f}</b>",
+        f"🎯 Net:      <b>{r['net_profit']:+,.2f}</b>",
+    ])
     if r.get("profit_margin") is not None:
         status = "✅" if r["profit_margin"] > 0 else "⚠️"
         lines.append(f"{status} Margin: <b>{r['profit_margin']}%</b>")

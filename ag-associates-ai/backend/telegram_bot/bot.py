@@ -1,32 +1,20 @@
-"""Telegram Bot — OTP bridge + Multi-Agent AI + Voice mode + Auto-forward.
+"""Telegram Bot — OTP bridge + Aisha AI + Voice mode + Auto-forward.
 
-Agent Commands:
-  /auditor <query>    — Financial audit, bank statements, anomalies
-  /vyasa <query>        — Legal research, property law, compliance
-  /bouncer <query>    — Math validation, stamp duty calculations
-  /accountant <query> — Financial reports, billing, receivables
-  /noi <subcommand>   — NOI case management (new/list/status)
-  /noiagent <query>   — NOI workflow specialist (conversation)
-  /executor <query>   — RPA automation, portal operations
-  /drafter <query>    — Draft legal documents, agreements, notices
-  /agents             — List all available agents with RBAC
-  /agent <name> <msg> — Talk to any agent by name
-
-General:
+Commands:
   /start       — Register, show all features
   /help        — Command reference
-  /aisha       — Toggle Aisha chat mode
+  /aisha       — Toggle Aisha chat mode (text msgs → Aisha)
   /aisha <msg> — Ask Aisha directly
   /voicemode   — Toggle spoken voice replies (TTS)
   /hindi       — Toggle Hindi voice (hi-IN-SwaraNeural)
+  /audit       — Upload Excel for financial audit
   /otp         — Request next available OTP
+  /otp gras    — Request OTP for specific portal
   /autootp     — Auto-forward ALL incoming OTPs here
   /claim       — Claim orphan OTPs (no sender matched)
   /history     — View recent OTP history
   /status      — Show pending OTP requests
   /cancel      — Cancel my pending OTP request
-  /task        — Case task management
-  /challan     — Challan creation and approval
 
 Voice messages → always routed to Aisha (no /aisha toggle needed).
 Voice mode ON → Aisha replies with text + spoken voice (TTS).
@@ -36,32 +24,18 @@ import os
 import json
 import io
 import re
+import signal
 import logging
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from db import update_task_status
 import redis.asyncio as aioredis
-from db import (
-    create_case,
-    list_cases,
-    get_case,
-    update_case_status,
-    create_task,
-    list_tasks,
-    create_challan,
-    list_challans,
-    approve_challan,
-)
+from db import create_case, list_cases, get_case, update_case_status, create_task, list_tasks, create_challan, list_challans, approve_challan
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application,
-    CallbackQueryHandler,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
+    Application, CallbackQueryHandler, CommandHandler,
+    MessageHandler, ContextTypes, filters,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -70,7 +44,6 @@ logger = logging.getLogger(__name__)
 # ── Config ───────────────────────────────────────────────────────────────
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
 BOT_PORT = int(os.environ.get("TELEGRAM_BOT_PORT", "3003"))
@@ -80,7 +53,6 @@ AISHA_API_URL = os.environ.get("AISHA_API_URL", "http://localhost:8001/api/aisha
 AISHA_API_KEY = os.environ.get("N8N_WEBHOOK_KEY", "")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.groq.com/openai/v1")
-TELEGRAM_GROUP_ID = os.environ.get("TELEGRAM_GROUP_ID", "")
 
 OTP_TTL_SECONDS = 300
 SMS_INCOMING_KEY = "sms:incoming"
@@ -88,10 +60,6 @@ AUTOFORWARD_SET_KEY = "otp_autoforward"
 STAFF_SET_KEY = "otp_staff_registered"
 OTP_HISTORY_KEY = "otp_history"
 ORPHAN_KEY = "otp_orphans"
-
-AISHA_MODE_KEY = "bot:toggles:aisha"
-VOICE_MODE_KEY = "bot:toggles:voice"
-HINDI_KEY = "bot:toggles:hindi"
 
 RATE_LIMIT_SECONDS = 10
 _ratelimit: dict[int, float] = {}
@@ -103,7 +71,6 @@ TTSService = None
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
-
 
 def _is_aisha_mode(chat_id: int) -> bool:
     return chat_id in _aisha_chat_modes
@@ -123,69 +90,10 @@ async def get_redis() -> aioredis.Redis:
     global redis_client
     if redis_client is None:
         url = REDIS_URL
-        if REDIS_PASSWORD and "redis://" in url and ":@" not in url:
+        if REDIS_PASSWORD and "redis://" in url:
             url = url.replace("redis://", f"redis://:{REDIS_PASSWORD}@")
         redis_client = aioredis.from_url(url, decode_responses=True)
     return redis_client
-
-
-_listener_redis: Optional[aioredis.Redis] = None
-
-
-async def _get_listener_redis() -> aioredis.Redis:
-    global _listener_redis
-    if _listener_redis is None:
-        url = REDIS_URL
-        if REDIS_PASSWORD and "redis://" in url and ":@" not in url:
-            url = url.replace("redis://", f"redis://:{REDIS_PASSWORD}@")
-        _listener_redis = aioredis.from_url(
-            url, decode_responses=True,
-            socket_keepalive=True,
-            socket_connect_timeout=10,
-            socket_timeout=35,
-        )
-    return _listener_redis
-
-
-async def _load_toggles(r: aioredis.Redis):
-    """Load chat toggle modes from Redis into in-memory sets."""
-    global _aisha_chat_modes, _voice_mode_chats, _hindi_chats
-    for key, target in [
-        (AISHA_MODE_KEY, _aisha_chat_modes),
-        (VOICE_MODE_KEY, _voice_mode_chats),
-        (HINDI_KEY, _hindi_chats),
-    ]:
-        try:
-            members = await r.smembers(key)
-            target.clear()
-            for m in members:
-                try:
-                    target.add(int(m))
-                except (ValueError, TypeError):
-                    pass
-        except Exception as e:
-            logger.warning("Failed to load toggles from %s: %s", key, e)
-
-
-async def _save_toggle(key: str, chat_id: int, enabled: bool):
-    """Persist a single chat toggle to Redis."""
-    try:
-        r = await get_redis()
-        if enabled:
-            await r.sadd(key, str(chat_id))
-        else:
-            await r.srem(key, str(chat_id))
-    except Exception as e:
-        logger.warning("Failed to save toggle %s: %s", key, e)
-
-
-async def _load_all_toggles():
-    """Load all toggle sets from Redis into in-memory state."""
-    try:
-        r = await get_redis()
-        await _load_toggles(r)
-    except Exception:
-        logger.warning("Toggle loading skipped (Redis may be connecting)")
 
 
 def _pending_key(portal: str) -> str:
@@ -201,30 +109,18 @@ def _autoforward_key() -> str:
 
 
 PORTAL_LABELS = {
-    "idbi": "IDBI Bank",
-    "icici": "ICICI Bank",
-    "hdfc": "HDFC Bank",
-    "axis": "Axis Bank",
-    "sbi": "SBI",
-    "gras": "GRAS",
-    "igr": "IGR",
-    "cersai": "CERSAI",
-    "noc": "NOC",
+    "idbi": "IDBI Bank", "icici": "ICICI Bank", "hdfc": "HDFC Bank",
+    "axis": "Axis Bank", "sbi": "SBI",
+    "gras": "GRAS", "igr": "IGR", "cersai": "CERSAI", "noc": "NOC",
 }
 
 BANK_PATTERNS = {
-    "idbi": r"\bIDBI\b",
-    "icici": r"\bICICI\b",
-    "hdfc": r"\bHDFC\b",
-    "axis": r"\bAxis\b",
-    "sbi": r"\bSBI\b",
+    "idbi": r"\bIDBI\b", "icici": r"\bICICI\b",
+    "hdfc": r"\bHDFC\b", "axis": r"\bAxis\b", "sbi": r"\bSBI\b",
 }
 PORTAL_MAP = {
-    "gras": r"\bGRAS\b",
-    "igr": r"\bIGR\b",
-    "cersai": r"\bCERSAI\b",
-    "sbi": r"\bSBI\b",
-    "noc": r"\bNOC\b",
+    "gras": r"\bGRAS\b", "igr": r"\bIGR\b",
+    "cersai": r"\bCERSAI\b", "sbi": r"\bSBI\b", "noc": r"\bNOC\b",
 }
 
 
@@ -235,7 +131,7 @@ def _portal_label(portal: str) -> str:
 async def _send_text(update: Update, text: str, parse_mode: str = "HTML"):
     if len(text) > 4000:
         for i in range(0, len(text), 4000):
-            await update.message.reply_text(text[i : i + 4000], parse_mode=parse_mode)
+            await update.message.reply_text(text[i:i + 4000], parse_mode=parse_mode)
     else:
         await update.message.reply_text(text, parse_mode=parse_mode)
 
@@ -252,20 +148,14 @@ async def _reply_with_voice(update: Update, text: str, ctx: ContextTypes.DEFAULT
 
 # ── Aisha API ────────────────────────────────────────────────────────────
 
-
 async def _call_aisha_api(message: str, chat_id: int, username: str) -> Optional[str]:
     import httpx
-
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
                 AISHA_API_URL,
-                json={
-                    "message": message,
-                    "platform": "telegram",
-                    "platform_identity": str(chat_id),
-                    "display_name": username,
-                },
+                json={"message": message, "platform": "telegram",
+                       "platform_identity": str(chat_id), "display_name": username},
                 headers={"x-api-key": AISHA_API_KEY} if AISHA_API_KEY else {},
             )
             resp.raise_for_status()
@@ -278,9 +168,7 @@ async def _call_aisha_api(message: str, chat_id: int, username: str) -> Optional
         return None
 
 
-async def _call_aisha_and_reply(
-    update: Update, text: str, ctx: ContextTypes.DEFAULT_TYPE
-):
+async def _call_aisha_and_reply(update: Update, text: str, ctx: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     identity = update.effective_user.username or str(chat_id)
     await update.message.reply_chat_action("typing")
@@ -291,406 +179,55 @@ async def _call_aisha_and_reply(
         await update.message.reply_text("❌ Aisha is unavailable. Try later.")
 
 
-# ── Agent command helper ────────────────────────────────────────────────
+# ── Excel audit ──────────────────────────────────────────────────────────
 
-
-async def _handle_agent_command(
-    update: Update,
-    ctx: ContextTypes.DEFAULT_TYPE,
-    agent_name: str,
-    display_name: str,
-    emoji: str = "🤖",
-):
-    if not ctx.args:
-        await update.message.reply_text(
-            f"{emoji} <b>{display_name}</b>\n\n"
-            f"Usage: /{agent_name} &lt;your question&gt;\n"
-            f"Example: /{agent_name} is property ke liye kya compliance chahiye?\n\n"
-            f"Or just describe your query and I'll help you.",
-            parse_mode="HTML",
-        )
-        return
-
-    message = " ".join(ctx.args)
-
-    agent = get_agent(agent_name)
-    if not agent:
-        await update.message.reply_text(
-            f"❌ {display_name} agent unavailable. Try /agent {agent_name} &lt;message&gt;"
-        )
-        return
-
-    await update.message.reply_chat_action("typing")
+async def audit_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        f"{emoji} <b>{display_name}</b> soch raha hai...", parse_mode="HTML"
+        "📊 <b>Financial Auditor</b>\n\n"
+        "Send me an Excel file (.xlsx) and I'll analyze it:\n"
+        "• Bank statements → transactions, balances, anomalies\n"
+        "• Balance sheets → A=L+E check, ratios\n"
+        "• Profit & Loss → margins, trends\n"
+        "• Any financial sheet → numeric summary\n\n"
+        "Just upload the file or forward it here.",
+        parse_mode="HTML",
     )
-
-    try:
-        user_role = "CLERK"
-        response = await agent.process_request(
-            user_message=message,
-            user_id=str(update.effective_chat.id),
-            user_role=user_role,
-        )
-        if response:
-            text = response.text
-            if len(text) > 4000:
-                for i in range(0, len(text), 4000):
-                    await update.message.reply_text(
-                        text[i : i + 4000], parse_mode="HTML"
-                    )
-            else:
-                await update.message.reply_text(text, parse_mode="HTML")
-        else:
-            await update.message.reply_text(f"{emoji} Koi response nahi mila.")
-    except Exception as e:
-        logger.error("Agent %s command error: %s", agent_name, e)
-        await update.message.reply_text(f"❌ {display_name} error: {e}")
-
-
-# ── Agent-specific commands ─────────────────────────────────────────────
-
-
-async def auditor_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _handle_agent_command(update, ctx, "auditor", "Auditor", "📊")
-
-
-async def vyasa_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _handle_agent_command(update, ctx, "vyasa", "Vyasa", "⚖️")
-
-
-async def bouncer_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _handle_agent_command(update, ctx, "bouncer", "Bouncer", "🧮")
-
-
-async def accountant_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _handle_agent_command(update, ctx, "accountant", "Accountant", "💰")
-
-
-async def noi_agent_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _handle_agent_command(update, ctx, "noi", "NOI Specialist", "📋")
-
-
-async def executor_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _handle_agent_command(update, ctx, "executor", "Executor", "⚡")
-
-
-async def drafter_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _handle_agent_command(update, ctx, "drafter", "Drafter", "📝")
-
-
-async def supervisor_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Route user message through the Supervisor agent → auto-routes to specialist."""
-    if not ctx.args:
-        await update.message.reply_text(
-            "🧠 <b>Supervisor</b>\n\n"
-            "Main aapka AI Chief of Staff hoon. Aapke query ko padhkar sahi specialist agent ko route karta hoon.\n\n"
-            "Usage: /supervisor <your query>\n"
-            "Example: /supervisor property registration ke liye kya karna hai?\n\n"
-            "Ya phir sirf /supervisor se specialist agents ki list dekh sakte hain.",
-            parse_mode="HTML",
-        )
-        return
-
-    message = " ".join(ctx.args)
-    await update.message.reply_chat_action("typing")
-    await update.message.reply_text("🧠 Supervisor analysis kar raha hai...", parse_mode="HTML")
-
-    try:
-        api_key = os.environ.get("N8N_WEBHOOK_KEY", "")
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{AI_BACKEND_URL}/api/supervisor/route",
-                json={
-                    "message": message,
-                    "platform": "telegram",
-                    "platform_identity": str(update.effective_chat.id),
-                    "display_name": update.effective_chat.first_name or "",
-                },
-                headers={"x-api-key": api_key} if api_key else {},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-        text = data.get("response", "")
-        if text:
-            chunks = [text[i : i + 4000] for i in range(0, len(text), 4000)]
-            for chunk in chunks:
-                await update.message.reply_text(chunk, parse_mode="HTML")
-        else:
-            await update.message.reply_text(
-                "🤖 Aapke query ke liye koi specialist agent nahi mila. "
-                "Aisha se baat kar raha hoon..."
-            )
-    except Exception as e:
-        logger.error("Supervisor command error: %s", e)
-        await update.message.reply_text(f"❌ Supervisor error: {e}")
-
-
-# ── Analyze & Research commands ────────────────────────────────────────
-
-
-async def analyze_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Analyze a file (image/PDF/Excel) using any-to-any input router."""
-    if not ctx.args:
-        await update.message.reply_text(
-            "🔍 <b>Analyze</b> — Send me a file to analyze\n\n"
-            "Usage:\n"
-            "  • Reply to a file with /analyze\n"
-            "  • Or send /analyze followed by a description\n"
-            "  • Send a photo, PDF, or Excel file and I'll analyze it\n\n"
-            "Example: /analyze Tell me about this rental agreement",
-            parse_mode="HTML",
-        )
-        return
-
-    message = " ".join(ctx.args)
-    reply = update.message.reply_to_message
-    file_bytes = None
-    filename = ""
-
-    if reply and reply.document:
-        doc = reply.document
-        await update.message.reply_chat_action("typing")
-        await update.message.reply_text("🔍 Analyzing file...")
-        f = await ctx.bot.get_file(doc.file_id)
-        file_bytes = await f.download_as_bytearray()
-        filename = doc.file_name or "file"
-    elif reply and reply.photo:
-        photo = reply.photo[-1]
-        await update.message.reply_chat_action("typing")
-        await update.message.reply_text("🖼️ Analyzing image...")
-        f = await ctx.bot.get_file(photo.file_id)
-        file_bytes = await f.download_as_bytearray()
-        filename = "photo.jpg"
-    else:
-        await update.message.reply_text(
-            "Please reply to a file/photo with /analyze, or send /research for text-only research."
-        )
-        return
-
-    try:
-        from agents.input_router import AnyInputRouter
-        from agents.output_generator import OutputGenerator
-
-        router = AnyInputRouter()
-        result = await router.process(
-            file_bytes=bytes(file_bytes), filename=filename
-        )
-
-        if result.agent_name == "reasoner":
-            from agents.reasoner import reasoner as r_agent
-            response = await r_agent.process_request(
-                user_message=f"{message}\n\nFile content:\n{result.extracted_text[:3000]}",
-                user_id=str(update.effective_chat.id),
-            )
-        else:
-            agent = get_agent(result.agent_name)
-            if agent:
-                response = await agent.process_request(
-                    user_message=f"{message}\n\nFile content:\n{result.extracted_text[:3000]}",
-                    user_id=str(update.effective_chat.id),
-                )
-            else:
-                response = None
-
-        if response:
-            text = (
-                f"📄 <b>Analysis</b> ({result.input_type}) → {result.content_type}\n\n"
-                f"{response.text}"
-            )
-            _send_long_message(update, text)
-        else:
-            await update.message.reply_text(
-                f"📄 Extracted text ({result.content_type}):\n\n"
-                f"{result.extracted_text[:3500]}",
-                parse_mode="HTML",
-            )
-    except Exception as e:
-        logger.error("Analyze error: %s", e)
-        await update.message.reply_text(f"❌ Analysis error: {e}")
-
-
-async def research_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Deep legal research using the Vyasa Reasoner agent."""
-    if not ctx.args:
-        await update.message.reply_text(
-            "🧠 <b>Deep Research</b> — Vyasa Reasoner\n\n"
-            "Multi-step legal reasoning with knowledge base search, "
-            "cross-referencing, and citation generation.\n\n"
-            "Usage: /research &lt;your legal question&gt;\n"
-            "Example: /research Is 3-month notice required for all Maharashtra rent agreements?",
-            parse_mode="HTML",
-        )
-        return
-
-    message = " ".join(ctx.args)
-    await update.message.reply_chat_action("typing")
-    await update.message.reply_text(
-        "🧠 Vyasa Deep Reasoner soch raha hai... (multi-step reasoning)"
-    )
-
-    try:
-        reasoner = get_agent("reasoner")
-        if not reasoner:
-            from agents.reasoner import reasoner as r
-            reasoner = r
-
-        response = await reasoner.process_request(
-            user_message=message,
-            user_id=str(update.effective_chat.id),
-        )
-
-        if response:
-            if response.thinking:
-                text = (
-                    f"🧠 <b>Reasoning Process:</b>\n\n"
-                    f"{response.thinking[:1500]}\n\n"
-                    f"━━━━━━━━━━━━━━━━━━\n\n"
-                    f"📋 <b>Conclusion:</b>\n{response.text}"
-                )
-            else:
-                text = response.text
-            _send_long_message(update, text)
-        else:
-            await update.message.reply_text("🧠 Koi response nahi mila.")
-    except Exception as e:
-        logger.error("Research error: %s", e)
-        await update.message.reply_text(f"❌ Research error: {e}")
-
-
-async def reasoner_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Direct access to the Vyasa Reasoner agent."""
-    await _handle_agent_command(update, ctx, "reasoner", "Reasoner", "🧠")
-
-
-def _send_long_message(update: Update, text: str):
-    """Helper: send text split into 3900-char chunks."""
-    for i in range(0, len(text), 3900):
-        chunk = text[i : i + 3900]
-        asyncio.create_task(update.message.reply_text(chunk, parse_mode="HTML"))
-
-
-# ── Multi-modal handlers ─────────────────────────────────────────────────
-
-
-async def photo_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    photo = update.message.photo[-1]
-    if not photo:
-        return
-
-    await update.message.reply_chat_action("typing")
-    await update.message.reply_text("🖼️ Processing image...")
-
-    f = await ctx.bot.get_file(photo.file_id)
-    file_bytes = await f.download_as_bytearray()
-
-    try:
-        from media.processors import process_image
-
-        text = await process_image(bytes(file_bytes), "image.jpg")
-        if text:
-            await update.message.reply_text(
-                f"📄 <b>Image Analysis</b>\n\n{text}", parse_mode="HTML"
-            )
-        else:
-            await update.message.reply_text("Could not extract text from this image.")
-    except Exception as e:
-        logger.error("Photo handler error: %s", e)
-        await update.message.reply_text(f"❌ Image processing error: {e}")
 
 
 async def document_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     doc = update.message.document
     if not doc:
         return
+    if not doc.file_name or not doc.file_name.lower().endswith((".xlsx", ".xls")):
+        await update.message.reply_text("Please send an .xlsx or .xls file.")
+        return
 
     await update.message.reply_chat_action("typing")
-    await update.message.reply_text("📄 Processing...")
+    await update.message.reply_text("📊 Analyzing...")
 
     f = await ctx.bot.get_file(doc.file_id)
     file_bytes = await f.download_as_bytearray()
-    filename = doc.file_name or "file"
-    mime = doc.mime_type or ""
 
-    # Route Excel files to auditor agent if available, else use finance_auditor
-    if filename.lower().endswith((".xlsx", ".xls", ".csv")):
-        try:
-            from agents.auditor.agent import auditor
-
-            result = await auditor.handle_file(
-                bytes(file_bytes), filename, str(update.effective_chat.id)
-            )
-            if result:
-                text = result.text
-                if len(text) > 4000:
-                    for i in range(0, len(text), 4000):
-                        await update.message.reply_text(
-                            text[i : i + 4000], parse_mode="HTML"
-                        )
-                else:
-                    await update.message.reply_text(text, parse_mode="HTML")
-                return
-        except ImportError:
-            pass
-
-        # Fallback: existing finance_auditor
-        try:
-            from finance_auditor import audit_excel
-
-            report = audit_excel(bytes(file_bytes), filename)
-            if len(report) > 4000:
-                for i in range(0, len(report), 4000):
-                    await update.message.reply_text(
-                        report[i : i + 4000], parse_mode="HTML"
-                    )
-            else:
-                await update.message.reply_text(report, parse_mode="HTML")
-            return
-        except Exception as e:
-            logger.error("Audit fallback error: %s", e)
-            await update.message.reply_text(f"❌ Audit failed: {e}")
-            return
-
-    # Route all other file types through multi-modal pipeline
     try:
-        from media.router import process_file
-
-        text = await process_file(bytes(file_bytes), filename, mime)
-        if not text:
-            await update.message.reply_text(
-                "❌ Could not extract content from this file."
-            )
-            return
-
-        # If the content is long, send truncated
-        if len(text) > 4000:
-            preview = text[:3500] + "\n\n... (truncated)"
-            await update.message.reply_text(
-                f"📄 <b>Extracted from {filename}</b>\n\n<pre>{preview}</pre>",
-                parse_mode="HTML",
-            )
+        from finance_auditor import audit_excel
+        report = audit_excel(bytes(file_bytes), doc.file_name)
+        if len(report) > 4000:
+            for i in range(0, len(report), 4000):
+                await update.message.reply_text(report[i:i + 4000], parse_mode="HTML")
         else:
-            await update.message.reply_text(
-                f"📄 <b>Extracted from {filename}</b>\n\n<pre>{text}</pre>",
-                parse_mode="HTML",
-            )
-    except ImportError:
-        await update.message.reply_text("Multi-modal processing unavailable.")
+            await update.message.reply_text(report, parse_mode="HTML")
     except Exception as e:
-        logger.error("Document handler error: %s", e)
-        await update.message.reply_text(f"❌ Processing error: {e}")
+        logger.error("Audit error: %s", e)
+        await update.message.reply_text(f"❌ Audit failed: {e}")
 
 
 # ── TTS ──────────────────────────────────────────────────────────────────
-
 
 async def _synthesize_speech(text: str, lang: str = "en") -> Optional[bytes]:
     global TTSService
     if TTSService is None:
         try:
             import edge_tts
-
             TTSService = edge_tts
         except ImportError:
             return None
@@ -709,26 +246,17 @@ async def _synthesize_speech(text: str, lang: str = "en") -> Optional[bytes]:
 
 # ── OTP delivery ─────────────────────────────────────────────────────────
 
-
-async def deliver_otp(
-    chat_id: int, portal: str, otp_code: str, app: Application
-) -> bool:
+async def deliver_otp(chat_id: int, portal: str, otp_code: str, app: Application) -> bool:
     label = _portal_label(portal)
-    kb = InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton("✅ Received", callback_data="otp_done"),
-                InlineKeyboardButton(
-                    "🔄 Resend", callback_data=f"otp_resend:{portal}:{otp_code}"
-                ),
-            ]
-        ]
-    )
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Received", callback_data="otp_done"),
+         InlineKeyboardButton("🔄 Resend", callback_data=f"otp_resend:{portal}:{otp_code}")]
+    ])
     try:
         await app.bot.send_message(
             chat_id=chat_id,
             text=f"🔐 <b>OTP for {label}</b>\n\n<code>{otp_code}</code>\n\n"
-            f"Expires in 5 minutes.",
+                 f"Expires in 5 minutes.",
             parse_mode="HTML",
             reply_markup=kb,
         )
@@ -741,24 +269,10 @@ async def deliver_otp(
 
 async def process_incoming_sms(sms_text: str, sender: str, app: Application) -> bool:
     r = await get_redis()
-    otp_match = re.search(r"\b(\d{4,8})\b", sms_text)
+    otp_match = re.search(r'\b(\d{4,8})\b', sms_text)
     if not otp_match:
         return False
     otp_code = otp_match.group(1)
-
-    bypass_group = int(TELEGRAM_GROUP_ID) if TELEGRAM_GROUP_ID else None
-    if bypass_group:
-        label = _portal_label(detected) if detected != "any" else "BANK"
-        try:
-            await app.bot.send_message(
-                chat_id=bypass_group,
-                text=f"🔐 <b>OTP for {label}</b>\n\n<code>{otp_code}</code>\n\n"
-                     f"Sender: {sender}\nSMS: {sms_text[:200]}",
-                parse_mode="HTML",
-            )
-            logger.info("OTP bypass → NOI group %s", bypass_group)
-        except Exception as e:
-            logger.error("OTP bypass to NOI group failed: %s", e)
 
     detected = "any"
     all_pats = {**PORTAL_MAP, **BANK_PATTERNS}
@@ -775,19 +289,11 @@ async def process_incoming_sms(sms_text: str, sender: str, app: Application) -> 
             req = json.loads(raw)
             cid = int(req["chat_id"])
             ok = await deliver_otp(cid, detected, otp_code, app)
-            await r.rpush(
-                OTP_HISTORY_KEY,
-                json.dumps(
-                    {
-                        "ts": datetime.now(timezone.utc).isoformat(),
-                        "chat_id": cid,
-                        "portal": detected,
-                        "otp": otp_code[:4] + "***",
-                        "sender": sender,
-                        "delivered": ok,
-                    }
-                ),
-            )
+            await r.rpush(OTP_HISTORY_KEY, json.dumps({
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "chat_id": cid, "portal": detected, "otp": otp_code[:4] + "***",
+                "sender": sender, "delivered": ok,
+            }))
             await r.ltrim(OTP_HISTORY_KEY, -200, -1)
             return ok
         except (json.JSONDecodeError, KeyError, ValueError):
@@ -805,18 +311,11 @@ async def process_incoming_sms(sms_text: str, sender: str, app: Application) -> 
                 continue
         return ok
 
-    await r.rpush(
-        ORPHAN_KEY,
-        json.dumps(
-            {
-                "otp": otp_code,
-                "portal": detected,
-                "ts": datetime.now(timezone.utc).isoformat(),
-                "sender": sender,
-                "sms": sms_text[:100],
-            }
-        ),
-    )
+    await r.rpush(ORPHAN_KEY, json.dumps({
+        "otp": otp_code, "portal": detected,
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "sender": sender, "sms": sms_text[:100],
+    }))
     await r.expire(ORPHAN_KEY, 3600)
     return False
 
@@ -829,43 +328,26 @@ async def sms_webhook_handler(body: dict, app: Application):
 
 # ── Commands ─────────────────────────────────────────────────────────────
 
-
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cid = update.effective_chat.id
     user = update.effective_user.username or str(cid)
     r = await get_redis()
-    await r.hset(
-        _staff_key(cid),
-        mapping={
-            "chat_id": str(cid),
-            "username": user,
-            "registered_at": datetime.now(timezone.utc).isoformat(),
-        },
-    )
+    await r.hset(_staff_key(cid), mapping={
+        "chat_id": str(cid), "username": user,
+        "registered_at": datetime.now(timezone.utc).isoformat(),
+    })
     await r.sadd(STAFF_SET_KEY, str(cid))
 
-    kb = InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    "🤖 Chat with Aisha", callback_data="aisha_toggle"
-                ),
-                InlineKeyboardButton("🔊 Voice", callback_data="voice_toggle"),
-            ],
-            [
-                InlineKeyboardButton("🇮🇳 Hindi Voice", callback_data="hindi_toggle"),
-                InlineKeyboardButton("🔄 Auto-OTP", callback_data="autootp_toggle"),
-            ],
-            [
-                InlineKeyboardButton("🔐 OTP Menu", callback_data="otp_menu"),
-                InlineKeyboardButton("📋 Claim", callback_data="claim"),
-            ],
-            [
-                InlineKeyboardButton("📜 History", callback_data="history"),
-                InlineKeyboardButton("❓ Help", callback_data="help"),
-            ],
-        ]
-    )
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤖 Chat with Aisha", callback_data="aisha_toggle"),
+         InlineKeyboardButton("🔊 Voice", callback_data="voice_toggle")],
+        [InlineKeyboardButton("🇮🇳 Hindi Voice", callback_data="hindi_toggle"),
+         InlineKeyboardButton("🔄 Auto-OTP", callback_data="autootp_toggle")],
+        [InlineKeyboardButton("🔐 OTP Menu", callback_data="otp_menu"),
+         InlineKeyboardButton("📋 Claim", callback_data="claim")],
+        [InlineKeyboardButton("📜 History", callback_data="history"),
+         InlineKeyboardButton("❓ Help", callback_data="help")],
+    ])
     await update.message.reply_text(
         f"✅ Registered <b>{user}</b>\n\n"
         "<b>Key commands:</b>\n"
@@ -877,67 +359,30 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/claim — Claim orphan OTPs\n"
         "/history — View recent OTPs\n\n"
         "<i>Send a voice message anytime to talk hands-free.</i>",
-        parse_mode="HTML",
-        reply_markup=kb,
+        parse_mode="HTML", reply_markup=kb,
     )
 
 
 async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await menu_command(update, ctx)
-
-
-async def menu_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    menu = (
-        "🏛️ <b>AG Associates — Full-Stack AI System</b>\n\n"
-
-        "🤖 <b>AI Multi-Agent Workforce</b>\n"
-        "├ /aisha — Conversational assistant (Hinglish)\n"
-        "├ /auditor — Financial audit (bank stmts, Excel)\n"
-        "├ /vyasa — Legal research & compliance\n"
-        "├ /bouncer — Math & stamp duty validation\n"
-        "├ /accountant — Financial reports & billing\n"
-        "├ /noiagent — NOI workflow specialist\n"
-        "├ /executor — RPA & portal automation\n"
-        "├ /drafter — Legal document drafting\n"
-        "└ /agents — List all AI agents\n\n"
-
-        "🔐 <b>OTP Bridge & SMS Forwarding</b>\n"
-        "├ /otp [portal] — Request OTP (gras/igr/sbi/etc)\n"
-        "├ /autootp — Auto-forward all OTPs here\n"
-        "├ /claim — Claim orphan OTPs\n"
-        "├ /history — View OTP history\n"
-        "├ /status — Pending OTP requests\n"
-        "└ /cancel — Cancel OTP request\n\n"
-
-        "📋 <b>Case & Workflow Management</b>\n"
-        "├ /noi — NOI case management (new/list/status)\n"
-        "├ /challan — Challan creation & approval\n"
-        "├ /task — Case task management\n"
-        "└ <a href='https://app.advadiityagade.com'>Case Portal ↗</a>\n\n"
-
-        "🗣️ <b>Voice & Multimedia</b>\n"
-        "├ /voicemode — Toggle TTS spoken replies\n"
-        "├ /hindi — Toggle Hindi voice (Swara)\n"
-        "└ File upload — OCR, transcription, Excel audit\n\n"
-
-        "📊 <b>Platform & Dashboards</b>\n"
-        "├ <a href='https://app.advadiityagade.com'>Case Portal ↗</a>\n"
-        "├ <a href='https://dashboard.advadiityagade.com'>AI Dashboard ↗</a>\n"
-        "├ <a href='https://intake.advadiityagade.com'>Intake Gateway ↗</a>\n"
-        "├ <a href='https://n8n.advadiityagade.com'>n8n Orchestration ↗</a>\n"
-        "└ <a href='https://docs.advadiityagade.com'>Documentation ↗</a>\n\n"
-
-        "🌐 <b>RPA Government Portal Automation</b>\n"
-        "├ GRAS — Challan generation\n"
-        "├ IGR — Document filing (OTP auth)\n"
-        "└ NESL — Property registration\n\n"
-
-        "⚙️ <b>System</b>\n"
-        "├ /start — Register & show this menu\n"
-        "├ /help — Command reference\n"
-        "└ <a href='https://advadiityagade.com'>Landing Page ↗</a>"
+    cmds = [
+        ("/start", "Register, show menu"),
+        ("/help", "This help"),
+        ("/aisha [msg]", "Toggle Aisha mode or ask one-off"),
+        ("/voicemode", "Toggle spoken TTS replies"),
+        ("/hindi", "Toggle Hindi voice (Swara)"),
+        ("/otp [portal]", "Request OTP (gras/igr/cersai/sbi/noc)"),
+        ("/autootp", "Auto-forward all OTPs here"),
+        ("/claim", "Claim orphan OTPs"),
+        ("/history", "Recent OTP history"),
+        ("/status", "Pending OTP requests"),
+        ("/cancel", "Cancel OTP request"),
+        ("/audit", "Upload Excel for financial audit"),
+    ]
+    lines = [f"<b>{c}</b> — {d}" for c, d in cmds]
+    await update.message.reply_text(
+        "🤖 <b>AG Bot Commands</b>\n\n" + "\n".join(lines),
+        parse_mode="HTML",
     )
-    await update.message.reply_text(menu, parse_mode="HTML", disable_web_page_preview=True)
 
 
 async def aisha_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -948,11 +393,9 @@ async def aisha_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     if cid in _aisha_chat_modes:
         _aisha_chat_modes.discard(cid)
-        await _save_toggle(AISHA_MODE_KEY, cid, False)
         await update.message.reply_text("🚫 Aisha mode off.")
     else:
         _aisha_chat_modes.add(cid)
-        await _save_toggle(AISHA_MODE_KEY, cid, True)
         await update.message.reply_text("✅ Aisha mode on! Send any message.")
 
 
@@ -960,11 +403,9 @@ async def voicemode_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cid = update.effective_chat.id
     if cid in _voice_mode_chats:
         _voice_mode_chats.discard(cid)
-        await _save_toggle(VOICE_MODE_KEY, cid, False)
         await update.message.reply_text("🔇 Voice replies off.")
     else:
         _voice_mode_chats.add(cid)
-        await _save_toggle(VOICE_MODE_KEY, cid, True)
         await update.message.reply_text("🔊 Voice replies on! Aisha speaks back.")
 
 
@@ -972,11 +413,9 @@ async def hindi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cid = update.effective_chat.id
     if cid in _hindi_chats:
         _hindi_chats.discard(cid)
-        await _save_toggle(HINDI_KEY, cid, False)
         await update.message.reply_text("🇮🇳 Hindi voice off. Using English voice.")
     else:
         _hindi_chats.add(cid)
-        await _save_toggle(HINDI_KEY, cid, True)
         await update.message.reply_text(
             "🇮🇳 <b>Hindi voice on!</b> 🎤\n\n"
             "Aisha will speak in <b>Hindi</b> (female voice).\n"
@@ -997,25 +436,16 @@ async def request_otp(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     valid = ("any", "gras", "igr", "cersai", "sbi", "noc")
     if portal not in valid:
         await update.message.reply_text(
-            f"❌ Unknown portal. Supported: {', '.join(valid)}"
-        )
+            f"❌ Unknown portal. Supported: {', '.join(valid)}")
         return
 
     r = await get_redis()
-    await r.rpush(
-        _pending_key(portal),
-        json.dumps(
-            {
-                "chat_id": cid,
-                "portal": portal,
-                "ts": datetime.now(timezone.utc).isoformat(),
-            }
-        ),
-    )
+    await r.rpush(_pending_key(portal), json.dumps({
+        "chat_id": cid, "portal": portal,
+        "ts": datetime.now(timezone.utc).isoformat(),
+    }))
     await r.expire(_pending_key(portal), OTP_TTL_SECONDS)
-    await update.message.reply_text(
-        f"⏳ OTP requested for <b>{portal}</b>.", parse_mode="HTML"
-    )
+    await update.message.reply_text(f"⏳ OTP requested for <b>{portal}</b>.", parse_mode="HTML")
 
 
 async def claim_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1038,9 +468,7 @@ async def claim_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         except (json.JSONDecodeError, KeyError):
             continue
 
-    await update.message.reply_text(
-        f"✅ Claimed <b>{claimed}</b> orphan OTP(s).", parse_mode="HTML"
-    )
+    await update.message.reply_text(f"✅ Claimed <b>{claimed}</b> orphan OTP(s).", parse_mode="HTML")
 
 
 async def history_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1083,9 +511,7 @@ async def status_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not lines:
         await update.message.reply_text("📭 No pending OTP requests.")
     else:
-        await update.message.reply_text(
-            "📋 <b>Your pending requests:</b>\n" + "\n".join(lines), parse_mode="HTML"
-        )
+        await update.message.reply_text("📋 <b>Your pending requests:</b>\n" + "\n".join(lines), parse_mode="HTML")
 
 
 async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1116,16 +542,11 @@ async def autootp_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🚫 Auto-OTP off.")
     else:
         await r.sadd(_autoforward_key(), str(cid))
-        kind = (
-            "group" if update.effective_chat.type in ("group", "supergroup") else "chat"
-        )
-        await update.message.reply_text(
-            f"✅ Auto-OTP on! All OTPs forwarded to this {kind}."
-        )
+        kind = "group" if update.effective_chat.type in ("group", "supergroup") else "chat"
+        await update.message.reply_text(f"✅ Auto-OTP on! All OTPs forwarded to this {kind}.")
 
 
 # ── Message handlers ─────────────────────────────────────────────────────
-
 
 async def aisha_message_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not _is_aisha_mode(update.effective_chat.id):
@@ -1140,13 +561,13 @@ async def voice_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not voice:
         return
 
+    cid = update.effective_chat.id
     await update.message.reply_chat_action("typing")
 
     f = await ctx.bot.get_file(voice.file_id)
     audio = await f.download_as_bytearray()
 
     import httpx
-
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
@@ -1168,14 +589,11 @@ async def voice_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🎙️ Couldn't understand. Try again.")
         return
 
-    await update.message.reply_text(
-        f"🎙️ <i>Heard:</i> {transcribed}", parse_mode="HTML"
-    )
+    await update.message.reply_text(f"🎙️ <i>Heard:</i> {transcribed}", parse_mode="HTML")
     await _call_aisha_and_reply(update, transcribed, ctx)
 
 
 # ── Callback handler ────────────────────────────────────────────────────
-
 
 async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -1254,30 +672,20 @@ async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         case_id = q.data.split(":", 1)[1]
         try:
             update_case_status(case_id, "portal_submission")
-            await q.edit_message_text(
-                q.message.text_html + "\n\n📤 <b>Submitted for portal processing.</b>",
-                parse_mode="HTML",
-            )
+            await q.edit_message_text(q.message.text_html + "\n\n📤 <b>Submitted for portal processing.</b>", parse_mode="HTML")
         except Exception as e:
-            await q.edit_message_text(
-                q.message.text_html + f"\n\n❌ Failed: {e}", parse_mode="HTML"
-            )
+            await q.edit_message_text(q.message.text_html + f"\n\n❌ Failed: {e}", parse_mode="HTML")
 
     elif q.data.startswith("noi_close:"):
         case_id = q.data.split(":", 1)[1]
         try:
             update_case_status(case_id, "completed")
-            await q.edit_message_text(
-                q.message.text_html + "\n\n✅ <b>Case closed.</b>", parse_mode="HTML"
-            )
+            await q.edit_message_text(q.message.text_html + "\n\n✅ <b>Case closed.</b>", parse_mode="HTML")
         except Exception as e:
-            await q.edit_message_text(
-                q.message.text_html + f"\n\n❌ Failed: {e}", parse_mode="HTML"
-            )
+            await q.edit_message_text(q.message.text_html + f"\n\n❌ Failed: {e}", parse_mode="HTML")
 
 
 # ── Error handler ───────────────────────────────────────────────────────
-
 
 async def error_handler(update: Optional[Update], ctx: ContextTypes.DEFAULT_TYPE):
     logger.error("Unhandled error: %s", ctx.error, exc_info=ctx.error)
@@ -1292,7 +700,6 @@ async def error_handler(update: Optional[Update], ctx: ContextTypes.DEFAULT_TYPE
 
 
 # ── Job queue ────────────────────────────────────────────────────────────
-
 
 async def cleanup_orphans(ctx: Optional[ContextTypes.DEFAULT_TYPE] = None):
     """Periodic job: expire old orphans (redundant with Redis EXPIRE, but safe)."""
@@ -1312,9 +719,8 @@ async def cleanup_orphans(ctx: Optional[ContextTypes.DEFAULT_TYPE] = None):
 
 # ── Background SMS listener ─────────────────────────────────────────────
 
-
 async def _sms_listener(app: Application):
-    r = await _get_listener_redis()
+    r = await get_redis()
     while True:
         try:
             result = await r.blpop(SMS_INCOMING_KEY, timeout=30)
@@ -1346,34 +752,25 @@ async def _cleanup_loop(app: Application):
 
 # ── Health endpoint ──────────────────────────────────────────────────────
 
-
 def run_health_check():
-    import http.server
-    import socketserver
+    import http.server, socketserver, threading
 
     class H(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
             self.end_headers()
-            self.wfile.write(
-                json.dumps(
-                    {
-                        "status": "ok",
-                        "aisha_mode": len(_aisha_chat_modes),
-                        "voice_mode": len(_voice_mode_chats),
-                    }
-                ).encode()
-            )
-
-        def log_message(self, *a):
-            pass
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "aisha_mode": len(_aisha_chat_modes),
+                "voice_mode": len(_voice_mode_chats),
+            }).encode())
+        def log_message(self, *a): pass
 
     httpd = socketserver.TCPServer(("0.0.0.0", HEALTH_PORT), H)
     httpd.serve_forever()
 
 
 # ── NOI Case Management ──────────────────────────────────────────────────
-
 
 async def noi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cid = update.effective_chat.id
@@ -1415,10 +812,7 @@ async def noi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             if not cases:
                 await update.message.reply_text("📭 No cases found.")
                 return
-            lines = [
-                f"<code>{c['id'][:8]}</code> <b>{c['client_name']}</b> ({c['status']})"
-                for c in cases
-            ]
+            lines = [f"<code>{c['id'][:8]}</code> <b>{c['client_name']}</b> ({c['status']})" for c in cases]
             await update.message.reply_text(
                 "📋 <b>NOI Cases</b>\n\n" + "\n".join(lines),
                 parse_mode="HTML",
@@ -1430,27 +824,13 @@ async def noi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif sub == "status" and len(ctx.args) >= 3:
         case_id = ctx.args[1]
         new_status = ctx.args[2]
-        valid_statuses = (
-            "intake",
-            "documents",
-            "challan",
-            "otp_collection",
-            "portal_submission",
-            "verification",
-            "completed",
-            "cancelled",
-        )
+        valid_statuses = ("intake", "documents", "challan", "otp_collection", "portal_submission", "verification", "completed", "cancelled")
         if new_status not in valid_statuses:
-            await update.message.reply_text(
-                f"❌ Invalid status. Valid: {', '.join(valid_statuses)}"
-            )
+            await update.message.reply_text(f"❌ Invalid status. Valid: {', '.join(valid_statuses)}")
             return
         try:
             if update_case_status(case_id, new_status):
-                await update.message.reply_text(
-                    f"✅ Case <code>{case_id[:8]}...</code> status → <b>{new_status}</b>",
-                    parse_mode="HTML",
-                )
+                await update.message.reply_text(f"✅ Case <code>{case_id[:8]}...</code> status → <b>{new_status}</b>", parse_mode="HTML")
             else:
                 await update.message.reply_text(f"❌ Case not found: {case_id[:8]}...")
         except Exception as e:
@@ -1477,13 +857,7 @@ async def noi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             if tasks:
                 msg += "<b>Tasks:</b>\n"
                 for t in tasks:
-                    icon = {
-                        "pending": "⏳",
-                        "running": "🔄",
-                        "awaiting_otp": "🔐",
-                        "completed": "✅",
-                        "failed": "❌",
-                    }.get(t["status"], "❓")
+                    icon = {"pending": "⏳", "running": "🔄", "awaiting_otp": "🔐", "completed": "✅", "failed": "❌"}.get(t["status"], "❓")
                     msg += f"{icon} <code>{t['task_type']}</code> ({t['status']})\n"
             if challans:
                 msg += "\n<b>Challans:</b>\n"
@@ -1493,18 +867,10 @@ async def noi_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             msg += "\n/task <id> — Manage tasks\n"
             msg += "/challan <id> — Manage challans"
 
-            kb = InlineKeyboardMarkup(
-                [
-                    [
-                        InlineKeyboardButton(
-                            "📤 Submit", callback_data=f"noi_submit:{case_id}"
-                        ),
-                        InlineKeyboardButton(
-                            "❌ Close", callback_data=f"noi_close:{case_id}"
-                        ),
-                    ],
-                ]
-            )
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📤 Submit", callback_data=f"noi_submit:{case_id}"),
+                 InlineKeyboardButton("❌ Close", callback_data=f"noi_close:{case_id}")],
+            ])
             await update.message.reply_text(msg, parse_mode="HTML", reply_markup=kb)
         except Exception as e:
             logger.error("Get case error: %s", e)
@@ -1528,16 +894,11 @@ async def task_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         new_status = ctx.args[2]
         valid_statuses = ("pending", "running", "awaiting_otp", "completed", "failed")
         if new_status not in valid_statuses:
-            await update.message.reply_text(
-                f"❌ Invalid status. Valid: {', '.join(valid_statuses)}"
-            )
+            await update.message.reply_text(f"❌ Invalid status. Valid: {', '.join(valid_statuses)}")
             return
         try:
             if update_task_status(task_id, new_status):
-                await update.message.reply_text(
-                    f"✅ Task updated: <code>{task_id[:8]}...</code> → <b>{new_status}</b>",
-                    parse_mode="HTML",
-                )
+                await update.message.reply_text(f"✅ Task updated: <code>{task_id[:8]}...</code> → <b>{new_status}</b>", parse_mode="HTML")
             else:
                 await update.message.reply_text("❌ Task not found.")
         except Exception as e:
@@ -1549,10 +910,7 @@ async def task_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         task_type = " ".join(ctx.args[3:])
         try:
             t = create_task(case_id, agent, task_type)
-            await update.message.reply_text(
-                f"✅ Task created: <code>{t['task_type']}</code> for <b>{t['agent']}</b> (pending)",
-                parse_mode="HTML",
-            )
+            await update.message.reply_text(f"✅ Task created: <code>{t['task_type']}</code> for <b>{t['agent']}</b> (pending)", parse_mode="HTML")
         except Exception as e:
             await update.message.reply_text(f"❌ Failed: {e}")
 
@@ -1564,12 +922,10 @@ async def task_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("📭 No tasks for this case.")
                 return
             lines = [
-                f"{'✅' if t['status'] == 'completed' else '⏳'} <code>{t['id'][:8]}</code> {t['task_type']} ({t['agent']}) — {t['status']}"
+                f"{'✅' if t['status']=='completed' else '⏳'} <code>{t['id'][:8]}</code> {t['task_type']} ({t['agent']}) — {t['status']}"
                 for t in tasks
             ]
-            await update.message.reply_text(
-                "📋 <b>Tasks</b>\n\n" + "\n".join(lines), parse_mode="HTML"
-            )
+            await update.message.reply_text("📋 <b>Tasks</b>\n\n" + "\n".join(lines), parse_mode="HTML")
         except Exception as e:
             await update.message.reply_text(f"❌ Failed: {e}")
 
@@ -1590,10 +946,7 @@ async def challan_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         challan_id = ctx.args[1]
         try:
             if approve_challan(challan_id, str(update.effective_user.id)):
-                await update.message.reply_text(
-                    f"✅ Challan <code>{challan_id[:8]}...</code> approved.",
-                    parse_mode="HTML",
-                )
+                await update.message.reply_text(f"✅ Challan <code>{challan_id[:8]}...</code> approved.", parse_mode="HTML")
             else:
                 await update.message.reply_text("❌ Challan not found.")
         except Exception as e:
@@ -1628,97 +981,12 @@ async def challan_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("📭 No challans for this case.")
                 return
             lines = [
-                f"{'✅' if c['status'] == 'approved' else '💰'} <code>{c['id'][:8]}</code> ₹{c['amount']:,.2f} ({c['status']})"
+                f"{'✅' if c['status']=='approved' else '💰'} <code>{c['id'][:8]}</code> ₹{c['amount']:,.2f} ({c['status']})"
                 for c in challans
             ]
-            await update.message.reply_text(
-                "💰 <b>Challans</b>\n\n" + "\n".join(lines), parse_mode="HTML"
-            )
+            await update.message.reply_text("💰 <b>Challans</b>\n\n" + "\n".join(lines), parse_mode="HTML")
         except Exception as e:
             await update.message.reply_text(f"❌ Failed: {e}")
-
-
-# ── Multi-Agent System ────────────────────────────────────────────────────
-
-
-async def agents_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    from agents.agent_registry import list_agents
-    user_role = "CLERK"
-    agents = list_agents(user_role)
-    lines = ["🤖 <b>AG Agents</b>\n"]
-    for a in agents:
-        if a["accessible"]:
-            lines.append(f"✅ <b>{a['name']}</b> — {a['description']}")
-        else:
-            lines.append(f"🔒 <b>{a['name']}</b> — needs {a['min_role']}")
-    lines.append("\n/agent &lt;name&gt; &lt;message&gt; — Chat with an agent")
-    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
-
-
-async def agent_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if not ctx.args:
-        await update.message.reply_text(
-            "Usage: /agent <name> <message>\n"
-            "Example: /agent auditor is sabhi transactions match ho rahe hain?\n\n"
-            "Available: /agents — list all agents"
-        )
-        return
-
-    agent_name = ctx.args[0].lower()
-    message = " ".join(ctx.args[1:]) if len(ctx.args) > 1 else ""
-
-    agent = get_agent(agent_name)
-    if not agent:
-        await update.message.reply_text(
-            f"❌ Agent '{agent_name}' not found. See /agents"
-        )
-        return
-
-    if not message:
-        await update.message.reply_text(
-            f"🤖 <b>{agent_name.title()}</b>\n\nKya poochna chahenge?"
-        )
-        return
-
-    await update.message.reply_chat_action("typing")
-    await update.message.reply_text(
-        f"🤖 Talking to <b>{agent_name.title()}</b>...", parse_mode="HTML"
-    )
-
-    try:
-        user_role = "CLERK"
-        response = await agent.process_request(
-            user_message=message,
-            user_id=str(update.effective_chat.id),
-            user_role=user_role,
-        )
-        if response:
-            text = response.text
-            if len(text) > 4000:
-                for i in range(0, len(text), 4000):
-                    await update.message.reply_text(
-                        text[i : i + 4000], parse_mode="HTML"
-                    )
-            else:
-                await update.message.reply_text(text, parse_mode="HTML")
-        else:
-            await update.message.reply_text("❌ Agent ne koi response nahi diya.")
-    except Exception as e:
-        logger.error("Agent command error: %s", e)
-        await update.message.reply_text(f"❌ Agent error: {e}")
-
-
-def get_agent(name: str):
-    try:
-        from agents.agent_init import get_agent as _get
-
-        return _get(name)
-    except ImportError:
-        return None
-
-
-# ── Main ──────────────────────────────────────────────────────────────────
-
 
 def main():
     if not TELEGRAM_BOT_TOKEN:
@@ -1726,26 +994,10 @@ def main():
         return
 
     import threading
-
     health_thread = threading.Thread(target=run_health_check, daemon=True)
     health_thread.start()
 
-    try:
-        from agents.agent_init import register_all
-
-        register_all()
-        logger.info("All agents registered successfully")
-    except ImportError as e:
-        logger.warning("Agent registration skipped (not all modules available): %s", e)
-
     async def post_init(app: Application):
-        await _load_all_toggles()
-        logger.info(
-            "Loaded toggles: aisha=%d voice=%d hindi=%d",
-            len(_aisha_chat_modes),
-            len(_voice_mode_chats),
-            len(_hindi_chats),
-        )
         asyncio.create_task(_sms_listener(app))
         asyncio.create_task(_cleanup_loop(app))
         webhook_url = os.environ.get("TELEGRAM_WEBHOOK_URL", "")
@@ -1758,8 +1010,6 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("menu", menu_command))
-    app.add_handler(CommandHandler("capabilities", menu_command))
     app.add_handler(CommandHandler("aisha", aisha_command))
     app.add_handler(CommandHandler("voicemode", voicemode_command))
     app.add_handler(CommandHandler("hindi", hindi_command))
@@ -1769,29 +1019,14 @@ def main():
     app.add_handler(CommandHandler("history", history_command))
     app.add_handler(CommandHandler("status", status_handler))
     app.add_handler(CommandHandler("cancel", cancel))
-    app.add_handler(CommandHandler("auditor", auditor_command))
-    app.add_handler(CommandHandler("vyasa", vyasa_command))
-    app.add_handler(CommandHandler("bouncer", bouncer_command))
-    app.add_handler(CommandHandler("accountant", accountant_command))
+    app.add_handler(CommandHandler("audit", audit_command))
     app.add_handler(CommandHandler("noi", noi_command))
-    app.add_handler(CommandHandler("noiagent", noi_agent_command))
-    app.add_handler(CommandHandler("executor", executor_command))
-    app.add_handler(CommandHandler("drafter", drafter_command))
-    app.add_handler(CommandHandler("supervisor", supervisor_command))
     app.add_handler(CommandHandler("task", task_command))
     app.add_handler(CommandHandler("challan", challan_command))
-    app.add_handler(CommandHandler("agents", agents_command))
-    app.add_handler(CommandHandler("agent", agent_command))
-    app.add_handler(CommandHandler("analyze", analyze_command))
-    app.add_handler(CommandHandler("research", research_command))
-    app.add_handler(CommandHandler("reasoner", reasoner_command))
 
     app.add_handler(MessageHandler(filters.Document.ALL, document_handler))
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, aisha_message_handler)
-    )
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, aisha_message_handler))
     app.add_handler(MessageHandler(filters.VOICE, voice_handler))
-    app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
     app.add_handler(CallbackQueryHandler(button_callback))
 
     app.add_error_handler(error_handler)
@@ -1808,7 +1043,7 @@ def main():
                 url_path="webhook",
                 webhook_url=webhook_url,
                 allowed_updates=["message", "callback_query"],
-                secret_token=TELEGRAM_WEBHOOK_SECRET or None,
+                secret_token=None,
             )
         except Exception as e:
             logger.warning("Webhook mode failed (%s), falling back to polling", e)
