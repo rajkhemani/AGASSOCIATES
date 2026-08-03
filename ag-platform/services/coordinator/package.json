@@ -12,7 +12,7 @@
     "@google/genai": "latest",
     "@hono/node-server": "^1.14.0",
     "dotenv": "^17.4.2",
-    "hono": "^4.7.0",
+    "hono": "^4.12.25",
     "ioredis": "^5.4.1",
     "telegraf": "^4.16.3"
   },
