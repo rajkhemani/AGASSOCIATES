@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
-import { Mail, MessageSquare, Linkedin, Send, ArrowRight } from 'lucide-react';
+import { Mail, MessageSquare, Send, ArrowRight } from 'lucide-react';
 
 const contactLinks = [
   {
@@ -15,8 +15,8 @@ const contactLinks = [
   {
     icon: Mail,
     label: 'Email',
-    value: 'admin@advadiityagade.com',
-    href: 'mailto:admin@advadiityagade.com',
+    value: 'admin@advaiityagade.com',
+    href: 'mailto:admin@advaiityagade.com',
     primary: false,
   },
   {
@@ -24,13 +24,6 @@ const contactLinks = [
     label: 'WhatsApp',
     value: 'Message on WhatsApp',
     href: 'https://wa.me/919699218421',
-    primary: false,
-  },
-  {
-    icon: Linkedin,
-    label: 'LinkedIn',
-    value: 'Adv. Aditya Gade',
-    href: 'https://www.linkedin.com/in/adv-adiitya-gade-211a74257/',
     primary: false,
   },
 ];
@@ -57,20 +50,21 @@ export default function ContactSection() {
         >
           {/* Label */}
           <p className="text-accent-blue font-mono text-xs uppercase tracking-[0.25em] mb-6">
-            The Future of Legal Practice
+            Initiate Bank Empanelment
           </p>
 
           {/* Headline */}
           <h2 className="text-5xl sm:text-6xl md:text-7xl font-bold text-white mb-6 leading-tight">
-            Stop managing files.{' '}
-            <span className="gradient-text">Start orchestrating results.</span>
+            Partner with AG Associates
+            <br />
+            <span className="gradient-text">for Seamless Legal Operations</span>
           </h2>
 
           {/* Body */}
           <p className="text-gray-400 text-base sm:text-lg mb-14 max-w-2xl mx-auto leading-relaxed">
-            AG Associates is a boutique property law firm in Thane, Maharashtra, pioneering the shift
-            to autonomous legal operations. By deploying a private, multi-agent AI workforce, we handle
-            high-volume property documentation with absolute precision and data sovereignty.
+            AG Associates is a specialized Banking Panel Advocate firm in Thane, Maharashtra. 
+            We deliver Section 89B NOI filings, Title Search reports, and Mortgage Registrations 
+            powered by Luxor9 LegalOS multi-agent automation.
           </p>
 
           {/* Contact links */}
@@ -106,7 +100,7 @@ export default function ContactSection() {
             transition={{ delay: 0.5 }}
             className="text-gray-500 text-sm mb-8 font-mono"
           >
-            Thane, Maharashtra, India
+            Thane West (Majiwada / Panchpakhadi) & Mumbai MMR Sub-Registrar Offices
           </motion.p>
 
           {/* Dashboard CTA */}
@@ -120,7 +114,7 @@ export default function ContactSection() {
               href="/dashboard"
               className="inline-flex items-center gap-2 text-gray-500 hover:text-accent-blue transition-colors duration-200 text-sm font-medium group"
             >
-              View the live AG Associates AI Dashboard
+              View the AG Associates AI Dashboard
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </a>
           </motion.div>

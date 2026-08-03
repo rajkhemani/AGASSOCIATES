@@ -2,33 +2,43 @@
 
 import { useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
-import { X, Check } from 'lucide-react';
 
-const rows = [
+const practiceAreas = [
   {
-    dimension: 'Scaling Mechanism',
-    traditional: 'Adding human clerks',
-    agentic: 'Spinning up Docker containers',
+    icon: '⚖️',
+    title: 'Notice of Intimation (NOI)',
+    description: 'End-to-end Section 89B filing under Registration Act, 1908 within 30-day post-disbursement window',
+    details: ['0.3% Stamp Duty via GRAS', 'Aadhaar/PAN Owner Consent', 'IGR Acknowledgment'],
   },
   {
-    dimension: 'Cost per Execution',
-    traditional: 'Monthly salaries + overhead',
-    agentic: 'Pennies in local GPU compute',
+    icon: '🔍',
+    title: 'Title Search & Search Reports',
+    description: 'Comprehensive 30-year property title investigation, encumbrance search, marketable title certification',
+    details: ['30-Year Index-II Verification', 'Public Notice Claim Vetting', 'Non-Encumbrance Report'],
   },
   {
-    dimension: 'Data Privacy',
-    traditional: 'Vulnerable to human leaks',
-    agentic: '100% Local via self-hosted models',
+    icon: '🏦',
+    title: 'Mortgage Registration',
+    description: 'Execution of Equitable Mortgage (EQM) and Registered Mortgage deeds with Sub-Registrar endorsement',
+    details: ['Title Deed Modification', 'Power of Attorney Vetting', 'Bank Lien Marking'],
   },
   {
-    dimension: 'Error Rate',
-    traditional: 'High fatigue-driven mistakes',
-    agentic: 'Deterministic, mathematical compliance',
+    icon: '📄',
+    title: 'CTC & Encumbrance Certificates',
+    description: 'Procurement of Certified True Copies from property registries and official government clearance certificates',
+    details: ['Certified Web Copies', 'Property Valuation Verification', 'Mutation Entry Validation'],
   },
   {
-    dimension: 'Speed',
-    traditional: 'Hours or days',
-    agentic: 'Milliseconds',
+    icon: '📢',
+    title: 'Public Notices & Vetting',
+    description: 'Drafting and publishing mandatory newspaper public notices for property title verification',
+    details: ['Vernacular & English Dailies', '14-Day Objections Vetting', 'Certificate of Clearance'],
+  },
+  {
+    icon: '⚡',
+    title: 'Balance Transfers & Franking',
+    description: 'Fast-track loan balance transfer documentation, franking validation, multi-bank legal reconciliation',
+    details: ['Bank Takeover Documentation', 'Franking / e-Stamp Audit', 'Advocate Empanelment Audits'],
   },
 ];
 
@@ -37,7 +47,7 @@ export default function ManifestoSection() {
   const isInView = useInView(ref, { once: true, margin: '-80px' });
 
   return (
-    <section id="manifesto" ref={ref} className="py-32 px-6">
+    <section id="practices" ref={ref} className="py-32 px-6">
       <div className="max-w-6xl mx-auto">
         {/* Heading */}
         <motion.div
@@ -47,44 +57,40 @@ export default function ManifestoSection() {
           className="text-center mb-20"
         >
           <p className="text-accent-blue font-mono text-xs uppercase tracking-[0.25em] mb-5">
-            The Limits of Linear Scaling
+            Banking Law & Statutory Services
           </p>
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white max-w-3xl mx-auto leading-tight">
-            Linear scaling breaks under pressure.{' '}
-            <span className="gradient-text">Exponential scaling thrives on it.</span>
+            Purpose-built for{' '}
+            <span className="gradient-text">Commercial Banks, HFCs & NBFCs</span>
           </h2>
         </motion.div>
 
-        {/* Comparison table */}
+        {/* Practice Areas Grid */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6, delay: 0.25 }}
-          className="glass rounded-2xl overflow-hidden border border-white/[0.06]"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
         >
-          {/* Table header */}
-          <div className="grid grid-cols-3 px-6 py-4 border-b border-white/[0.06] bg-white/[0.02]">
-            <span className="text-gray-500 text-xs font-mono uppercase tracking-widest">Dimension</span>
-            <span className="text-red-400/80 text-xs font-mono uppercase tracking-widest flex items-center gap-1.5">
-              <X className="w-3.5 h-3.5" /> Traditional
-            </span>
-            <span className="text-accent-green text-xs font-mono uppercase tracking-widest flex items-center gap-1.5">
-              <Check className="w-3.5 h-3.5" /> Agentic
-            </span>
-          </div>
-
-          {/* Rows */}
-          {rows.map((row, i) => (
+          {practiceAreas.map((area, i) => (
             <motion.div
-              key={row.dimension}
-              initial={{ opacity: 0, x: -24 }}
-              animate={isInView ? { opacity: 1, x: 0 } : {}}
+              key={area.title}
+              initial={{ opacity: 0, y: 24 }}
+              animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.45, delay: 0.35 + i * 0.08 }}
-              className="grid grid-cols-3 px-6 py-5 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.025] transition-colors duration-200"
+              className="glass rounded-2xl p-6 border border-white/[0.06] hover:border-accent-blue/30 hover:bg-white/[0.025] transition-all duration-300"
             >
-              <span className="text-white font-medium text-sm">{row.dimension}</span>
-              <span className="text-gray-500 text-sm pr-4">{row.traditional}</span>
-              <span className="text-accent-green text-sm font-medium">{row.agentic}</span>
+              <div className="text-4xl mb-4">{area.icon}</div>
+              <h3 className="text-xl font-bold text-white mb-2">{area.title}</h3>
+              <p className="text-gray-400 text-sm mb-4 leading-relaxed">{area.description}</p>
+              <ul className="space-y-2 text-sm text-gray-500">
+                {area.details.map((detail, di) => (
+                  <li key={di} className="flex items-center gap-2">
+                    <span className="text-accent-blue w-1.5 h-1.5 rounded-full" />
+                    {detail}
+                  </li>
+                ))}
+              </ul>
             </motion.div>
           ))}
         </motion.div>
@@ -94,10 +100,10 @@ export default function ManifestoSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6, delay: 0.8 }}
-          className="mt-8 text-center"
+          className="mt-12 text-center"
         >
           <p className="text-gray-500 text-sm font-mono">
-            — Agentic operations replace headcount with compute
+            — Jurisdiction: Thane West (Majiwada/Panchpakhadi) & Mumbai MMR Sub-Registrar Offices
           </p>
         </motion.div>
       </div>
