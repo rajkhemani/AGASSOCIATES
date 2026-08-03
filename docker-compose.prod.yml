@@ -81,7 +81,7 @@ services:
   ai-backend:
     build:
       context: ./ag-associates-ai/backend
-    image: ghcr.io/rajkhemani/ag-ai-backend:${IMAGE_TAG:-latest}
+    image: ghcr.io/luxoranova9/ag-ai-backend:${IMAGE_TAG:-latest}
     container_name: ag_ai_backend
     <<: [*restart, *logging]
     environment:
@@ -137,7 +137,7 @@ services:
       context: ./ag-associates-ai/frontend
       args:
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
-    image: ghcr.io/rajkhemani/ag-ai-dashboard:${IMAGE_TAG:-latest}
+    image: ghcr.io/luxoranova9/ag-ai-dashboard:${IMAGE_TAG:-latest}
     container_name: ag_ai_dashboard
     <<: [*restart, *logging]
     environment:
@@ -158,7 +158,7 @@ services:
         VITE_SUPABASE_URL: ${SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
         VITE_API_BASE_URL: /api
-    image: ghcr.io/rajkhemani/ag-platform:${IMAGE_TAG:-latest}
+    image: ghcr.io/luxoranova9/ag-platform:${IMAGE_TAG:-latest}
     container_name: ag_platform
     <<: [*restart, *logging]
     environment:
@@ -213,7 +213,9 @@ services:
   intake-api:
     build:
       context: ./ag-platform/services/intake-api
-    image: ghcr.io/rajkhemani/intake-api:${IMAGE_TAG:-latest}
+    image: ghcr.io/luxoranova9/intake-api:${IMAGE_TAG:-latest}
+    ports:
+      - "3002:3002"
     container_name: ag_intake_api
     <<: [*restart, *logging]
     environment:
@@ -235,16 +237,14 @@ services:
   telegram-bot:
     build:
       context: ./ag-associates-ai/backend/telegram_bot
-    image: ghcr.io/rajkhemani/telegram-bot:${IMAGE_TAG:-latest}
+    image: ghcr.io/luxoranova9/telegram-bot:${IMAGE_TAG:-latest}
     container_name: ag_telegram_bot
     <<: [*restart, *logging]
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      TELEGRAM_GROUP_ID: ${TELEGRAM_GROUP_ID}
       TELEGRAM_BOT_PORT: 3003
       TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL}
-      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
       AISHA_API_URL: http://ai-backend:8000/api/aisha/chat
       N8N_WEBHOOK_KEY: ${N8N_WEBHOOK_KEY}
       LLM_API_KEY: ${LLM_API_KEY}
@@ -263,7 +263,7 @@ services:
   email-intake:
     build:
       context: ./ag-associates-ai/backend/email_intake
-    image: ghcr.io/rajkhemani/email-intake:${IMAGE_TAG:-latest}
+    image: ghcr.io/luxoranova9/email-intake:${IMAGE_TAG:-latest}
     container_name: ag_email_intake
     <<: [*restart, *logging]
     environment:
