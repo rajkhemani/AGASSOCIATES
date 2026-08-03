@@ -6,12 +6,17 @@
   <title>AG Associates — AI-Native Banking Advocate & Legal Operations Firm</title>
   <meta name="description" content="Specialized Banking Panel Advocate providing Section 89B Notice of Intimation (NOI) filings, Title Search Reports, and Mortgage Registrations for banks in Thane & Mumbai MMR. Powered by Luxor9 LegalOS multi-agent automation.">
   <meta name="keywords" content="Banking Advocate, Notice of Intimation, NOI Thane, Title Search Report, Mortgage Registration, Bank Empanelment Advocate, Luxor9 LegalOS, Section 89B, IGR Maharashtra">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/spacegrotesk/v22/6NUKlYV6OqaaBqHJgdj3OtxgNRiFWoKwImil.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/instrumentserif/v17/oHil4Yay__tbSQErYB8LIfTEx7E.woff2">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
   <!-- Navigation Header -->
-  <header class="header">
+  <header class="header" id="header">
     <div class="nav-container">
       <a href="https://advaiityagade.com" class="logo">
         <div class="logo-icon">AG</div>
@@ -25,7 +30,7 @@
         <li><a href="#practices">Practice Areas</a></li>
         <li><a href="#ai-advantage">AI Advantage</a></li>
         <li><a href="#case-tracker">Case Tracker</a></li>
-        <li><a href="#empanelment" class="btn btn-primary" style="padding: 8px 18px; font-size: 0.85rem;">Bank Empanelment</a></li>
+        <li><a href="#empanelment" class="btn btn-primary btn-sm">Bank Empanelment</a></li>
       </ul>
     </div>
   </header>
@@ -47,14 +52,11 @@
       </p>
 
       <div class="hero-actions">
-        <a href="#empanelment" class="btn btn-primary">
+        <a href="#empanelment" class="btn btn-primary btn-lg">
           <span>Request Bank Empanelment Kit</span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
         </a>
-        <a href="showcase.html" class="btn btn-secondary" style="border-color: var(--gold-primary); color: var(--gold-light);">
-          <span>✨ Kinetic Scroll Showcase</span>
-        </a>
-        <a href="#case-tracker" class="btn btn-secondary">
+        <a href="#case-tracker" class="btn btn-secondary btn-lg">
           <span>Track Case Status</span>
         </a>
       </div>
@@ -80,7 +82,7 @@
     </div>
 
     <!-- Live Case Status Tracker Card -->
-    <div class="glass-panel tracker-card" id="case-tracker">
+    <div class="glass-panel tracker-card animate-reveal delay-8" id="case-tracker">
       <div class="tracker-header">
         <h3>Live Bank Case Status Tracker</h3>
         <p>Enter your Case Reference or Loan Account Number to query live filing progress on IGR & GRAS portals.</p>
@@ -91,9 +93,11 @@
         <button type="button" id="track-btn" class="btn btn-primary" style="padding: 12px 20px;">Track</button>
       </div>
 
-      <div style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 8px;">
-        Sample Queries: <span style="color: var(--gold-primary); cursor: pointer;" onclick="document.getElementById('track-input').value='NOI-2026-8901'">NOI-2026-8901</span> | <span style="color: var(--gold-primary); cursor: pointer;" onclick="document.getElementById('track-input').value='NOI-2026-4412'">NOI-2026-4412</span>
-      </div>
+      <p class="tracker-hint">
+        Sample Queries:
+        <span class="tracker-sample" data-value="NOI-2026-8901">NOI-2026-8901</span> |
+        <span class="tracker-sample" data-value="NOI-2026-4412">NOI-2026-4412</span>
+      </p>
 
       <div id="result-card" class="result-card">
         <!-- Javascript renders search output here -->
@@ -103,163 +107,167 @@
 
   <!-- Core Practice Areas -->
   <section class="section" id="practices">
-    <div class="section-title">
-      <h2>Banking Law & Statutory Services</h2>
-      <p>Purpose-built for Commercial Banks, Housing Finance Companies (HFCs), and Non-Banking Financial Institutions (NBFCs).</p>
-    </div>
-
-    <div class="grid-3">
-      <!-- Practice 1 -->
-      <div class="glass-panel practice-card">
-        <div class="practice-icon">⚖️</div>
-        <h3>Notice of Intimation (NOI)</h3>
-        <p>End-to-end mandatory filing under Section 89B of Registration Act, 1908 within the strict 30-day post-disbursement window.</p>
-        <ul>
-          <li>0.3% Stamp Duty Challan via GRAS</li>
-          <li>Aadhaar/PAN Owner Consent</li>
-          <li>Sub-Registrar IGR Acknowledgment</li>
-        </ul>
+    <div class="container">
+      <div class="section-title animate-reveal">
+        <h2>Banking Law & Statutory Services</h2>
+        <p>Purpose-built for Commercial Banks, Housing Finance Companies (HFCs), and Non-Banking Financial Institutions (NBFCs).</p>
       </div>
 
-      <!-- Practice 2 -->
-      <div class="glass-panel practice-card">
-        <div class="practice-icon">🔍</div>
-        <h3>Title Search & Search Reports</h3>
-        <p>Comprehensive 30-year property title investigation, encumbrance search, and clear marketable title certification.</p>
-        <ul>
-          <li>30-Year Index-II Verification</li>
-          <li>Public Notice Claim Vetting</li>
-          <li>Non-Encumbrance Report</li>
-        </ul>
-      </div>
+      <div class="grid-3">
+        <!-- Practice 1 -->
+        <div class="glass-panel practice-card animate-reveal">
+          <div class="practice-icon">⚖️</div>
+          <h3>Notice of Intimation (NOI)</h3>
+          <p>End-to-end mandatory filing under Section 89B of Registration Act, 1908 within the strict 30-day post-disbursement window.</p>
+          <ul>
+            <li>0.3% Stamp Duty Challan via GRAS</li>
+            <li>Aadhaar/PAN Owner Consent</li>
+            <li>Sub-Registrar IGR Acknowledgment</li>
+          </ul>
+        </div>
 
-      <!-- Practice 3 -->
-      <div class="glass-panel practice-card">
-        <div class="practice-icon">🏦</div>
-        <h3>Mortgage Registration</h3>
-        <p>Execution of Equitable Mortgage (EQM) and Registered Mortgage deeds with statutory Sub-Registrar endorsement.</p>
-        <ul>
-          <li>Modification of Title Deed</li>
-          <li>Power of Attorney (POA) Vetting</li>
-          <li>Bank Lien Marking</li>
-        </ul>
-      </div>
+        <!-- Practice 2 -->
+        <div class="glass-panel practice-card animate-reveal delay-1">
+          <div class="practice-icon">🔍</div>
+          <h3>Title Search & Search Reports</h3>
+          <p>Comprehensive 30-year property title investigation, encumbrance search, and clear marketable title certification.</p>
+          <ul>
+            <li>30-Year Index-II Verification</li>
+            <li>Public Notice Claim Vetting</li>
+            <li>Non-Encumbrance Report</li>
+          </ul>
+        </div>
 
-      <!-- Practice 4 -->
-      <div class="glass-panel practice-card">
-        <div class="practice-icon">📄</div>
-        <h3>CTC & Encumbrance Certificates</h3>
-        <p>Procurement of Certified True Copies (CTC) from property registries and official government clearance certificates.</p>
-        <ul>
-          <li>Certified Web Copies</li>
-          <li>Property Valuation Verification</li>
-          <li>Mutation Entry Validation</li>
-        </ul>
-      </div>
+        <!-- Practice 3 -->
+        <div class="glass-panel practice-card animate-reveal delay-2">
+          <div class="practice-icon">🏦</div>
+          <h3>Mortgage Registration</h3>
+          <p>Execution of Equitable Mortgage (EQM) and Registered Mortgage deeds with statutory Sub-Registrar endorsement.</p>
+          <ul>
+            <li>Modification of Title Deed</li>
+            <li>Power of Attorney (POA) Vetting</li>
+            <li>Bank Lien Marking</li>
+          </ul>
+        </div>
 
-      <!-- Practice 5 -->
-      <div class="glass-panel practice-card">
-        <div class="practice-icon">📢</div>
-        <h3>Public Notices & Vetting</h3>
-        <p>Drafting and publishing mandatory newspaper public notices for property title verification and claim investigation.</p>
-        <ul>
-          <li>Vernacular & English Dailies</li>
-          <li>14-Day Objections Vetting</li>
-          <li>Certificate of Clearance</li>
-        </ul>
-      </div>
+        <!-- Practice 4 -->
+        <div class="glass-panel practice-card animate-reveal delay-3">
+          <div class="practice-icon">📄</div>
+          <h3>CTC & Encumbrance Certificates</h3>
+          <p>Procurement of Certified True Copies (CTC) from property registries and official government clearance certificates.</p>
+          <ul>
+            <li>Certified Web Copies</li>
+            <li>Property Valuation Verification</li>
+            <li>Mutation Entry Validation</li>
+          </ul>
+        </div>
 
-      <!-- Practice 6 -->
-      <div class="glass-panel practice-card">
-        <div class="practice-icon">⚡</div>
-        <h3>Balance Transfers & Franking</h3>
-        <p>Fast-track loan balance transfer documentation, franking validation, and multi-bank legal reconciliation.</p>
-        <ul>
-          <li>Bank Takeover Documentation</li>
-          <li>Franking / e-Stamp Audit</li>
-          <li>Advocate Empanelment Audits</li>
-        </ul>
+        <!-- Practice 5 -->
+        <div class="glass-panel practice-card animate-reveal delay-4">
+          <div class="practice-icon">📢</div>
+          <h3>Public Notices & Vetting</h3>
+          <p>Drafting and publishing mandatory newspaper public notices for property title verification and claim investigation.</p>
+          <ul>
+            <li>Vernacular & English Dailies</li>
+            <li>14-Day Objections Vetting</li>
+            <li>Certificate of Clearance</li>
+          </ul>
+        </div>
+
+        <!-- Practice 6 -->
+        <div class="glass-panel practice-card animate-reveal delay-5">
+          <div class="practice-icon">⚡</div>
+          <h3>Balance Transfers & Franking</h3>
+          <p>Fast-track loan balance transfer documentation, franking validation, and multi-bank legal reconciliation.</p>
+          <ul>
+            <li>Bank Takeover Documentation</li>
+            <li>Franking / e-Stamp Audit</li>
+            <li>Advocate Empanelment Audits</li>
+          </ul>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- The AI Advantage (Luxor9 LegalOS) -->
   <section class="section" id="ai-advantage">
-    <div class="section-title">
-      <h2>The Luxor9 LegalOS Advantage</h2>
-      <p>Why banks choose AG Associates: We replaced manual legal clerk work with deterministic AI automation.</p>
-    </div>
+    <div class="container">
+      <div class="section-title animate-reveal">
+        <h2>The Luxor9 LegalOS Advantage</h2>
+        <p>Why banks choose AG Associates: We replaced manual legal clerk work with deterministic AI automation.</p>
+      </div>
 
-    <div class="ai-advantage-grid">
-      <div class="feature-list">
-        <div class="feature-item">
-          <div class="feature-icon-box">🤖</div>
-          <div class="feature-text">
-            <h4>Automated Sanction Letter Extraction</h4>
-            <p>AI parses loan amount, property address, borrower KYC, and lender details directly from bank sanction letters with zero typing errors.</p>
+      <div class="ai-advantage-grid">
+        <div class="feature-list">
+          <div class="feature-item animate-reveal">
+            <div class="feature-icon-box">🤖</div>
+            <div class="feature-text">
+              <h4>Automated Sanction Letter Extraction</h4>
+              <p>AI parses loan amount, property address, borrower KYC, and lender details directly from bank sanction letters with zero typing errors.</p>
+            </div>
+          </div>
+
+          <div class="feature-item animate-reveal delay-1">
+            <div class="feature-icon-box">💳</div>
+            <div class="feature-text">
+              <h4>Instant GRAS Challan Generation</h4>
+              <p>RPA bots generate the exact 0.3% stamp duty payment receipt on government GRAS portal and return GRN proof automatically.</p>
+            </div>
+          </div>
+
+          <div class="feature-item animate-reveal delay-2">
+            <div class="feature-icon-box">🏛️</div>
+            <div class="feature-text">
+              <h4>IGR Portal E-Filing Bot</h4>
+              <p>Direct automated submission to Maharashtra IGR portal with automatic Sub-Registrar office selection across all 13 Thane offices.</p>
+            </div>
+          </div>
+
+          <div class="feature-item animate-reveal delay-3">
+            <div class="feature-icon-box">📲</div>
+            <div class="feature-text">
+              <h4>24/7 Multi-Channel Bank Alerts</h4>
+              <p>Automated status notifications sent via WhatsApp, Email, and Bank API whenever a filing transitions or gets acknowledged.</p>
+            </div>
           </div>
         </div>
 
-        <div class="feature-item">
-          <div class="feature-icon-box">💳</div>
-          <div class="feature-text">
-            <h4>Instant GRAS Challan Generation</h4>
-            <p>RPA bots generate the exact 0.3% stamp duty payment receipt on government GRAS portal and return GRN proof automatically.</p>
-          </div>
-        </div>
-
-        <div class="feature-item">
-          <div class="feature-icon-box">🏛️</div>
-          <div class="feature-text">
-            <h4>IGR Portal E-Filing Bot</h4>
-            <p>Direct automated submission to Maharashtra IGR portal with automatic Sub-Registrar office selection across all 13 Thane offices.</p>
-          </div>
-        </div>
-
-        <div class="feature-item">
-          <div class="feature-icon-box">📲</div>
-          <div class="feature-text">
-            <h4>24/7 Multi-Channel Bank Alerts</h4>
-            <p>Automated status notifications sent via WhatsApp, Email, and Bank API whenever a filing transitions or gets acknowledged.</p>
+        <div class="glass-panel animate-reveal delay-4" style="padding: var(--space-8); text-align: center;">
+          <h3 class="gold-gradient-text" style="font-size: var(--text-2xl); margin-bottom: var(--space-4);">Zero Human Keystrokes. Zero Missed Deadlines.</h3>
+          <p style="color: var(--text-tertiary); margin-bottom: var(--space-6); line-height: var(--leading-loose);">
+            Traditional advocate offices scale by adding clerks, leading to digit swaps and Section 89B deadline slips.
+            AG Associates scales through machine intelligence — providing bank legal managers with complete peace of mind.
+          </p>
+          <div class="pipeline-demo">
+            <div>> Email Intake: Bank Sanction Received</div>
+            <div>> AI Extraction: Loan Amount ₹85,00,000 Verified</div>
+            <div>> GRAS RPA: Stamp Duty Challan Paid (GRN #MH008920194)</div>
+            <div>> IGR RPA: Section 89B NOI Filed</div>
+            <div>> Status: ACKNOWLEDGED (Filing Complete)</div>
           </div>
         </div>
       </div>
 
-      <div class="glass-panel" style="padding: 40px; text-align: center;">
-        <h3 style="font-size: 1.8rem; margin-bottom: 16px;" class="gold-gradient-text">Zero Human Keystrokes. Zero Missed Deadlines.</h3>
-        <p style="color: var(--text-muted); margin-bottom: 28px;">
-          Traditional advocate offices scale by adding clerks, leading to digit swaps and Section 89B deadline slips.
-          AG Associates scales through machine intelligence — providing bank legal managers with complete peace of mind.
-        </p>
-        <div style="background: rgba(9,13,22,0.8); border: 1px solid var(--border-glass); border-radius: 12px; padding: 20px; text-align: left; font-family: monospace; font-size: 0.85rem; color: var(--emerald-accent);">
-          <div>> Email Intake: Bank Sanction Received</div>
-          <div>> AI Extraction: Loan Amount ₹85,00,000 Verified</div>
-          <div>> GRAS RPA: Stamp Duty Challan Paid (GRN #MH008920194)</div>
-          <div>> IGR RPA: Section 89B NOI Filed</div>
-          <div>> Status: ACKNOWLEDGED (Filing Complete)</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Trust Indicators - Real credentials only -->
-    <div class="glass-panel empanelment-bar" style="margin-top: 40px;">
-      <p>OFFICIAL CREDENTIALS & JURISDICTION</p>
-      <div class="logo-grid" style="gap: 16px; flex-wrap: wrap;">
-        <div class="bank-badge" style="background: linear-gradient(135deg, rgba(14,165,233,0.15), rgba(14,165,233,0.05)); border-color: rgba(14,165,233,0.3);">
-          <strong>Bar Council of Maharashtra & Goa</strong><br>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">Senior Panel Advocate</span>
-        </div>
-        <div class="bank-badge" style="background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05)); border-color: rgba(16,185,129,0.3);">
-          <strong>Jurisdiction: 13 SROs</strong><br>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">Thane West (Majiwada/Panchpakhadi) & Mumbai MMR</span>
-        </div>
-        <div class="bank-badge" style="background: linear-gradient(135deg, rgba(234,179,8,0.15), rgba(234,179,8,0.05)); border-color: rgba(234,179,8,0.3);">
-          <strong>Luxor9 LegalOS Pipeline</strong><br>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">6-Agent NOI Automation (Aisha → Vyasa → Drafter → Executor → Auditor → Accountant)</span>
-        </div>
-        <div class="bank-badge" style="background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05)); border-color: rgba(239,68,68,0.3);">
-          <strong>IGR & GRAS Integration</strong><br>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">Live Maharashtra e-Filing & Stamp Duty Automation</span>
+      <!-- Trust Indicators - Real credentials only -->
+      <div class="glass-panel empanelment-bar animate-reveal delay-5" style="margin-top: var(--space-10);">
+        <p>OFFICIAL CREDENTIALS & JURISDICTION</p>
+        <div class="logo-grid">
+          <div class="bank-badge" style="background: linear-gradient(135deg, rgba(14,165,233,0.15), rgba(14,165,233,0.05)); border-color: rgba(14,165,233,0.3);">
+            <strong>Bar Council of Maharashtra & Goa</strong><br>
+            <span>Senior Panel Advocate</span>
+          </div>
+          <div class="bank-badge" style="background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05)); border-color: rgba(16,185,129,0.3);">
+            <strong>Jurisdiction: 13 SROs</strong><br>
+            <span>Thane West (Majiwada/Panchpakhadi) & Mumbai MMR</span>
+          </div>
+          <div class="bank-badge" style="background: linear-gradient(135deg, rgba(234,179,8,0.15), rgba(234,179,8,0.05)); border-color: rgba(234,179,8,0.3);">
+            <strong>Luxor9 LegalOS Pipeline</strong><br>
+            <span>6-Agent NOI Automation (Aisha → Vyasa → Drafter → Executor → Auditor → Accountant)</span>
+          </div>
+          <div class="bank-badge" style="background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05)); border-color: rgba(239,68,68,0.3);">
+            <strong>IGR & GRAS Integration</strong><br>
+            <span>Live Maharashtra e-Filing & Stamp Duty Automation</span>
+          </div>
         </div>
       </div>
     </div>
@@ -267,69 +275,71 @@
 
   <!-- Bank Empanelment & Contact Section -->
   <section class="section" id="empanelment">
-    <div class="contact-grid">
-      <div class="contact-info">
-        <h2>Initiate Bank Empanelment</h2>
-        <p style="color: var(--text-muted);">
-          Request an Advocate Empanelment Kit or discuss custom Legal Operations workflows for your financial institution.
-        </p>
+    <div class="container">
+      <div class="contact-grid">
+        <div class="contact-info">
+          <h2 class="animate-reveal">Initiate Bank Empanelment</h2>
+          <p class="animate-reveal delay-1" style="color: var(--text-tertiary); font-family: var(--font-editorial); font-style: italic; font-size: var(--text-lg); line-height: var(--leading-loose);">
+            Request an Advocate Empanelment Kit or discuss custom Legal Operations workflows for your financial institution.
+          </p>
 
-        <div class="info-item">
-          <div class="info-icon">📍</div>
-          <div>
-            <strong>Jurisdiction & Offices</strong>
-            <p style="color: var(--text-muted); font-size: 0.88rem;">Thane West (Majiwada / Panchpakhadi) & Mumbai MMR Sub-Registrar Offices</p>
+          <div class="info-item animate-reveal delay-2">
+            <div class="info-icon">📍</div>
+            <div>
+              <strong>Jurisdiction & Offices</strong>
+              <p>Thane West (Majiwada / Panchpakhadi) & Mumbai MMR Sub-Registrar Offices</p>
+            </div>
+          </div>
+
+          <div class="info-item animate-reveal delay-3">
+            <div class="info-icon">📜</div>
+            <div>
+              <strong>Bar Council Empanelment</strong>
+              <p>Bar Council of Maharashtra & Goa • Senior Panel Advocate</p>
+            </div>
+          </div>
+
+          <div class="info-item animate-reveal delay-4">
+            <div class="info-icon">⚡</div>
+            <div>
+              <strong>Turnaround SLA</strong>
+              <p>NOI Filings within 24 Hours • Title Reports within 48 Hours</p>
+            </div>
           </div>
         </div>
 
-        <div class="info-item">
-          <div class="info-icon">📜</div>
-          <div>
-            <strong>Bar Council Empanelment</strong>
-            <p style="color: var(--text-muted); font-size: 0.88rem;">Bar Council of Maharashtra & Goa • Senior Panel Advocate</p>
-          </div>
+        <!-- Empanelment Inquiry Form -->
+        <div class="glass-panel animate-reveal delay-5" style="padding: var(--space-8);">
+          <h3 style="font-family: var(--font-display); font-size: var(--text-xl); font-weight: 700; letter-spacing: var(--tracking-tight); margin-bottom: var(--space-6);">Bank Empanelment & Inquiry</h3>
+          <form id="empanelment-form">
+            <div class="form-group">
+              <label class="form-label">Full Name / Bank Officer Name</label>
+              <input type="text" class="form-control" required placeholder="e.g. Ramesh Kulkarni (Chief Legal Manager)">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Bank / Financial Institution</label>
+              <input type="text" class="form-control" required placeholder="e.g. SBI / HDFC Bank / ICICI HFC">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Official Bank Email / Phone</label>
+              <input type="email" class="form-control" required placeholder="name@bankname.com">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Services Required</label>
+              <select class="form-control">
+                <option>Notice of Intimation (NOI) High Volume Filings</option>
+                <option>Property Title Search & Legal Vetting</option>
+                <option>Full Panel Advocate Empanelment</option>
+                <option>Custom AI Legal Operations Integration</option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: var(--space-2);">Submit Empanelment Request</button>
+          </form>
         </div>
-
-        <div class="info-item">
-          <div class="info-icon">⚡</div>
-          <div>
-            <strong>Turnaround SLA</strong>
-            <p style="color: var(--text-muted); font-size: 0.88rem;">NOI Filings within 24 Hours • Title Reports within 48 Hours</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Empanelment Inquiry Form -->
-      <div class="glass-panel" style="padding: 36px;">
-        <h3 style="margin-bottom: 20px;">Bank Empanelment & Inquiry</h3>
-        <form id="empanelment-form">
-          <div class="form-group">
-            <label class="form-label">Full Name / Bank Officer Name</label>
-            <input type="text" class="form-control" required placeholder="e.g. Ramesh Kulkarni (Chief Legal Manager)">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Bank / Financial Institution</label>
-            <input type="text" class="form-control" required placeholder="e.g. SBI / HDFC Bank / ICICI HFC">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Official Bank Email / Phone</label>
-            <input type="email" class="form-control" required placeholder="name@bankname.com">
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Services Required</label>
-            <select class="form-control" style="background: rgba(9, 13, 22, 0.9);">
-              <option>Notice of Intimation (NOI) High Volume Filings</option>
-              <option>Property Title Search & Legal Vetting</option>
-              <option>Full Panel Advocate Empanelment</option>
-              <option>Custom AI Legal Operations Integration</option>
-            </select>
-          </div>
-
-          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">Submit Empanelment Request</button>
-        </form>
       </div>
     </div>
   </section>
