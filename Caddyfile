@@ -8,37 +8,36 @@
 # AG Platform — LegalTech case management (Vite SPA + Express)
 app.{$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy ag-platform:3001
-	header / {
-		Cache-Control "no-cache"
-	}
-	header /assets/* {
-		Cache-Control "max-age=31536000, immutable"
+	reverse_proxy ag-platform:3000 {
+		health_uri /api/health
+		health_interval 30s
 	}
 }
 
-# AI Dashboard — migrated to app subdomain /admin/dashboard
+# AI Dashboard — Next.js status / workflow viewer
 dashboard.{$DOMAIN} {
 	encode zstd gzip
-	redir https://app.{$DOMAIN}/admin/dashboard{uri} permanent
+	reverse_proxy ai-dashboard:3000
 }
 
 # AI Backend API — FastAPI agents
 api.{$DOMAIN} {
 	encode zstd gzip
-	handle_path /landing* {
-		root * /srv/landing
-		file_server
-	}
 	reverse_proxy /webhook* telegram-bot:3003
 	reverse_proxy /api/sms/ingest* intake-api:3002
-	reverse_proxy ai-backend:8000
+	reverse_proxy ai-backend:8000 {
+		health_uri /health
+		health_interval 30s
+	}
 }
 
 # Intake API — SMS webhook, OTP bridge, bank intake
 intake.{$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy intake-api:3002
+	reverse_proxy intake-api:3002 {
+		health_uri /health
+		health_interval 30s
+	}
 }
 
 # n8n orchestration UI — protected by Caddy basicauth on top of n8n's own auth
@@ -50,26 +49,13 @@ n8n.{$DOMAIN} {
 	reverse_proxy n8n:5678
 }
 
-# Landing page — premium hub served at root domain
-{$DOMAIN} {
+# Landing page — premium hub served at root domain (HTTP-only, Cloudflare handles TLS)
+http://{$DOMAIN} {
 	encode zstd gzip
 	root * /srv/landing
 	try_files {path} {path}/ /index.html
 	file_server
-	header /index.html {
-		Cache-Control "no-cache"
-	}
-	header /assets/* {
-		Cache-Control "max-age=31536000, immutable"
-	}
-	header /* {
-		Cache-Control "public, max-age=3600"
-	}
-}
-
-# www redirect → root
-www.{$DOMAIN} {
-	redir https://{$DOMAIN}{uri} permanent
+	header Cache-Control "public, max-age=3600"
 }
 
 # Clerk-style docs site — pure static, served by Caddy directly from a mounted dir
@@ -79,7 +65,10 @@ docs.{$DOMAIN} {
 	redir / /quickstart 301
 	try_files {path} {path}/ {path}.html /index.html
 	file_server
-	header /_public/* {
-		Cache-Control "public, max-age=31536000, immutable"
-	}
+	header /_public/* Cache-Control "public, max-age=31536000, immutable"
+}
+
+# www redirect → root
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
 }

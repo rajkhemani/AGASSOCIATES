@@ -7,51 +7,51 @@ import { MessageSquare, Eye, FileText, Cpu, ShieldCheck, Calculator } from 'luci
 const agents = [
   {
     name: 'Aisha',
-    role: 'Frontline Intake',
+    role: 'Intake & Document Collector',
     icon: MessageSquare,
     color: 'blue',
-    desc: 'WhatsApp/n8n integration. Collects basic details; chases missing documents via automated follow-up.',
-    spec: 'Qwen 2.5 · n8n Webhooks',
+    desc: 'WhatsApp & n8n webhook integration. Collects case details, triggers automated follow-ups for missing documents.',
+    spec: 'FastAPI · n8n · WhatsApp Business API',
   },
   {
     name: 'Vyasa',
-    role: 'KYC & Vision Verifier',
+    role: 'KYC & Document Verifier',
     icon: Eye,
     color: 'purple',
-    desc: 'Multimodal Qwen-VL. Extracts text from Aadhaar/PAN cards; detects forgery via visual inspection.',
-    spec: 'Qwen-VL · PDF Plumber',
+    desc: 'Multimodal vision model extracts text from Aadhaar/PAN; performs visual forgery detection on KYC documents.',
+    spec: 'Qwen-VL · pdfplumber · Ollama',
   },
   {
     name: 'Drafter',
-    role: 'Legal Architect',
+    role: 'Legal Document Generator',
     icon: FileText,
     color: 'amber',
-    desc: 'RAG + Milvus. Injects verified JSON into 2026 Maharashtra legal templates with 100% field coverage.',
-    spec: 'pgvector · RAG · Ollama',
+    desc: 'RAG-powered template engine. Injects verified data into Maharashtra legal templates (NOI, Title Reports, Mortgage Deeds).',
+    spec: 'pgvector · RAG · Sentence Transformers',
   },
   {
     name: 'Executor',
-    role: 'API & NeSL Operator',
+    role: 'API Gateway & E-Filing',
     icon: Cpu,
     color: 'green',
-    desc: 'API gateway handler. Triggers e-Stamping and NeSL JSON payloads. Final validation pass before e-Payment.',
-    spec: 'FastAPI · NeSL API',
+    desc: 'Triggers GRAS stamp duty payments, NeSL e-filing payloads. Handles IGR portal automation via RPA.',
+    spec: 'FastAPI · GRAS API · NeSL · Playwright RPA',
   },
   {
     name: 'Auditor',
-    role: 'QA Boss',
+    role: 'Quality Assurance Gatekeeper',
     icon: ShieldCheck,
     color: 'orange',
-    desc: 'The strict gatekeeper. Halts process if even a 1-rupee discrepancy exists. Loops drafter on failure.',
-    spec: 'LangGraph Loop · Llama 3',
+    desc: 'Validates every field, amount, and compliance flag. Loops back to Drafter on any discrepancy. Zero-tolerance gate.',
+    spec: 'LangGraph Stateful Loop · Llama 3',
   },
   {
     name: 'Accountant',
     role: 'Financial Reconciliation',
     icon: Calculator,
     color: 'blue',
-    desc: 'Zero-touch financial verification. Parses bank PDFs and updates master sheets via gspread Python library.',
-    spec: 'pdfplumber · Ollama · gspread',
+    desc: 'Parses bank sanction letters & payment PDFs. Reconciles stamp duty, registration fees, bank charges. Updates master sheets.',
+    spec: 'pdfplumber · gspread · FastAPI',
   },
 ];
 
@@ -111,11 +111,11 @@ export default function AgentRoster() {
         className="mb-14"
       >
         <p className="text-accent-purple font-mono text-xs uppercase tracking-[0.25em] mb-3">
-          Multi-Agent Roster
+          AI Agent Pipeline (Luxor9 LegalOS)
         </p>
-        <h3 className="text-3xl sm:text-4xl font-bold text-white">Meet the AI Workforce</h3>
+        <h3 className="text-3xl sm:text-4xl font-bold text-white">Core Pipeline Agents</h3>
         <p className="text-gray-500 mt-3 text-base max-w-2xl">
-          Six autonomous agents, each with a deterministic role — no overlapping responsibilities, no human ambiguity.
+          Six specialized agents orchestrate NOI filing end-to-end — from WhatsApp intake to IGR acknowledgment.
         </p>
       </motion.div>
 

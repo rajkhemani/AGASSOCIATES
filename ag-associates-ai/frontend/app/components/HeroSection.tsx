@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowDown } from 'lucide-react';
 
-const taglineWords = ['Building', 'Autonomous', 'AI', 'Workflows', 'for', 'Blitzscaling.'];
+const taglineWords = ['Banking Legal Ops', 'Reinvented for', 'Machine Speed.'];
 
 export default function HeroSection() {
   const reduceMotion = useReducedMotion();
@@ -34,7 +34,7 @@ export default function HeroSection() {
             <span className={`${reduceMotion ? '' : 'animate-ping'} absolute inline-flex h-full w-full rounded-full bg-accent-green opacity-75`} />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-accent-green" />
           </span>
-          Advocate · AI Systems Architect · Maharashtra
+          AG Associates — Banking Panel Advocate · Thane & Mumbai MMR
         </motion.div>
 
         {/* Name */}
@@ -44,18 +44,17 @@ export default function HeroSection() {
           transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
           className="text-6xl sm:text-7xl md:text-8xl font-bold text-white mb-4 leading-[0.95] tracking-tight"
         >
-          Adv. Aditya{' '}
-          <span className="gradient-text">Gade</span>
+          AG <span className="gradient-text">Associates</span>
         </motion.h1>
 
         {/* Tagline — staggered word reveal */}
-        <div className="flex flex-wrap justify-center gap-x-2.5 gap-y-1 mb-8 mt-6">
+        <div className="flex flex-wrap justify-center gap-x-2 gap-y-1 mb-8 mt-6">
           {taglineWords.map((word, i) => (
             <motion.span
               key={i}
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.35 + i * 0.07, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.5, delay: 0.35 + i * 0.1, ease: [0.22, 1, 0.36, 1] }}
               className="text-2xl sm:text-3xl md:text-4xl text-gray-300 font-light tracking-tight"
             >
               {word}
@@ -70,8 +69,9 @@ export default function HeroSection() {
           transition={{ duration: 0.7, delay: 0.9 }}
           className="text-gray-500 text-base sm:text-lg max-w-xl mx-auto mb-12 leading-relaxed"
         >
-          Architected with the $7T Billion-Dollar Prompter Methodology.
-          <br className="hidden sm:block" /> Zero staff. Exponential scale.
+          Specialized Banking Panel Advocate firm delivering 
+          <strong>Section 89B NOI filings</strong>, <strong>Title Search vetting</strong>, 
+          and <strong>Mortgage Registrations</strong> for commercial banks, HFCs, and NBFCs.
         </motion.p>
 
         {/* CTA buttons */}
@@ -82,24 +82,24 @@ export default function HeroSection() {
           className="flex flex-col sm:flex-row gap-4 justify-center items-center"
         >
           <motion.a
-            href="#project"
+            href="#practices"
             whileHover={{ scale: 1.05, boxShadow: '0 0 32px rgba(59,130,246,0.35)' }}
             whileTap={{ scale: 0.97 }}
             className="px-8 py-4 rounded-xl bg-gradient-to-r from-accent-blue to-accent-purple text-white font-semibold text-base shadow-lg shadow-accent-blue/20 transition-all"
           >
-            Explore the Project
+            Our Practice Areas
           </motion.a>
           <motion.a
-            href="/dashboard"
+            href="#contact"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.97 }}
             className="px-8 py-4 rounded-xl glass border border-white/15 text-white font-semibold text-base hover:border-white/25 transition-all"
           >
-            Live Dashboard →
+            Bank Empanelment →
           </motion.a>
         </motion.div>
 
-        {/* Stats row */}
+        {/* Stats row - REAL metrics */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -107,9 +107,10 @@ export default function HeroSection() {
           className="flex items-center justify-center gap-10 mt-16 pt-10 border-t border-white/[0.06]"
         >
           {[
-            { value: '25 min', label: 'Full workflow' },
-            { value: '0', label: 'Staff required' },
-            { value: '6', label: 'AI agents' },
+            { value: '100%', label: 'Sec 89B Compliance' },
+            { value: '< 24 Hrs', label: 'NOI Filing Target' },
+            { value: '100+', label: 'Cases Processed' },
+            { value: '13', label: 'Thane SRO Coverage' },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <p className="text-2xl font-bold text-white">{stat.value}</p>

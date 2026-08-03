@@ -1,118 +1,164 @@
-.PHONY: help install lint type-check test build dev clean ci format pre-commit deploy preview \
-        python-lint python-format python-test python-install python-check \
-        platform-lint platform-type-check platform-test platform-build platform-install
+# AG Associates — Master Makefile
+# Common development and deployment tasks
 
-SHELL := /bin/bash
+.PHONY: help env prod-env deploy provision runner smoke test lint build clean backup logs status
 
+# Default target
 help:
-	@echo 'AG ASSOCIATES — Monorepo Commands'
-	@echo ''
-	@echo '  make ci              Full CI pipeline (lint → type-check → test → build)'
-	@echo '  make dev             Start all dev servers'
-	@echo '  make install         Install all dependencies'
-	@echo '  make lint            Lint all code (Python + TypeScript)'
-	@echo '  make format          Format all code'
-	@echo '  make type-check      TypeScript type checking'
-	@echo '  make test            Run all tests'
-	@echo '  make build           Build all packages'
-	@echo '  make clean           Clean all build artifacts'
-	@echo '  make deploy          Deploy to production VPS'
-	@echo '  make pre-commit      Run pre-commit hooks'
-	@echo '  make preview         Create preview deployment'
-	@echo ''
-	@echo 'Subsystem commands:'
-	@echo '  make python-{install,lint,format,check,test}'
-	@echo '  make platform-{install,lint,type-check,test,build}'
+	@echo "AG Associates — Automation Commands"
+	@echo ""
+	@echo "Environment:"
+	@echo "  env           Create local .env from .env.example (interactive)"
+	@echo "  prod-env      Write production .env to VPS (run after provision)"
+	@echo ""
+	@echo "Development:"
+	@echo "  dev           Start local dev stack (Docker Compose)"
+	@echo "  dev-ai        Start ag-associates-ai dev stack"
+	@echo "  dev-platform  Start ag-platform dev stack"
+	@echo "  test          Run all tests"
+	@echo "  lint          Run all linters"
+	@echo "  build         Build all Docker images"
+	@echo ""
+	@echo "Production Deployment:"
+	@echo "  provision     Provision new VPS (Hetzner + Cloudflare + DNS)"
+	@echo "  deploy        Deploy to existing VPS via GitHub Actions"
+	@echo "  runner        Setup GitHub Actions self-hosted runner"
+	@echo "  dns           Update Cloudflare DNS records"
+	@echo "  smoke         Run smoke tests against production"
+	@echo "  deploy-all    Full automated deployment (provision + deploy + runner + dns + smoke)"
+	@echo "  teardown      Destroy VPS and cleanup (DANGEROUS)"
+	@echo ""
+	@echo "Maintenance:"
+	@echo "  backup        Run backup manually on VPS"
+	@echo "  logs          Stream production logs"
+	@echo "  status        Check production service status"
+	@echo "  ssh           SSH into production VPS"
+	@echo "  clean         Clean Docker images/volumes"
 
-# ── Python (ag-associates-ai) ───────────────────────────────
+# ── Environment ──────────────────────────────────────────────────────────────
 
-PYTHON_DIR := ag-associates-ai/backend
-PYTHON_SRC := $(PYTHON_DIR)
+env:
+	@if [ ! -f .env ]; then \
+		cp .env.example .env; \
+		echo "Created .env from .env.example"; \
+		echo "EDIT .env and fill in all REPLACE_WITH_* values"; \
+	else \
+		echo ".env already exists"; \
+	fi
 
-python-install:
-	cd $(PYTHON_DIR) && pip install -r requirements.txt
+prod-env:
+	bash scripts/deploy-all.sh write-env
 
-python-lint:
-	cd $(PYTHON_DIR) && ruff check .
-
-python-format:
-	cd $(PYTHON_DIR) && ruff format .
-
-python-check:
-	cd $(PYTHON_DIR) && ruff check . && ruff format --check .
-
-python-test:
-	cd $(PYTHON_DIR) && python -m pytest -v --tb=short 2>/dev/null || echo "No pytest tests found"
-
-# ── Platform (ag-platform — TypeScript Turborepo) ───────────
-
-PLATFORM_DIR := ag-platform
-
-platform-install:
-	cd $(PLATFORM_DIR) && npm install
-
-platform-lint:
-	cd $(PLATFORM_DIR) && npm run lint
-
-platform-type-check:
-	cd $(PLATFORM_DIR) && npm run type-check
-
-platform-test:
-	cd $(PLATFORM_DIR) && npm test
-
-platform-build:
-	cd $(PLATFORM_DIR) && npm run build
-
-# ── Unified commands ────────────────────────────────────────
-
-install: python-install platform-install
-
-lint: python-lint platform-lint
-
-format: python-format
-	cd $(PLATFORM_DIR) && npx prettier --write "src/**/*.{ts,tsx}" "apps/**/*.{ts,tsx}" "packages/**/*.{ts,tsx}"
-
-type-check: platform-type-check
-
-test: python-test platform-test
-
-build: platform-build
-	cd ag-associates-ai/frontend && npm ci && npm run build 2>/dev/null || echo "Frontend build skipped (not configured)"
-
-clean:
-	cd $(PLATFORM_DIR) && rm -rf dist .next node_modules
-	cd $(PYTHON_DIR) && find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	rm -rf ag-associates-ai/frontend/.next ag-associates-ai/frontend/node_modules
+# ── Local Development ────────────────────────────────────────────────────────
 
 dev:
-	@echo 'Starting all dev servers...'
-	@echo '  Platform: npm run dev in ag-platform/'
-	@echo '  Backend:  uvicorn main:app in ag-associates-ai/backend/'
-	@echo '  n8n:      docker compose up n8n in ag-associates-ai/'
-	cd $(PLATFORM_DIR) && npm run dev &
-	cd $(PYTHON_DIR) && uvicorn main:app --reload --host 0.0.0.0 --port 8001 &
-	cd ag-associates-ai && docker compose up -d n8n 2>/dev/null || true
-	wait
+	docker compose up -d
 
-ci: pre-commit lint type-check test build
+dev-ai:
+	cd ag-associates-ai && docker compose up -d
 
-pre-commit:
-	pre-commit run --all-files
+dev-platform:
+	cd ag-platform && npm run dev
+
+test:
+	cd ag-platform && npm test
+
+lint:
+	cd ag-platform && npm run lint
+	cd ag-associates-ai/frontend && npm run lint
+
+build:
+	docker compose -f docker-compose.prod.yml build
+
+# ── Production Deployment ────────────────────────────────────────────────────
+
+provision:
+	bash scripts/deploy-all.sh provision
 
 deploy:
-	@echo 'Trigger GitHub Actions deploy workflow'
-	@echo '  gh workflow run deploy.yml --ref main'
+	bash scripts/deploy-all.sh deploy
 
-preview:
-	@echo 'Create preview deployment for current branch'
-	@echo '  gh workflow run preview.yml --ref $$(git branch --show-current)'
+runner:
+	bash scripts/deploy-all.sh runner
 
-# ── NOI Automation ──────────────────────────────────────────
+dns:
+	bash scripts/deploy-all.sh dns
 
-noi-prototype:
-	cd prototype/noi-dashboard && npm run dev
+smoke:
+	bash scripts/deploy-all.sh smoke
 
-noi-prototype-build:
-	cd prototype/noi-dashboard && npm run build
+deploy-all:
+	bash scripts/deploy-all.sh all
+
+teardown:
+	bash scripts/deploy-all.sh teardown
+
+# ── Maintenance ──────────────────────────────────────────────────────────────
+
+backup:
+	ssh deploy@$$(grep VPS_IP scripts/deploy-all.sh 2>/dev/null | head -1 | cut -d= -f2 || echo "VPS_IP") "sudo /usr/local/sbin/ag-backup"
+
+logs:
+	ssh deploy@$$(terraform output -raw vps_ip 2>/dev/null || echo "VPS_IP") "docker logs -f --tail 100 ag_ai_backend"
+
+status:
+	ssh deploy@$$(terraform output -raw vps_ip 2>/dev/null || echo "VPS_IP") "docker ps --filter name=ag_ --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
+
+ssh:
+	ssh deploy@$$(terraform output -raw vps_ip 2>/dev/null || echo "VPS_IP")
+
+clean:
+	docker system prune -af --volumes
+	cd ag-platform && npm run clean 2>/dev/null || true
+
+# ── GitHub Actions ───────────────────────────────────────────────────────────
+
+gh-secrets:
+	@echo "Setting GitHub repository secrets..."
+	@gh secret set HETZNER_API_TOKEN --body "$$HETZNER_API_TOKEN"
+	@gh secret set CLOUDFLARE_API_TOKEN --body "$$CLOUDFLARE_API_TOKEN"
+	@gh secret set CLOUDFLARE_ZONE_ID --body "$$CLOUDFLARE_ZONE_ID"
+	@gh secret set GH_PAT --body "$$GH_PAT"
+	@gh secret set GROQ_API_KEY --body "$$GROQ_API_KEY"
+	@gh secret set SUPABASE_URL --body "$$SUPABASE_URL"
+	@gh secret set SUPABASE_SERVICE_ROLE_KEY --body "$$SUPABASE_SERVICE_ROLE_KEY"
+	@gh secret set SUPABASE_ANON_KEY --body "$$SUPABASE_ANON_KEY"
+	@gh secret set SUPABASE_JWT_SECRET --body "$$SUPABASE_JWT_SECRET"
+	@gh secret set RESEND_API_KEY --body "$$RESEND_API_KEY"
+	@gh secret set TELEGRAM_BOT_TOKEN --body "$$TELEGRAM_BOT_TOKEN"
+	@gh secret set TELEGRAM_GROUP_ID --body "$$TELEGRAM_GROUP_ID"
+	@gh secret set WHATSAPP_ACCESS_TOKEN --body "$$WHATSAPP_ACCESS_TOKEN"
+	@gh secret set WHATSAPP_PHONE_NUMBER_ID --body "$$WHATSAPP_PHONE_NUMBER_ID"
+	@gh secret set WHATSAPP_BUSINESS_ACCOUNT_ID --body "$$WHATSAPP_BUSINESS_ACCOUNT_ID"
+	@gh secret set WHATSAPP_VERIFY_TOKEN --body "$$WHATSAPP_VERIFY_TOKEN"
+	@gh secret set NESL_API_KEY --body "$$NESL_API_KEY"
+	@gh secret set NESL_CLIENT_ID --body "$$NESL_CLIENT_ID"
+	@gh secret set NESL_CLIENT_SECRET --body "$$NESL_CLIENT_SECRET"
+	@gh secret set IGR_PORTAL_USERNAME --body "$$IGR_PORTAL_USERNAME"
+	@gh secret set IGR_PORTAL_PASSWORD --body "$$IGR_PORTAL_PASSWORD"
+	@gh secret set GOOGLE_GENERATIVE_AI_API_KEY --body "$$GOOGLE_GENERATIVE_AI_API_KEY"
+	@gh variable set PROD_DOMAIN --body "advaiityagade.com"
+	@gh variable set SUPABASE_URL --body "$$SUPABASE_URL"
+	@gh variable set SUPABASE_ANON_KEY --body "$$SUPABASE_ANON_KEY"
+
+gh-workflows:
+	gh workflow run deploy.yml
+	gh workflow run nextjs.yml
+
+# ── Utility ──────────────────────────────────────────────────────────────────
+
+check-env:
+	@bash -c 'source .env && \
+		for v in DOMAIN ACME_EMAIL POSTGRES_PASSWORD REDIS_PASSWORD JWT_SECRET \
+			LLM_API_KEY SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY \
+			SUPABASE_JWT_SECRET RESEND_API_KEY EMAIL_IMAP_PASS TELEGRAM_BOT_TOKEN \
+			N8N_BASIC_AUTH_PASSWORD_HASH N8N_WEBHOOK_KEY; do \
+			val=$${!v}; \
+			if [ -z "$$val" ] || [[ "$$val" == REPLACE_WITH_* ]]; then \
+				echo "MISSING: $$v"; \
+			else \
+				echo "OK: $$v=$${val:0:8}..."; \
+			fi; \
+		done'
 
 .DEFAULT_GOAL := help
