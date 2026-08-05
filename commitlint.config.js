@@ -23,6 +23,7 @@ export default {
       [
         'ai',           // ag-associates-ai/backend
         'dashboard',    // ag-associates-ai/frontend
+        'web',          // apps/web + landing/ — public marketing site
         'platform',     // ag-platform Turborepo
         'mobile',       // ag-platform/apps/mobile
         'intake',       // ag-platform/services/intake-api
