@@ -54,10 +54,10 @@ export function Footer() {
             <ul className="mt-5 space-y-3">
               <li>
                 <a
-                  href={`mailto:contact@${firm.domain}`}
+                  href={`mailto:${firm.email}`}
                   className="text-sm text-mist transition-colors duration-150 hover:text-paper"
                 >
-                  contact@{firm.domain}
+                  {firm.email}
                 </a>
               </li>
               <li>

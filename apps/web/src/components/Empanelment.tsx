@@ -37,7 +37,7 @@ export function Empanelment() {
           </div>
 
           <form
-            action={`mailto:contact@${firm.domain}`}
+            action={`mailto:${firm.email}`}
             method="post"
             encType="text/plain"
             className="rounded-xl border border-[var(--hairline-dark)] p-6 sm:p-8"
