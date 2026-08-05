@@ -1,8 +1,24 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import { SmoothScroll } from "@/components/SmoothScroll";
+import { MotionProvider } from "@/components/MotionProvider";
+import { ScrollRail } from "@/components/ScrollRail";
 import { firm } from "@/content/site";
 import "./globals.css";
+
+/**
+ * Display face. Instrument Serif ships a single weight by design — it is a
+ * display cut, and at the sizes we set it the stroke contrast does the work a
+ * weight axis normally would. Carrying one weight also keeps the added webfont
+ * cost to a single file.
+ */
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  display: "swap",
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -63,7 +79,20 @@ export default function RootLayout({
     // these; a custom property resolves against the element it is declared on,
     // so scoping them to <body> leaves the @theme tokens invalid and the whole
     // page silently falls back to the system stack.
-    <html lang="en-IN" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html
+      lang="en-IN"
+      className={`${instrumentSerif.variable} ${geistSans.variable} ${geistMono.variable}`}
+    >
+      <head>
+        {/* Motion writes its `initial` state into the server-rendered markup,
+            so the hero ships as opacity:0 and would stay that way with
+            scripting off. Everything carrying an entrance animation is tagged
+            `data-enter` and forced visible here. The scroll-linked rigs need no
+            equivalent: their resting state is already the readable one. */}
+        <noscript>
+          <style>{`[data-enter]{opacity:1!important;transform:none!important}`}</style>
+        </noscript>
+      </head>
       <body>
         <SmoothScroll />
         <a
@@ -72,7 +101,10 @@ export default function RootLayout({
         >
           Skip to content
         </a>
-        {children}
+        <MotionProvider>
+          <ScrollRail />
+          {children}
+        </MotionProvider>
       </body>
     </html>
   );
