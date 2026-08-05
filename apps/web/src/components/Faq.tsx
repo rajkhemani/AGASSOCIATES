@@ -13,12 +13,24 @@ export function Faq() {
   return (
     <section
       id="faq"
-      className="scroll-mt-24 bg-ink py-24 text-paper sm:py-32"
+      className="grain relative scroll-mt-24 bg-ink py-24 text-paper sm:py-32"
     >
-      <Container>
-        <MonoLabel index="07">{faq.eyebrow}</MonoLabel>
-        <h2 className="type-heading mt-6 max-w-[22ch]">{faq.heading}</h2>
-        <p className="type-body mt-6 max-w-[62ch] text-mist">{faq.body}</p>
+      <div
+        aria-hidden
+        className="engrave pointer-events-none absolute inset-0 opacity-50"
+      />
+      <Container className="relative">
+        <Reveal>
+          <MonoLabel index="07">{faq.eyebrow}</MonoLabel>
+        </Reveal>
+        <Reveal delay={60}>
+          <h2 className="type-heading mt-7 max-w-[20ch]">
+            The four ways a <span className="type-accent">filing fails.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={110}>
+          <p className="type-body mt-7 max-w-[62ch] text-mist">{faq.body}</p>
+        </Reveal>
 
         <div className="mt-14 max-w-[64rem]">
           {faq.items.map((item, i) => (
@@ -28,9 +40,7 @@ export function Faq() {
                   <span className="type-mono-label text-gold">
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span className="flex-1 text-lg leading-snug font-medium tracking-tight">
-                    {item.q}
-                  </span>
+                  <span className="type-subheading flex-1">{item.q}</span>
                   <span
                     aria-hidden
                     className="type-mono-label text-mist transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-open:rotate-45"

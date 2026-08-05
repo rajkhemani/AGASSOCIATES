@@ -1,27 +1,48 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  AnimatePresence,
+  m,
+  useMotionValueEvent,
+  useScroll,
+} from "motion/react";
 import { firm, nav } from "@/content/site";
 import { cn } from "./primitives";
 
 /**
  * Scroll-driven header.
  *
- * Past 48px the bar contracts into a floating pill with a blurred ground —
- * the Terminal Industries pattern. Only `transform`, `background`, `border`,
- * and `max-width` animate; nothing here triggers layout on the page below
- * because the header is fixed and out of flow.
+ * Two behaviours off one scroll subscription:
+ *  - past 48px the bar contracts into a floating pill (the Terminal Industries
+ *    pattern);
+ *  - scrolling down retracts it entirely, scrolling up brings it back, so the
+ *    tall sections are read against a clean top edge.
+ *
+ * Both commit to state only when a threshold is actually crossed, so ordinary
+ * scrolling costs no renders. The header is fixed and out of flow, so nothing
+ * here can reflow the page below.
  */
 export function Header() {
   const [floating, setFloating] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const onScroll = () => setFloating(window.scrollY > 48);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const { scrollY } = useScroll();
+
+  useMotionValueEvent(scrollY, "change", (y) => {
+    const previous = scrollY.getPrevious() ?? 0;
+
+    setFloating((was) => (was === y > 48 ? was : y > 48));
+
+    // A menu that scrolls away under the user's thumb is a trap. The 8px
+    // deadband below keeps trackpad jitter from flickering the bar.
+    if (menuOpen) return;
+    const delta = y - previous;
+    if (Math.abs(delta) < 8) return;
+    const next = delta > 0 && y > 260;
+    setHidden((was) => (was === next ? was : next));
+  });
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -31,7 +52,11 @@ export function Header() {
   }, [menuOpen]);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 pt-3 sm:pt-4">
+    <m.header
+      animate={{ y: hidden ? "-135%" : "0%" }}
+      transition={{ duration: 0.42, ease: [0.23, 1, 0.32, 1] }}
+      className="fixed inset-x-0 top-0 z-50 pt-3 sm:pt-4"
+    >
       <div
         className={cn(
           "mx-auto flex items-center gap-4 px-4 sm:px-6",
@@ -98,36 +123,43 @@ export function Header() {
         </button>
       </div>
 
-      {menuOpen && (
-        <nav
-          id="mobile-nav"
-          aria-label="Primary mobile"
-          className="mx-4 mt-2 rounded-2xl border border-[var(--hairline-dark)] bg-ink/95 p-2 backdrop-blur-xl md:hidden"
-        >
-          <ul>
-            <li className="sm:hidden">
-              <a
-                href="#empanelment"
-                onClick={() => setMenuOpen(false)}
-                className="type-mono-label m-2 block rounded-lg bg-gold px-4 py-4 text-center text-ink"
-              >
-                Empanelment
-              </a>
-            </li>
-            {nav.map((item) => (
-              <li key={item.href}>
+      <AnimatePresence>
+        {menuOpen && (
+          <m.nav
+            id="mobile-nav"
+            aria-label="Primary mobile"
+            initial={{ opacity: 0, y: -10, rotateX: -14 }}
+            animate={{ opacity: 1, y: 0, rotateX: 0 }}
+            exit={{ opacity: 0, y: -10, rotateX: -14 }}
+            transition={{ duration: 0.26, ease: [0.23, 1, 0.32, 1] }}
+            style={{ transformPerspective: 900, transformOrigin: "top center" }}
+            className="mx-4 mt-2 rounded-2xl border border-[var(--hairline-dark)] bg-ink/95 p-2 backdrop-blur-xl md:hidden"
+          >
+            <ul>
+              <li className="sm:hidden">
                 <a
-                  href={item.href}
+                  href="#empanelment"
                   onClick={() => setMenuOpen(false)}
-                  className="type-mono-label block rounded-lg px-4 py-4 text-mist transition-colors duration-150 hover:bg-white/5 hover:text-paper"
+                  className="type-mono-label m-2 block rounded-lg bg-gold px-4 py-4 text-center text-ink"
                 >
-                  {item.label}
+                  Empanelment
                 </a>
               </li>
-            ))}
-          </ul>
-        </nav>
-      )}
-    </header>
+              {nav.map((item) => (
+                <li key={item.href}>
+                  <a
+                    href={item.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="type-mono-label block rounded-lg px-4 py-4 text-mist transition-colors duration-150 hover:bg-white/5 hover:text-paper"
+                  >
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </m.nav>
+        )}
+      </AnimatePresence>
+    </m.header>
   );
 }

@@ -16,10 +16,12 @@ export function Firm() {
       className="scroll-mt-24 border-t border-t-[var(--hairline-light)] bg-paper py-24 sm:py-32"
     >
       <Container>
-        <MonoLabel index="04">The firm</MonoLabel>
+        <Reveal>
+          <MonoLabel index="04">The firm</MonoLabel>
+        </Reveal>
 
         <div className="mt-12 grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:gap-20">
-          <Reveal>
+          <Reveal delay={60}>
             <h2 className="type-heading">{principal.name}</h2>
             <p className="type-mono-label mt-4 text-gold">{principal.title}</p>
 
@@ -45,7 +47,7 @@ export function Firm() {
             </dl>
           </Reveal>
 
-          <Reveal delay={80}>
+          <Reveal delay={120}>
             <p className="type-body text-lg text-mist-dim">{principal.bio}</p>
             <p className="type-body mt-6 text-mist-dim">
               {principal.associates}
@@ -53,9 +55,7 @@ export function Firm() {
 
             <div className="mt-12 border-t border-t-[var(--hairline-light)] pt-10">
               <p className="type-mono-label text-gold">{panels.eyebrow}</p>
-              <h3 className="mt-5 text-lg leading-snug font-medium tracking-tight">
-                {panels.heading}
-              </h3>
+              <h3 className="type-subheading mt-5">{panels.heading}</h3>
               <p className="type-body mt-3 text-sm text-mist-dim">
                 {panels.body}
               </p>
