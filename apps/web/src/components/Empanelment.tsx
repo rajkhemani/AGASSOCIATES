@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { contact, firm } from "@/content/site";
+import { Reveal } from "./Reveal";
 import { Container, MonoLabel, cn } from "./primitives";
 
 /**
@@ -19,18 +20,29 @@ export function Empanelment() {
   return (
     <section
       id="empanelment"
-      className="scroll-mt-24 bg-ink py-24 text-paper sm:py-32"
+      className="grain relative scroll-mt-24 bg-ink py-24 text-paper sm:py-32"
     >
-      <Container>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_60%_at_80%_0%,rgb(201_162_39/0.13),transparent_65%)]"
+      />
+      <Container className="relative">
         <div className="grid gap-14 lg:grid-cols-2 lg:gap-20">
           <div>
-            <MonoLabel index="08">{contact.eyebrow}</MonoLabel>
-            <h2 className="type-heading mt-6 max-w-[18ch]">
-              {contact.heading}
-            </h2>
-            <p className="type-body mt-6 max-w-[48ch] text-mist">
-              {contact.body}
-            </p>
+            <Reveal>
+              <MonoLabel index="08">{contact.eyebrow}</MonoLabel>
+            </Reveal>
+            <Reveal delay={60}>
+              <h2 className="type-heading mt-7 max-w-[16ch]">
+                Add AG Associates{" "}
+                <span className="type-accent">to your panel.</span>
+              </h2>
+            </Reveal>
+            <Reveal delay={110}>
+              <p className="type-body mt-7 max-w-[48ch] text-mist">
+                {contact.body}
+              </p>
+            </Reveal>
             <p className="type-mono-label mt-10 text-mist-dim">
               {firm.name} · {firm.location}
             </p>
@@ -40,7 +52,7 @@ export function Empanelment() {
             action={`mailto:${firm.email}`}
             method="post"
             encType="text/plain"
-            className="rounded-xl border border-[var(--hairline-dark)] p-6 sm:p-8"
+            className="rimlight rounded-xl border border-[var(--hairline-dark)] bg-ink-raised/60 p-6 sm:p-8"
           >
             <fieldset>
               <legend className="type-mono-label text-gold">

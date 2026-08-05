@@ -39,9 +39,12 @@ export function MonoLabel({
   className?: string;
 }) {
   return (
+    // items-start, not items-center: these labels wrap to two lines on narrow
+    // screens, and centring the index against the wrapped block leaves it
+    // floating between the lines instead of sitting against the first one.
     <p
       className={cn(
-        "type-mono-label flex items-center gap-3",
+        "type-mono-label flex items-start gap-3 leading-[1.5]",
         tone === "dark" ? "text-mist" : "text-mist",
         className,
       )}
