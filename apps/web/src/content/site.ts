@@ -10,6 +10,7 @@ export const firm = {
   tagline: "Legal Operations & Banking Workflow Support",
   domain: "advadiityagade.com",
   url: "https://advadiityagade.com",
+  email: "admin@advadiityagade.com",
   location: "Thane, Maharashtra, India",
   jurisdiction:
     "Thane West (Majiwada / Panchpakhadi) & Mumbai MMR Sub-Registrar Offices",
