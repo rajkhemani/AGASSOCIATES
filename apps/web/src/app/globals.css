@@ -1,0 +1,148 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens — see docs/research/DESIGN_DIRECTION.md
+   Structure borrowed from Terminal Industries (Awwwards SOTD 7.68);
+   palette is AG Associates' own gold/emerald identity.
+   --------------------------------------------------------------------------- */
+
+@theme {
+  --color-ink: #0a0f14;
+  --color-ink-raised: #111820;
+  --color-ink-sunken: #06090d;
+
+  --color-paper: #f7f7f5;
+  --color-paper-raised: #ffffff;
+
+  --color-gold: #c9a227;
+  --color-gold-bright: #e3bb3c;
+  --color-emerald: #0e7c5a;
+  --color-emerald-bright: #17a173;
+
+  --color-mist: #6b7785;
+  --color-mist-dim: #4a5462;
+
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+:root {
+  --hairline-dark: rgb(255 255 255 / 0.1);
+  --hairline-light: rgb(10 15 20 / 0.1);
+}
+
+* {
+  min-width: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-synthesis-weight: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Lenis drives scroll; it sets .lenis on <html>. Native smooth scrolling must
+   stay off or the two fight over the same gesture. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* --- Type -------------------------------------------------------------- */
+
+.type-display {
+  font-size: clamp(2.75rem, 6vw, 4.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+  font-weight: 400;
+  text-wrap: balance;
+}
+
+.type-heading {
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  line-height: 1.2;
+  letter-spacing: -0.018em;
+  font-weight: 400;
+  text-wrap: balance;
+}
+
+.type-mono-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.type-body {
+  line-height: 1.6;
+  letter-spacing: -0.006em;
+  text-wrap: pretty;
+}
+
+/* --- Motion ------------------------------------------------------------ */
+
+/* Reveal-on-scroll. Content is visible by default so the page still reads if
+   JS never runs; the hook sets data-reveal="hidden" only once it has mounted. */
+[data-reveal="hidden"] {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+[data-reveal="shown"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 260ms var(--ease-out-strong),
+    transform 260ms var(--ease-out-strong);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal="hidden"] {
+    transform: none;
+  }
+
+  [data-reveal="shown"] {
+    transition: opacity 200ms ease;
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --- Focus ------------------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+::selection {
+  background: var(--color-gold);
+  color: var(--color-ink);
+}
