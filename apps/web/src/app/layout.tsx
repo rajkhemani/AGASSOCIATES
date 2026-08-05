@@ -58,8 +58,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-IN">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+    // The font variables must live on <html>, not <body>. `--font-display` and
+    // `--font-mono` are declared in @theme (which lands on :root) and reference
+    // these; a custom property resolves against the element it is declared on,
+    // so scoping them to <body> leaves the @theme tokens invalid and the whole
+    // page silently falls back to the system stack.
+    <html lang="en-IN" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body>
         <SmoothScroll />
         <a
           href="#main"
