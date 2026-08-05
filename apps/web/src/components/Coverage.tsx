@@ -30,8 +30,22 @@ export function Coverage() {
 
   // The plane flattens slightly and the grid drifts over it as the panel
   // crosses the viewport — travel over terrain, not a texture sliding by.
-  const rake = useTransform(scrollYProgress, [0, 1], [64 - 6 * depth, 52]);
-  const drift = useTransform(scrollYProgress, [0, 1], ["-14%", "14%"]);
+  //
+  // Both endpoints collapse to a single value when depth is 0, so under
+  // prefers-reduced-motion the floor is a static raked plane rather than one
+  // that still travels with the scroll. Scaling the endpoints toward zero
+  // instead would flatten the floor entirely, losing the perspective the
+  // section is built on — the setting asks for no motion, not no depth.
+  const rake = useTransform(
+    scrollYProgress,
+    [0, 1],
+    depth ? [64 - 6 * depth, 52] : [58, 58],
+  );
+  const drift = useTransform(
+    scrollYProgress,
+    [0, 1],
+    depth ? ["-14%", "14%"] : ["0%", "0%"],
+  );
 
   return (
     <section
@@ -84,20 +98,25 @@ export function Coverage() {
             className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-[radial-gradient(70%_100%_at_50%_100%,rgb(201_162_39/0.13),transparent_72%)]"
           />
 
-          <dl className="relative grid gap-px overflow-hidden rounded-xl border border-[var(--hairline-dark)] bg-[var(--hairline-dark)] lg:grid-cols-3">
+          {/* A dl would be the natural fit for label/value pairs, but the tilt
+              rig puts three wrapper elements between the list and each dt/dd,
+              which is not a definition list any assistive technology will
+              read as one. A plain list of labelled entries is honest about
+              what the markup actually is. */}
+          <ul className="relative grid gap-px overflow-hidden rounded-xl border border-[var(--hairline-dark)] bg-[var(--hairline-dark)] lg:grid-cols-3">
             {coverage.areas.map((area, i) => (
-              <Reveal key={area.label} delay={Math.min(i, 3) * 60}>
+              <Reveal key={area.label} as="li" delay={Math.min(i, 3) * 60}>
                 <TiltCard tone="dark">
                   <div className="p-8">
-                    <dt className="type-mono-label text-gold">{area.label}</dt>
-                    <dd className="type-body mt-4 text-[0.9375rem] text-paper">
+                    <p className="type-mono-label text-gold">{area.label}</p>
+                    <p className="type-body mt-4 text-[0.9375rem] text-paper">
                       {area.value}
-                    </dd>
+                    </p>
                   </div>
                 </TiltCard>
               </Reveal>
             ))}
-          </dl>
+          </ul>
         </div>
 
         <p className="type-mono-label mt-10 text-mist-dim">

@@ -152,15 +152,25 @@ function WorkflowScene({ workflow }: { workflow: Workflow }) {
       const line = deck + (window.innerHeight - deck) / 2;
 
       const top = node.getBoundingClientRect().top + window.scrollY;
-      setStops(
-        blocks.map((block) => {
-          const centre =
-            block.getBoundingClientRect().top +
-            window.scrollY +
-            block.offsetHeight / 2;
-          return (centre - line - top) / range;
-        }),
-      );
+      const raw = blocks.map((block) => {
+        const centre =
+          block.getBoundingClientRect().top +
+          window.scrollY +
+          block.offsetHeight / 2;
+        return (centre - line - top) / range;
+      });
+
+      // The first and last blocks sit slightly outside the scrollable range —
+      // measured at lg the ends come out around -0.03 and 1.03 — because the
+      // reading line is the viewport centre while progress is measured from
+      // the container edges. Scroll progress is clamped to [0,1] and can never
+      // reach those stops, so without this the final stage never takes focus:
+      // the rail stops short of full and the last plate never settles. Fitting
+      // the measured span onto [0,1] keeps the spacing and makes both ends
+      // reachable.
+      const lo = Math.min(...raw, 0);
+      const hi = Math.max(...raw, 1);
+      setStops(raw.map((v) => (v - lo) / (hi - lo)));
     };
 
     measure();
