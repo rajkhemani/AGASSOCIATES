@@ -9,7 +9,7 @@ export function Technology() {
       className="scroll-mt-24 border-t border-t-[var(--hairline-light)] bg-paper py-24 sm:py-32"
     >
       <Container>
-        <MonoLabel index="04">{automation.eyebrow}</MonoLabel>
+        <MonoLabel index="05">{automation.eyebrow}</MonoLabel>
         <h2 className="type-heading mt-6 max-w-[24ch]">{automation.heading}</h2>
         <p className="type-body mt-6 max-w-[62ch] text-mist-dim">
           {automation.body}
