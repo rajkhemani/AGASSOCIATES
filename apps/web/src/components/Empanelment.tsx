@@ -24,7 +24,7 @@ export function Empanelment() {
       <Container>
         <div className="grid gap-14 lg:grid-cols-2 lg:gap-20">
           <div>
-            <MonoLabel index="06">{contact.eyebrow}</MonoLabel>
+            <MonoLabel index="08">{contact.eyebrow}</MonoLabel>
             <h2 className="type-heading mt-6 max-w-[18ch]">
               {contact.heading}
             </h2>

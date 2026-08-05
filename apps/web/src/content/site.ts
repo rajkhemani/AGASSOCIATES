@@ -18,11 +18,27 @@ export const firm = {
   servesLabel: "Applicable for Bank & NBFC",
 } as const;
 
+/**
+ * The named advocate. Banks empanel individuals, not firms, so the enrolment
+ * details belong on the page rather than only in the empanelment kit.
+ */
+export const principal = {
+  name: "Aditya H. Gade",
+  title: "Advocate · Principal",
+  enrolment: "MAH/2838/2014",
+  enrolledOn: "15 July 2014",
+  practisingSince: "December 2014",
+  bio: "Aditya H. Gade has practised property and banking law from Thane since December 2014, working as a panel advocate on secured lending matters for commercial banks, housing finance companies, and NBFCs.",
+  associates:
+    "The firm works with associate advocates and retired bankers, so files are reviewed by people who have sat on both sides of a sanction.",
+} as const;
+
 export const nav = [
   { label: "Practice", href: "#practice" },
   { label: "Process", href: "#process" },
-  { label: "Technology", href: "#technology" },
+  { label: "Firm", href: "#firm" },
   { label: "Coverage", href: "#coverage" },
+  { label: "FAQ", href: "#faq" },
 ] as const;
 
 export const hero = {
@@ -34,19 +50,26 @@ export const hero = {
   secondaryCta: { label: "Read the process", href: "#process" },
 } as const;
 
-/** Operating commitments carried over from the existing site. */
+/**
+ * Operating figures.
+ *
+ * The 2–3 working day service level is the firm's contractual commitment to
+ * panel banks. Faster internal targets exist but are deliberately not
+ * published as commitments — a missed SLA on a statutory filing is a worse
+ * outcome than a conservative one.
+ */
 export const figures = [
   {
-    value: "24",
-    unit: "hrs",
-    label: "NOI filing target",
-    note: "From complete document set to portal submission",
+    value: "2–3",
+    unit: "days",
+    label: "Standard service level",
+    note: "Contractual turnaround for NOI registration and certified copies",
   },
   {
-    value: "48",
-    unit: "hrs",
-    label: "Title report turnaround",
-    note: "Search, encumbrance review, and certification",
+    value: "11",
+    unit: "years",
+    label: "In practice",
+    note: "Property and banking law from Thane since December 2014",
   },
   {
     value: "13",
@@ -115,6 +138,74 @@ export const automation = {
     {
       title: "Status notifications",
       body: "The bank is notified whenever a filing changes state or an acknowledgement is generated, so no case sits unattended.",
+    },
+  ],
+} as const;
+
+/**
+ * Existing panel memberships.
+ *
+ * Named institutions are the strongest trust signal a site like this carries,
+ * but panel agreements often restrict naming the lender. Confirm each entry is
+ * cleared for public listing before this ships.
+ */
+export const panels = {
+  eyebrow: "Panel memberships",
+  heading: "Already on the panel.",
+  body: "AG Associates acts as panel advocate on Notice of Intimation and mortgage matters for the following banks and non-banking financial companies.",
+  institutions: [
+    "ICICI Bank",
+    "Kotak Mahindra Bank Ltd.",
+    "Kotak Mahindra Prime Ltd.",
+    "Axis Finance Ltd.",
+    "Karur Vysya Bank",
+    "Cholamandalam Investment and Finance Company Ltd.",
+    "Muthoot Homefin (India) Ltd.",
+    "Easy Home Finance",
+  ],
+} as const;
+
+/** Working radius, stated by what is actually covered rather than by claim. */
+export const coverage = {
+  eyebrow: "Coverage",
+  heading: "Filed where the property sits.",
+  body: "Registration work runs across the Mumbai Metropolitan Region, with panel-specific coverage extending further into Maharashtra.",
+  areas: [
+    {
+      label: "Core radius",
+      value: "Thane, Kalyan and Panvel — including the 13 Sub-Registrar offices across the Thane belt",
+    },
+    {
+      label: "Mumbai",
+      value: "End-to-end property registration across Mumbai locations",
+    },
+    {
+      label: "Wider Maharashtra",
+      value: "Notice of Intimation filings extend state-wide for certain panels, including Pune and Nagpur",
+    },
+  ],
+} as const;
+
+export const faq = {
+  eyebrow: "What goes wrong",
+  heading: "The four ways a filing fails.",
+  body: "Most rejected filings fail for the same handful of reasons. These are the checks that exist because of what the firm has seen go wrong.",
+  items: [
+    {
+      q: "Missing the Section 89B window",
+      a: "A Notice of Intimation must be filed within the statutory window that starts at disbursement. Miss it and the bank is left holding a security interest that was never properly intimated. Every file is dated from the sanction and tracked against that deadline, not against when the papers happened to arrive.",
+    },
+    {
+      q: "Stamp duty miscalculated",
+      a: "Notice of Intimation stamp duty runs at 0.3% under Article 61, and the fractional rounding rules catch people out. An incorrect figure means the challan does not match the filing and the Sub-Registrar returns it.",
+    },
+    {
+      q: "Payment routed to the wrong head",
+      a: "Government challans separate registration fees from stamp duty across different Major and Minor Head codes. Money paid into the wrong head is not simply corrected at the counter — the filing is rejected and the payment has to be traced and re-routed.",
+    },
+    {
+      q: "Transcription errors in the record",
+      a: "A wrong digit in a PAN, or a property description that does not match the title documents, produces a public record that does not do its job. This is why the verification stage compares Index II against the sanction details before anything is submitted, and why discrepancies go back to the bank rather than getting a best guess.",
     },
   ],
 } as const;
