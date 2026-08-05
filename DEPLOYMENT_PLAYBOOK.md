@@ -8,6 +8,50 @@ Optimized for: lowest cost, fastest path to "live", full orchestration (CI deplo
 
 ---
 
+## 0. The marketing site is a separate target
+
+`advadiityagade.com` is **not** served from the VPS. It is the static export of
+`apps/web`, published to GitHub Pages by
+[`.github/workflows/nextjs.yml`](.github/workflows/nextjs.yml) on every push to
+`main`. Nothing in the rest of this playbook applies to it.
+
+### GitHub Pages must stay on the "GitHub Actions" source
+
+In **Settings → Pages → Build and deployment**, `Source` must be
+**`GitHub Actions`**. If it is ever set back to `Deploy from a branch`, GitHub
+enables its built-in Jekyll builder, which builds the **repository root** and
+publishes that to the same custom domain. Two publishers then compete and the
+last writer wins.
+
+This has happened twice in production. Both times the live site was replaced by
+`README.md` rendered as a Jekyll page, titled `AGASSOCIATES` because there is no
+`_config.yml` to override the default. On the first occurrence the two deploys
+finished one second apart:
+
+```
+Next.js deploy finished : 13:11:40Z
+Jekyll  deploy finished : 13:11:41Z   ← won
+```
+
+The second occurrence was worse, because the branch source had been pointed at a
+feature branch rather than `main` — so every push to that working branch took
+the production site down until the Actions workflow was re-run by hand.
+
+Notes for whoever hits this next:
+
+- **A healthy HTTP 200 is not proof the site is up.** The Jekyll page serves
+  perfectly well; it is simply the wrong site. Check the `<title>` — the real
+  site is `AG Associates — Banking Panel Advocates, Thane`.
+- **`.nojekyll` does not fix it.** That disables Jekyll *processing*, not the
+  branch-based deployment. The root would still be published, just unrendered.
+- **To recover**, re-run the Pages workflow manually — Actions → *Deploy Next.js
+  site to Pages* → *Run workflow* on `main`. A `workflow_dispatch` does not
+  trigger the Jekyll builder, so the redeploy is uncontested.
+- **Enforce HTTPS** should stay ticked. It was off for a period, and
+  `http://advadiityagade.com/` answered `200` with no redirect to TLS.
+
+---
+
 ## 1. One-time provisioning
 
 ### 1.1 Pick a VPS
