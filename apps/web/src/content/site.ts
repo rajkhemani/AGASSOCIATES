@@ -194,11 +194,11 @@ export const faq = {
   items: [
     {
       q: "Missing the Section 89B window",
-      a: "A Notice of Intimation must be filed within the statutory window that starts at disbursement. Miss it and the bank is left holding a security interest that was never properly intimated. Every file is dated from the sanction and tracked against that deadline, not against when the papers happened to arrive.",
+      a: "A Notice of Intimation must be filed within 30 days of the date of the mortgage — the date the equitable mortgage is created by deposit of title deeds. Miss it and the bank is left holding a security interest that was never properly intimated. Every file is tracked against that date from the moment it is assigned, not against when the papers happened to arrive.",
     },
     {
       q: "Stamp duty miscalculated",
-      a: "Notice of Intimation stamp duty runs at 0.3% under Article 61, and the fractional rounding rules catch people out. An incorrect figure means the challan does not match the filing and the Sub-Registrar returns it.",
+      a: "Stamp duty on an agreement relating to deposit of title deeds runs at 0.3% of the amount secured under Article 6 of Schedule I to the Maharashtra Stamp Act, and the fractional rounding rules catch people out. An incorrect figure means the challan does not match the filing and the Sub-Registrar returns it.",
     },
     {
       q: "Payment routed to the wrong head",

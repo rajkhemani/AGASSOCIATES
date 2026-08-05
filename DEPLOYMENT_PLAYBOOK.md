@@ -28,7 +28,7 @@ This has happened twice in production. Both times the live site was replaced by
 `_config.yml` to override the default. On the first occurrence the two deploys
 finished one second apart:
 
-```
+```text
 Next.js deploy finished : 13:11:40Z
 Jekyll  deploy finished : 13:11:41Z   ← won
 ```
@@ -44,9 +44,13 @@ Notes for whoever hits this next:
   site is `AG Associates — Banking Panel Advocates, Thane`.
 - **`.nojekyll` does not fix it.** That disables Jekyll *processing*, not the
   branch-based deployment. The root would still be published, just unrendered.
-- **To recover**, re-run the Pages workflow manually — Actions → *Deploy Next.js
-  site to Pages* → *Run workflow* on `main`. A `workflow_dispatch` does not
-  trigger the Jekyll builder, so the redeploy is uncontested.
+- **To recover, fix the source first.** Check *Settings → Pages → Source*. If it
+  still reads `Deploy from a branch`, change it to `GitHub Actions` before doing
+  anything else — otherwise the branch publisher stays armed and the next push
+  overwrites the site again. Then re-run the workflow manually: Actions →
+  *Deploy Next.js site to Pages* → *Run workflow* on `main`. A
+  `workflow_dispatch` does not itself trigger the Jekyll builder, so that
+  redeploy is uncontested — but it only buys time until the source is corrected.
 - **Enforce HTTPS** should stay ticked. It was off for a period, and
   `http://advadiityagade.com/` answered `200` with no redirect to TLS.
 
