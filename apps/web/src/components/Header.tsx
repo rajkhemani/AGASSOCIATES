@@ -53,6 +53,10 @@ export function Header() {
 
   return (
     <m.header
+      // The bar retracts on scroll but its links stay in the tab sequence, so
+      // a keyboard user can land on a control that is off-screen. Any focus
+      // reaching the header brings it back.
+      onFocusCapture={() => setHidden(false)}
       animate={{ y: hidden ? "-135%" : "0%" }}
       transition={{ duration: 0.42, ease: [0.23, 1, 0.32, 1] }}
       className="fixed inset-x-0 top-0 z-50 pt-3 sm:pt-4"
@@ -114,7 +118,10 @@ export function Header() {
 
         <button
           type="button"
-          onClick={() => setMenuOpen((v) => !v)}
+          onClick={() => {
+            setHidden(false);
+            setMenuOpen((v) => !v);
+          }}
           aria-expanded={menuOpen}
           aria-controls="mobile-nav"
           className="type-mono-label ml-auto rounded-lg border border-[var(--hairline-dark)] px-4 py-3 text-paper transition-colors duration-150 hover:border-gold sm:ml-0 md:hidden"

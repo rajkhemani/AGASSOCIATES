@@ -138,8 +138,10 @@ Montfort was the runner-up above and was rejected only because its impact rests
 on commissioned aerial photography. CSS 3D is the way to get that register
 without the asset budget: perspective, layered planes, and parallax spread cost
 no image requests at all. The whole depth system — engraved grounds, the raked
-figure panel, the filing deck, the coverage floor — is gradients and transforms.
-Zero bytes of imagery ship with it.
+figure panel, the filing deck, the coverage floor — is gradients and transforms,
+plus one small inline SVG grain texture carried as a data URL in the stylesheet.
+Nothing is fetched over the network, so there is no image budget to blow and no
+second request to wait on.
 
 ### The filing deck
 
