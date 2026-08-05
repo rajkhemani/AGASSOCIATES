@@ -155,7 +155,6 @@ export const panels = {
   heading: "Already on the panel.",
   body: "AG Associates acts as panel advocate on Notice of Intimation and mortgage matters for the following banks and non-banking financial companies.",
   institutions: [
-    "ICICI Bank",
     "Kotak Mahindra Bank Ltd.",
     "Kotak Mahindra Prime Ltd.",
     "Axis Finance Ltd.",
