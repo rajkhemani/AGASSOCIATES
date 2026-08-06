@@ -190,14 +190,36 @@ class WorkflowDefinition:
     def is_terminal(self, state: str) -> bool:
         return state in self.terminal_states
 
+    def knows(self, state: str) -> bool:
+        """True if ``state`` belongs to this workflow at all."""
+        return state in self.states or state in self.exception_states
+
     def validate_transition(self, current: str, new: str) -> None:
         """Raise unless ``current → new`` is a permitted move.
 
-        Moves into an exception state are always allowed: a mismatch or a
-        rejection is discovered, not scheduled.
+        Moves into an exception state are always allowed and are checked first:
+        a mismatch or a rejection is discovered rather than scheduled, and
+        recording one must never be blocked — including on a case whose stored
+        stage this workflow does not recognise.
         """
         if new in self.exception_states:
             return
+
+        # ``current`` typically arrives from the cases table, so it can be a
+        # stage this workflow has never defined — a legacy value, or another
+        # workflow's status written to the wrong column. Reporting that as
+        # "(terminal state)" would send the reader looking in the wrong place.
+        if not self.knows(current):
+            raise ValueError(
+                f"Unknown {self.slug} stage {current!r}; this workflow's stages "
+                f"are {list(self.states)}"
+            )
+        if not self.knows(new):
+            raise ValueError(
+                f"Unknown {self.slug} stage {new!r}; this workflow's stages "
+                f"are {list(self.states)}"
+            )
+
         allowed = self.allowed_from(current)
         if new not in allowed:
             raise ValueError(
