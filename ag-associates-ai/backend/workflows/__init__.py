@@ -11,11 +11,11 @@ from workflows.definitions import (
 )
 
 __all__ = [
-    "Deadline",
-    "WorkflowDefinition",
-    "NOI",
     "MORTGAGE_REGISTRATION",
+    "NOI",
     "PUBLIC_NOTICE",
     "WORKFLOWS",
+    "Deadline",
+    "WorkflowDefinition",
     "get_workflow",
 ]

@@ -155,7 +155,8 @@ def test_an_exception_can_still_be_recorded_against_an_unknown_stage():
     workflow = WorkflowDefinition(
         **_definition(
             states=("START", "END"),
-            transitions={"START": ("END",), "END": ()},
+            transitions={"START": ("END",), "END": (), "REJECTED": ()},
+            terminal_states=("END", "REJECTED"),
             exception_states=("REJECTED",),
         )
     )
@@ -201,7 +202,7 @@ def test_shipped_workflow_rejects_a_skipped_stage(workflow):
         and s not in workflow.exception_states
     ]
     assert faraway, f"{workflow.slug} is too short to test a skip"
-    with pytest.raises(ValueError, match="Invalid .* transition"):
+    with pytest.raises(ValueError, match=r"Invalid .* transition"):
         workflow.validate_transition(first, faraway[-1])
 
 
@@ -211,6 +212,31 @@ def test_exception_states_are_always_enterable(workflow):
     for state in workflow.states:
         for exception in workflow.exception_states:
             workflow.validate_transition(state, exception)
+
+
+@pytest.mark.parametrize("workflow", ALL_WORKFLOWS, ids=lambda w: w.slug)
+def test_exception_states_can_be_left_again(workflow):
+    """Being off the happy path must not strand a case.
+
+    The counterpart to the test above, and the one that was missing: entry into
+    an exception was covered, exit was not, so `ON_HOLD` shipped with no way
+    out at all. An exception either offers a route back or is terminal.
+    """
+    for state in workflow.exception_states:
+        assert workflow.is_terminal(state) or workflow.allowed_from(state), (
+            f"{workflow.slug}: {state} strands the case"
+        )
+
+
+def test_exception_state_without_an_exit_is_rejected():
+    """The invariant above, enforced at construction rather than in review."""
+    with pytest.raises(ValueError, match="no way forward but is not terminal"):
+        WorkflowDefinition(
+            **_definition(
+                exception_states=("STRANDED",),
+                transitions={"START": ("END",), "END": ()},
+            )
+        )
 
 
 def test_registry_covers_every_workflow_exactly_once():
@@ -235,11 +261,17 @@ def test_get_workflow_names_alternatives_when_unknown():
 
 
 def test_noi_machine_is_unchanged():
-    """Sourcing NOI from the registry must not alter its behaviour.
+    """The live NOI machine, pinned.
 
     These are the values that were inline in noi_agent.py. If this test has to
     be edited, the live NOI workflow is changing and that is a decision, not a
     refactor.
+
+    It has been edited once, deliberately: ``MISMATCH`` previously had no exit,
+    so a case flagged as mismatched could only be moved on with ``force=True``.
+    It now rejoins at ``VERIFIED``. That is the single difference from the
+    original inline machine, and it only widens what is permitted — no move
+    that was legal before has been withdrawn.
     """
     assert NOI.states == (
         "DOCUMENTS_RECEIVED",
@@ -262,6 +294,7 @@ def test_noi_machine_is_unchanged():
         "NOI_FILED": ("ACKNOWLEDGED",),
         "ACKNOWLEDGED": ("COMPLETED",),
         "COMPLETED": (),
+        "MISMATCH": ("VERIFIED",),
     }
     assert set(NOI.exception_states) == {"MISMATCH", "REJECTED"}
     assert set(NOI.terminal_states) == {"COMPLETED", "REJECTED"}
