@@ -119,6 +119,49 @@ def test_transitions_are_not_mutable_after_construction():
         workflow.transitions["START"] = ("START",)
 
 
+def test_deadlines_are_not_mutable_after_construction():
+    workflow = WorkflowDefinition(
+        **_definition(
+            deadlines={
+                "START": Deadline(label="x", options=(7,), starts_from="somewhere")
+            }
+        )
+    )
+    with pytest.raises(TypeError):
+        workflow.deadlines["START"] = Deadline(
+            label="y", options=(1,), starts_from="elsewhere"
+        )
+
+
+def test_transition_from_a_stage_this_workflow_does_not_know_is_reported_as_such():
+    """A stored stage can be a legacy value or another workflow's status.
+
+    Reporting that as "(terminal state)" would point the reader at the wrong
+    problem entirely.
+    """
+    workflow = WorkflowDefinition(**_definition())
+    with pytest.raises(ValueError, match="Unknown sample stage 'LEGACY_VALUE'"):
+        workflow.validate_transition("LEGACY_VALUE", "END")
+
+
+def test_transition_to_a_stage_this_workflow_does_not_know_is_reported_as_such():
+    workflow = WorkflowDefinition(**_definition())
+    with pytest.raises(ValueError, match="Unknown sample stage 'TYPO'"):
+        workflow.validate_transition("START", "TYPO")
+
+
+def test_an_exception_can_still_be_recorded_against_an_unknown_stage():
+    """Recording a problem must never be blocked, whatever the case holds."""
+    workflow = WorkflowDefinition(
+        **_definition(
+            states=("START", "END"),
+            transitions={"START": ("END",), "END": ()},
+            exception_states=("REJECTED",),
+        )
+    )
+    workflow.validate_transition("LEGACY_VALUE", "REJECTED")
+
+
 # --------------------------------------------------------------------------
 # Every shipped workflow, checked generically
 # --------------------------------------------------------------------------
