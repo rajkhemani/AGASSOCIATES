@@ -123,7 +123,7 @@ class NOIAgent:
         if self._use_local_store():
             case = await self._local_get_case(case_id)
             if case:
-                case["noi_status"] = new_status
+                case[NOI.status_field] = new_status
                 case["updated_at"] = datetime.utcnow().isoformat()
                 await self._local_set_case(case_id, case)
                 logger.info(
@@ -145,7 +145,7 @@ class NOIAgent:
                 resp = await client.patch(
                     f"{supabase_url}/rest/v1/cases?id=eq.{case_id}",
                     json={
-                        "noi_status": new_status,
+                        NOI.status_field: new_status,
                         "updated_at": datetime.utcnow().isoformat(),
                     },
                     headers={
@@ -157,7 +157,7 @@ class NOIAgent:
                 )
                 resp.raise_for_status()
 
-            await self._log_timeline(case_id, "noi_status", new_status, notes)
+            await self._log_timeline(case_id, NOI.status_field, new_status, notes)
 
             record_activity(
                 source="noi_agent",
@@ -183,7 +183,7 @@ class NOIAgent:
         case = {
             "id": case_id,
             "case_id": case_id,
-            "noi_status": "DOCUMENTS_RECEIVED",
+            NOI.status_field: "DOCUMENTS_RECEIVED",
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "borrower_name": case_data.get("borrower_name", "Test Borrower"),
@@ -364,7 +364,7 @@ class NOIAgent:
         if not case:
             return {"success": False, "error": f"Case {case_id} not found"}
 
-        noi_status = case.get("noi_status", "")
+        noi_status = case.get(NOI.status_field, "")
         if noi_status not in ("NOI_DROP_RECEIVED", "RECTIFY"):
             return {
                 "success": False,

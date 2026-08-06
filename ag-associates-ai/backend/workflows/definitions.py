@@ -23,18 +23,18 @@ deliberately not represented here.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from types import MappingProxyType
-from typing import Mapping
 
 __all__ = [
-    "Deadline",
-    "WorkflowDefinition",
-    "NOI",
     "MORTGAGE_REGISTRATION",
+    "NOI",
     "PUBLIC_NOTICE",
     "WORKFLOWS",
+    "Deadline",
+    "WorkflowDefinition",
     "get_workflow",
 ]
 
@@ -156,8 +156,10 @@ class WorkflowDefinition:
             )
 
         # The mirror image: a stage the workflow can enter and never leave,
-        # without having been declared an ending.
-        for name in self.states:
+        # without having been declared an ending. Exception states are included
+        # — being off the happy path is not a reason to strand a case. An
+        # exception either offers a route back or is declared terminal.
+        for name in (*self.states, *self.exception_states):
             if name not in self.terminal_states and not self.transitions.get(name):
                 raise ValueError(
                     f"{self.slug}: {name} has no way forward but is not terminal"
@@ -262,6 +264,11 @@ NOI = WorkflowDefinition(
         "NOI_FILED": ("ACKNOWLEDGED",),
         "ACKNOWLEDGED": ("COMPLETED",),
         "COMPLETED": (),
+        # A mismatch is corrected and the file goes back for re-verification.
+        # This edge is new: previously MISMATCH had no exit at all, so the only
+        # way to move such a case on was force=True. Widening only — nothing
+        # that was permitted before has been withdrawn.
+        "MISMATCH": ("VERIFIED",),
     },
     initial_states=("DOCUMENTS_RECEIVED",),
     terminal_states=("COMPLETED", "REJECTED"),
@@ -313,6 +320,9 @@ MORTGAGE_REGISTRATION = WorkflowDefinition(
         "REGISTERED": ("DOCUMENTS_COLLECTED",),
         "DOCUMENTS_COLLECTED": ("CLOSED",),
         "CLOSED": (),
+        # A held case is not an ended case. It either restarts from intake once
+        # whatever blocked it is resolved, or it is cancelled outright.
+        "ON_HOLD": ("DOCUMENTS_RECEIVED", "CANCELLED"),
     },
     initial_states=("DOCUMENTS_RECEIVED",),
     terminal_states=("CLOSED", "CANCELLED"),
@@ -363,6 +373,10 @@ PUBLIC_NOTICE = WorkflowDefinition(
         "ESCALATED": ("CLEAR", "ON_HOLD"),
         "CLEAR": ("CLOSED",),
         "CLOSED": (),
+        # The SOP pauses the dependent registration "until clarification" —
+        # which means the pause ends. A held matter goes back to escalation for
+        # the clarification to be assessed, or clears on the strength of it.
+        "ON_HOLD": ("ESCALATED", "CLEAR"),
     },
     initial_states=("DOCUMENTS_RECEIVED",),
     terminal_states=("CLOSED",),
@@ -387,6 +401,5 @@ def get_workflow(slug: str) -> WorkflowDefinition:
     try:
         return WORKFLOWS[slug]
     except KeyError:
-        raise KeyError(
-            f"Unknown workflow {slug!r}; known workflows: {', '.join(sorted(WORKFLOWS))}"
-        ) from None
+        known = ", ".join(sorted(WORKFLOWS))
+        raise KeyError(f"Unknown workflow {slug!r}; known workflows: {known}") from None
