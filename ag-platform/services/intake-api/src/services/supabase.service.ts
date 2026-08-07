@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-import type { BankName } from '../schemas/intake.schema.js';
+import type { BankName } from '../schemas/intake.schema';
 
 let _supabase: SupabaseClient | null = null;
 
