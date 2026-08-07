@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Layout
 
-Three independent subsystems plus shared docs. They share a domain (legal ops for
-Indian panel advocates) and the root guideline files — **no code-level coupling**.
-Don't assume a change in one carries over.
+Three active subsystems, plus the superseded `landing/` page and shared docs.
+They share a domain (legal ops for Indian panel advocates) and the root guideline
+files — **no code-level coupling**. Don't assume a change in one carries over.
 
 ```text
 AGASSOCIATES/
@@ -55,10 +55,14 @@ python -m pytest test_workflow_deadlines.py -q  # one file
 the same bare command, so there is one baseline, not two:
 
 ```bash
-pip install -U ruff                 # MUST be >= 0.16 — see below
+pip install ruff==0.16.1            # pin it — see below, the version IS the ruleset
 cd ag-associates-ai/backend
 ruff check . && ruff format --check .
 ```
+
+CI installs `ruff` unpinned, so it drifts to whatever is current; 0.16.1 is what
+it resolved to when the 874 baseline below was taken. Pin locally to reproduce
+that number, and re-take the baseline against `origin/main` when CI moves on.
 
 Run it from anywhere else and the number is not comparable to CI's — ruff
 resolves first-party imports relative to its working directory, so `I001` fires

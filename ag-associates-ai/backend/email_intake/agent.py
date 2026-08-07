@@ -195,13 +195,22 @@ async def fetch_new_emails() -> list[dict]:
 
     emails_raw = []
 
-    def _fetch():
-        mail = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
-        mail.login(IMAP_USER, IMAP_PASS)
+    def _drain(mail):
+        """Read UNSEEN mail and flag what was handed on.
+
+        The caller owns the connection, so that closing it does not depend on
+        this returning normally.
+        """
         mail.select(IMAP_INBOX)
 
-        _, data = mail.search(None, "UNSEEN")
-        seen_uids = set()
+        # UID commands throughout, never sequence numbers. A sequence number
+        # identifies a message only until the mailbox is renumbered, and an
+        # EXPUNGE — the advocate deleting a mail in webmail while this runs —
+        # renumbers it. The flagging pass below would then mark a different
+        # message read: an unprocessed client email, silently. A UID does not
+        # move.
+        _, data = mail.uid("SEARCH", None, "UNSEEN")
+        handled_uids = set()
 
         for num in data[0].split():
             if not num:
@@ -212,7 +221,7 @@ async def fetch_new_emails() -> list[dict]:
             # over. The next UNSEEN search would not return it, so an
             # unrecognised message would be read, unprocessed and invisible.
             # \Seen is set explicitly below, and only for messages handled.
-            _, msg_data = mail.fetch(num, "(BODY.PEEK[])")
+            _, msg_data = mail.uid("FETCH", num, "(BODY.PEEK[])")
             for response_part in msg_data:
                 if isinstance(response_part, tuple):
                     msg = email.message_from_bytes(response_part[1])
@@ -292,7 +301,7 @@ async def fetch_new_emails() -> list[dict]:
                         except Exception:
                             body = str(msg.get_payload())
 
-                    seen_uids.add(num)
+                    handled_uids.add(num)
                     emails_raw.append(
                         {
                             "sender": sender_email,
@@ -307,20 +316,33 @@ async def fetch_new_emails() -> list[dict]:
         # passed over stays UNSEEN, so it comes back on the next poll and a
         # human sees it as unread in the mailbox — the mailbox, not the
         # in-process queue, is what keeps it.
-        for num in seen_uids:
+        for num in handled_uids:
             try:
-                mail.store(num, "+FLAGS", "\\Seen")
+                mail.uid("STORE", num, "+FLAGS", "\\Seen")
             except Exception:
                 # Failing to flag risks the case being created twice; failing
                 # to say so risks nobody knowing why.
                 logger.exception("Could not mark message %r read", num)
 
-        try:
-            mail.close()
-        finally:
-            mail.logout()
+        return list(handled_uids)
 
-        return list(seen_uids)
+    def _fetch():
+        # The teardown is in a finally because the poller runs every sixty
+        # seconds forever: a fetch that raises must still give the connection
+        # back, or repeated failures walk the mailbox into its connection
+        # limit and the intake stops entirely.
+        mail = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+        mail.login(IMAP_USER, IMAP_PASS)
+        try:
+            return _drain(mail)
+        finally:
+            try:
+                # Only legal with a mailbox selected, so it fails when SELECT
+                # was what raised. logout() still has to happen.
+                mail.close()
+            except Exception:
+                logger.debug("IMAP close failed", exc_info=True)
+            mail.logout()
 
     try:
         seen = await asyncio.to_thread(_fetch)
