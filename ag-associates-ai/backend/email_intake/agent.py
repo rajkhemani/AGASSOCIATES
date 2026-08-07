@@ -16,6 +16,7 @@ import asyncio
 import imaplib
 import email
 import re
+from collections import deque
 from email.header import decode_header
 from typing import Optional, Tuple
 
@@ -24,6 +25,8 @@ from pydantic import BaseModel, Field
 
 # Import NOI agent for workflow automation
 from noi_agent import noi_agent
+
+from email_intake.panel import Recognition, configured_domains, recognise
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
@@ -34,7 +37,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 IMAP_HOST = os.environ.get("EMAIL_IMAP_HOST", "imap.zoho.in")
 IMAP_PORT = int(os.environ.get("EMAIL_IMAP_PORT", "993"))
 IMAP_USER = os.environ.get("EMAIL_IMAP_USER", "admin@advadiityagade.com")
-IMAP_PASS = os.environ.get("EMAIL_IMAP_PASS", "Parii@1907")  # App Password from Zoho
+# No default. A hardcoded fallback here previously held a live Zoho app
+# password, which meant a missing secret looked like a working deployment
+# instead of failing loudly. An unset value now stops the poller at startup.
+IMAP_PASS = os.environ.get("EMAIL_IMAP_PASS", "")
 IMAP_INBOX = os.environ.get("EMAIL_IMAP_INBOX", "INBOX")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
@@ -50,21 +56,45 @@ REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
 POLL_INTERVAL_SECONDS = int(os.environ.get("EMAIL_POLL_INTERVAL", "60"))
 INTAKE_PORT = int(os.environ.get("EMAIL_INTAKE_PORT", "3004"))
 
-KNOWN_BANK_DOMAINS = [
-    "hdfc.com",
-    "hdfcbank.com",
-    "icicibank.com",
-    "axisbank.com",
-    "kotak.com",
-    "kotakmahindra.com",
-    "muthoot.com",
-    "muthootfinance.com",
-    "sbicard.com",
-    "sbi.co.in",
-    "yesbank.in",
-    "idfcfirstbank.com",
-    "indusind.com",
-]
+# Recognised senders now live in email_intake/panel.py, keyed to the firm's
+# published panel and overridable via BANK_EMAIL_DOMAINS. The list that stood
+# here named institutions the firm does not act for and omitted three that it
+# does.
+
+#: Messages the poller could not attribute to a panel client. Bounded, so a
+#: burst of spam cannot exhaust memory; the oldest are discarded first. Exposed
+#: on the health endpoint so the backlog is visible without shell access.
+_REVIEW_LIMIT = 50
+_awaiting_review: deque[dict] = deque(maxlen=_REVIEW_LIMIT)
+
+
+def set_aside_for_review(
+    sender: str, subject: str, received: str, reason: str
+) -> None:
+    """Hold an unrecognised message for a human instead of discarding it.
+
+    Recording this is the whole point: an incomplete domain list should show up
+    as a queue someone can act on, not as mail that never arrived.
+    """
+    _awaiting_review.append(
+        {
+            "sender": sender,
+            "subject": subject,
+            "received": received,
+            "reason": reason,
+        }
+    )
+    logger.warning(
+        "Unrecognised sender held for review (%s): %s — %r",
+        reason,
+        sender,
+        subject,
+    )
+
+
+def review_backlog() -> list[dict]:
+    """Messages currently awaiting a human decision, oldest first."""
+    return list(_awaiting_review)
 
 # ── Schema ───────────────────────────────────────────────────────────────
 
@@ -72,7 +102,9 @@ KNOWN_BANK_DOMAINS = [
 class LoanSanctionExtract(BaseModel):
     borrower_name: str = Field(description="Full name of the borrower")
     loan_amount: str = Field(description="Loan amount in INR (e.g., ₹45,00,000)")
-    bank_name: str = Field(description="Name of the bank (e.g., HDFC, ICICI)")
+    bank_name: str = Field(
+        description="Name of the lender as written in the sanction letter"
+    )
     loan_ref_number: Optional[str] = Field(
         None, description="Loan reference or application number"
     )
@@ -112,15 +144,13 @@ def decode_str(s):
 
 
 def is_bank_email(sender_email: str) -> bool:
-    """Check if sender domain matches known bank domains."""
-    match = re.search(r"@([\w.-]+)", sender_email)
-    if not match:
-        return False
-    domain = match.group(1).lower()
-    for bank_domain in KNOWN_BANK_DOMAINS:
-        if domain == bank_domain or domain.endswith("." + bank_domain):
-            return True
-    return False
+    """True if the sender is a recognised panel client.
+
+    Retained as a thin wrapper over `panel.recognise` so the recognition rules
+    live in one place. Note that a False result no longer means "discard" —
+    see the caller in `fetch_new_emails`.
+    """
+    return recognise(sender_email) == Recognition.KNOWN
 
 
 async def fetch_new_emails() -> list[dict]:
@@ -156,7 +186,19 @@ async def fetch_new_emails() -> list[dict]:
                     )
                     sender_email = sender_match.group(1) if sender_match else sender
 
-                    if not is_bank_email(sender_email):
+                    # Recognition decides how a message is handled, never
+                    # whether. Anything unrecognised is set aside for a human
+                    # rather than discarded — the previous `continue` here
+                    # silently dropped mail from panel clients whose domain
+                    # was missing from the list.
+                    recognition = recognise(sender_email)
+                    if recognition != Recognition.KNOWN:
+                        set_aside_for_review(
+                            sender=sender_email,
+                            subject=subject,
+                            received=date_str,
+                            reason=recognition,
+                        )
                         continue
 
                     # Extract body and attachments
@@ -673,9 +715,27 @@ async def health_server():
 
     class H(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
+            # The review backlog is reported here so an incomplete sender list
+            # is visible as a number someone can watch, rather than needing
+            # shell access to the container's logs to discover.
+            backlog = review_backlog()
+            body = json.dumps(
+                {
+                    "status": "ok",
+                    "agent": "email_intake",
+                    "awaiting_review": len(backlog),
+                    "recognised_domains": list(configured_domains()),
+                    "review_backlog": backlog,
+                }
+            ).encode()
             self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(b'{"status":"ok","agent":"email_intake"}')
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            """Silence per-request logging; the healthcheck polls constantly."""
 
     with socketserver.TCPServer(("0.0.0.0", INTAKE_PORT), H) as httpd:
         httpd.serve_forever()
