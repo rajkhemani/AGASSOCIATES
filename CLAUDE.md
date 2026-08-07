@@ -49,12 +49,14 @@ python -m pytest -q                             # whole suite
 python -m pytest test_workflow_deadlines.py -q  # one file
 ```
 
-The Python lint gate runs from the **repo root**, not from `backend/`, and the
-directory changes the count — reproduce it exactly:
+There are **two** Python lint jobs and they disagree. `main.yml` runs from
+`ag-associates-ai/backend` (this is the check named `ag-associates-ai / backend`);
+`ci.yml` runs from the repo root. Both run the same bare command:
 
 ```bash
-cd "$(git rev-parse --show-toplevel)"
-ruff check . && ruff format --check .           # verbatim what ci.yml runs
+pip install -U ruff                 # MUST be >= 0.16 — see below
+cd ag-associates-ai/backend && ruff check . && ruff format --check .
+cd "$(git rev-parse --show-toplevel)" && ruff check .
 ```
 
 Four test files exist (`test_workflow_definitions.py`, `test_workflow_deadlines.py`,
@@ -177,21 +179,29 @@ out, and apex/www can form a redirect loop that takes the whole site down.
 
 **`ruff` is the only enforced Python gate**, and it reports pre-existing errors,
 so the job is permanently red. A change is clean when it does not *add* to the
-count. Three things have produced wrong answers here:
+count. Getting that judgement right has failed here more than once, in three
+different ways:
 
-- **There is no `pyproject.toml` or `ruff.toml` anywhere in the repo**, so CI
-  runs on ruff's default rule set — `E4/E7/E9/F` only. `UP`, `RUF`, `I`, `B` and
-  the rest are *not* enforced. Checking with an explicit `--select` list reports
-  a number an order of magnitude larger that CI will never see.
-- The working directory changes the count (repo root vs.
-  `ag-associates-ai/backend`), because ruff walks from where it is invoked.
-  CI runs at the repo root.
-- CI installs `ruff` unpinned, so the absolute number drifts between runs on
-  unchanged code.
+- **There is no `pyproject.toml` or `ruff.toml` anywhere in the repo**, so the
+  rule set is whatever the installed ruff defaults to — and **ruff 0.16 widened
+  that default** to include `UP`, `RUF`, `I`, `B`, `SIM`, `BLE`, `S` and `DTZ`.
+  CI does `pip install ruff` unpinned, so it gets the wide set. Ruff 0.15
+  reports **48** errors for the identical command where 0.16 reports **874**.
+  A stale local ruff will tell you the tree is nearly clean. Check
+  `ruff --version` before trusting any number.
+- **The working directory changes the answer, and the two jobs disagree.**
+  `main.yml` runs in `ag-associates-ai/backend`; `ci.yml` runs at the repo root.
+  Ruff resolves first-party imports relative to where it is invoked, so the
+  isort rule `I001` fires on files at one location and not the other. Fixing the
+  two `I001`s the root job reports *creates* two the backend job reports.
+  They cannot both be satisfied. Hold `ag-associates-ai/backend` at 874 — that
+  is the job reported as a check on the PR.
+- The rule set moves with the unpinned version, so an absolute number goes stale
+  on unchanged code.
 
-Together these mean **an absolute error count proves nothing.** The only
-meaningful check is a delta: run the exact CI command on `origin/main` and on
-the branch, with the same binary, and confirm the two numbers match.
+So **an absolute error count proves nothing.** The only sound check is a delta:
+same binary, same directory, `origin/main` vs. the branch. Baselines as of
+ruff 0.16.1 — **874** from `ag-associates-ai/backend`, **918** from the repo root.
 
 **The pytest job cannot fail.** `ci.yml` runs
 `python -m pytest ... 2>/dev/null || echo "No pytest tests found"` — it swallows
