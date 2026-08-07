@@ -23,10 +23,15 @@ deliberately not represented here.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from types import MappingProxyType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Only ever used in annotations, which `from __future__ import annotations`
+    # keeps as strings — so this never needs to exist at runtime.
+    from collections.abc import Mapping
 
 __all__ = [
     "MORTGAGE_REGISTRATION",
@@ -113,10 +118,24 @@ class WorkflowDefinition:
     def __post_init__(self) -> None:
         known = set(self.states) | set(self.exception_states)
 
+        self._check_names_are_unique(known)
+        self._check_transitions_name_real_states(known)
+        self._check_endpoints_name_real_states(known)
+        self._check_every_state_is_reachable()
+        self._check_no_state_strands_a_case()
+        self._check_deadlines_name_real_states(known)
+
+        object.__setattr__(
+            self, "transitions", MappingProxyType(dict(self.transitions))
+        )
+        object.__setattr__(self, "deadlines", MappingProxyType(dict(self.deadlines)))
+
+    def _check_names_are_unique(self, known: set[str]) -> None:
         duplicates = len(self.states) + len(self.exception_states) - len(known)
         if duplicates:
             raise ValueError(f"{self.slug}: {duplicates} state name(s) declared twice")
 
+    def _check_transitions_name_real_states(self, known: set[str]) -> None:
         for origin, targets in self.transitions.items():
             if origin not in known:
                 raise ValueError(
@@ -129,11 +148,12 @@ class WorkflowDefinition:
                         f"names a state that does not exist"
                     )
 
-        for state in ("initial_states", "terminal_states"):
-            for name in getattr(self, state):
+    def _check_endpoints_name_real_states(self, known: set[str]) -> None:
+        for group in ("initial_states", "terminal_states"):
+            for name in getattr(self, group):
                 if name not in known:
                     raise ValueError(
-                        f"{self.slug}: {state} names unknown state {name!r}"
+                        f"{self.slug}: {group} names unknown state {name!r}"
                     )
 
         if not self.initial_states:
@@ -146,8 +166,12 @@ class WorkflowDefinition:
                     f"transitions {list(self.transitions[name])}"
                 )
 
-        # The failure ADR 0002 describes: a state defined but wired to nothing,
-        # so no code path can ever set it. Exception states are exempt.
+    def _check_every_state_is_reachable(self) -> None:
+        """The failure ADR 0002 describes: a state defined but wired to nothing.
+
+        Exception states are exempt — they are entered from wherever the
+        problem was noticed rather than from a declared predecessor.
+        """
         unreachable = set(self.states) - self._reachable()
         if unreachable:
             raise ValueError(
@@ -155,24 +179,26 @@ class WorkflowDefinition:
                 f"{list(self.initial_states)}"
             )
 
-        # The mirror image: a stage the workflow can enter and never leave,
-        # without having been declared an ending. Exception states are included
-        # — being off the happy path is not a reason to strand a case. An
-        # exception either offers a route back or is declared terminal.
+    def _check_no_state_strands_a_case(self) -> None:
+        """The mirror image: a stage entered that cannot be left.
+
+        Exception states are *included* here — being off the happy path is not
+        a reason to strand a case, so an exception either offers a route back
+        or is declared terminal. A self-loop does not count as a route back.
+        """
         for name in (*self.states, *self.exception_states):
-            if name not in self.terminal_states and not self.transitions.get(name):
+            if name in self.terminal_states:
+                continue
+            onward = [target for target in self.allowed_from(name) if target != name]
+            if not onward:
                 raise ValueError(
                     f"{self.slug}: {name} has no way forward but is not terminal"
                 )
 
+    def _check_deadlines_name_real_states(self, known: set[str]) -> None:
         for name in self.deadlines:
             if name not in known:
                 raise ValueError(f"{self.slug}: deadline on unknown state {name!r}")
-
-        object.__setattr__(
-            self, "transitions", MappingProxyType(dict(self.transitions))
-        )
-        object.__setattr__(self, "deadlines", MappingProxyType(dict(self.deadlines)))
 
     def _reachable(self) -> set[str]:
         seen: set[str] = set()

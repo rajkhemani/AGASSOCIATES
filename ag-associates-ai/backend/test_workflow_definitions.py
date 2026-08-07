@@ -26,16 +26,16 @@ ALL_WORKFLOWS = [NOI, MORTGAGE_REGISTRATION, PUBLIC_NOTICE]
 
 def _definition(**overrides) -> dict:
     """A minimal well-formed definition, for mutating one field at a time."""
-    base = dict(
-        slug="sample",
-        label="Sample",
-        status_field="sample_status",
-        redis_prefix="sample:case:",
-        states=("START", "END"),
-        transitions={"START": ("END",), "END": ()},
-        initial_states=("START",),
-        terminal_states=("END",),
-    )
+    base = {
+        "slug": "sample",
+        "label": "Sample",
+        "status_field": "sample_status",
+        "redis_prefix": "sample:case:",
+        "states": ("START", "END"),
+        "transitions": {"START": ("END",), "END": ()},
+        "initial_states": ("START",),
+        "terminal_states": ("END",),
+    }
     base.update(overrides)
     return base
 
@@ -223,18 +223,34 @@ def test_exception_states_can_be_left_again(workflow):
     out at all. An exception either offers a route back or is terminal.
     """
     for state in workflow.exception_states:
-        assert workflow.is_terminal(state) or workflow.allowed_from(state), (
+        onward = [target for target in workflow.allowed_from(state) if target != state]
+        assert workflow.is_terminal(state) or onward, (
             f"{workflow.slug}: {state} strands the case"
         )
 
 
 def test_exception_state_without_an_exit_is_rejected():
     """The invariant above, enforced at construction rather than in review."""
-    with pytest.raises(ValueError, match="no way forward but is not terminal"):
+    with pytest.raises(ValueError, match="STRANDED"):
         WorkflowDefinition(
             **_definition(
                 exception_states=("STRANDED",),
                 transitions={"START": ("END",), "END": ()},
+            )
+        )
+
+
+def test_exception_state_that_only_loops_to_itself_is_rejected():
+    """A self-loop is not a route out — the case is still stuck on it."""
+    with pytest.raises(ValueError, match="STRANDED"):
+        WorkflowDefinition(
+            **_definition(
+                exception_states=("STRANDED",),
+                transitions={
+                    "START": ("END",),
+                    "END": (),
+                    "STRANDED": ("STRANDED",),
+                },
             )
         )
 
