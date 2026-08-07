@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import os
 import re
+from enum import StrEnum
 
 __all__ = [
     "PANEL_INSTITUTIONS",
@@ -57,8 +58,12 @@ _CONFIRMED_DOMAINS = (
 _SENDER = re.compile(r"@([\w.-]+)")
 
 
-class Recognition(str):
-    """Why a message was or was not recognised, for logging and triage."""
+class Recognition(StrEnum):
+    """Why a message was or was not recognised, for logging and triage.
+
+    A closed set rather than bare strings, so a typo at a call site fails
+    rather than silently comparing unequal and sending mail to review.
+    """
 
     KNOWN = "known"
     UNKNOWN = "unknown"
@@ -79,7 +84,7 @@ def configured_domains() -> tuple[str, ...]:
     )
 
 
-def recognise(sender: str, domains: tuple[str, ...] | None = None) -> str:
+def recognise(sender: str, domains: tuple[str, ...] | None = None) -> Recognition:
     """Classify a sender. Never a reason on its own to discard the message.
 
     Subdomains count: mail from `noreply.loans.example.com` matches a

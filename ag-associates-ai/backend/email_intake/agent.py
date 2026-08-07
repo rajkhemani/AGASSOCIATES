@@ -61,20 +61,26 @@ INTAKE_PORT = int(os.environ.get("EMAIL_INTAKE_PORT", "3004"))
 # here named institutions the firm does not act for and omitted three that it
 # does.
 
-#: Messages the poller could not attribute to a panel client. Bounded, so a
-#: burst of spam cannot exhaust memory; the oldest are discarded first. Exposed
-#: on the health endpoint so the backlog is visible without shell access.
+#: A recent-activity window, NOT the system of record.
+#:
+#: The durable record is twofold: the message itself stays UNSEEN in the
+#: mailbox — nothing here marks it read or moves it — so it is still there for
+#: a human, and every occurrence is logged at WARNING, which ships to the
+#: container log. This deque exists only so the health endpoint can report a
+#: count without reading the log. It is bounded because an unbounded queue in a
+#: long-lived poller is a memory leak, and it is process-local because it is a
+#: view, not storage. Losing it on restart loses nothing.
 _REVIEW_LIMIT = 50
 _awaiting_review: deque[dict] = deque(maxlen=_REVIEW_LIMIT)
 
 
-def set_aside_for_review(
-    sender: str, subject: str, received: str, reason: str
-) -> None:
+def set_aside_for_review(sender: str, subject: str, received: str, reason: str) -> None:
     """Hold an unrecognised message for a human instead of discarding it.
 
     Recording this is the whole point: an incomplete domain list should show up
-    as a queue someone can act on, not as mail that never arrived.
+    as something someone can act on, not as mail that never arrived. The
+    message stays unread in the mailbox; this only notes that it was passed
+    over and why.
     """
     _awaiting_review.append(
         {
@@ -85,7 +91,8 @@ def set_aside_for_review(
         }
     )
     logger.warning(
-        "Unrecognised sender held for review (%s): %s — %r",
+        "Unrecognised sender passed over, message left unread in the mailbox "
+        "(%s): %s — %r",
         reason,
         sender,
         subject,
@@ -93,8 +100,18 @@ def set_aside_for_review(
 
 
 def review_backlog() -> list[dict]:
-    """Messages currently awaiting a human decision, oldest first."""
+    """Recently passed-over messages, oldest first.
+
+    Carries sender and subject, so it must not be served on an unauthenticated
+    endpoint — a sanction-letter subject line routinely names the borrower.
+    """
     return list(_awaiting_review)
+
+
+def review_backlog_size() -> int:
+    """How many messages were recently passed over. Safe to expose."""
+    return len(_awaiting_review)
+
 
 # ── Schema ───────────────────────────────────────────────────────────────
 
@@ -715,17 +732,18 @@ async def health_server():
 
     class H(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
-            # The review backlog is reported here so an incomplete sender list
-            # is visible as a number someone can watch, rather than needing
-            # shell access to the container's logs to discover.
-            backlog = review_backlog()
+            # Counts only. This endpoint backs the Docker HEALTHCHECK and is
+            # unauthenticated, so it must not carry message metadata: the
+            # subject line of a sanction-letter email routinely contains the
+            # borrower's name and the loan reference. The number is enough to
+            # notice a growing backlog; the detail stays in the container log,
+            # which is already access-controlled.
             body = json.dumps(
                 {
                     "status": "ok",
                     "agent": "email_intake",
-                    "awaiting_review": len(backlog),
-                    "recognised_domains": list(configured_domains()),
-                    "review_backlog": backlog,
+                    "awaiting_review": review_backlog_size(),
+                    "recognised_domain_count": len(configured_domains()),
                 }
             ).encode()
             self.send_response(200)

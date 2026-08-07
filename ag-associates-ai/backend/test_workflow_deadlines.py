@@ -161,10 +161,11 @@ def test_scan_returns_the_worst_case_first():
         noi_clock(case_id="overdue", started_on=date(2026, 1, 1)),
         noi_clock(case_id="due-today", started_on=date(2026, 2, 28)),
     ]
-    ranked = scan(WORKFLOWS, clocks, as_of=as_of)
+    result = scan(WORKFLOWS, clocks, as_of=as_of)
 
-    assert [s.case_id for s in ranked] == ["overdue", "due-today", "due-soon"]
-    assert ranked[0].severity is Severity.OVERDUE
+    assert [s.case_id for s in result.due] == ["overdue", "due-today", "due-soon"]
+    assert result.due[0].severity is Severity.OVERDUE
+    assert result.faults == []
 
 
 def test_scan_ranks_more_overdue_cases_ahead_of_less_overdue_ones():
@@ -172,14 +173,15 @@ def test_scan_ranks_more_overdue_cases_ahead_of_less_overdue_ones():
         noi_clock(case_id="late", started_on=date(2026, 2, 1)),
         noi_clock(case_id="later", started_on=date(2026, 1, 1)),
     ]
-    ranked = scan(WORKFLOWS, clocks, as_of=date(2026, 4, 1))
-    assert [s.case_id for s in ranked] == ["later", "late"]
+    result = scan(WORKFLOWS, clocks, as_of=date(2026, 4, 1))
+    assert [s.case_id for s in result.due] == ["later", "late"]
 
 
 def test_scan_hides_cases_that_are_comfortably_inside_their_window():
     clocks = [noi_clock(case_id="fine")]
-    assert scan(WORKFLOWS, clocks, as_of=MORTGAGED) == []
-    assert len(scan(WORKFLOWS, clocks, as_of=MORTGAGED, actionable_only=False)) == 1
+    assert scan(WORKFLOWS, clocks, as_of=MORTGAGED).due == []
+    relaxed = scan(WORKFLOWS, clocks, as_of=MORTGAGED, actionable_only=False)
+    assert len(relaxed.due) == 1
 
 
 def test_scan_skips_a_case_naming_an_unknown_workflow():
@@ -188,8 +190,10 @@ def test_scan_skips_a_case_naming_an_unknown_workflow():
         CaseClock("bad", "conveyancing", "DOCUMENTS_RECEIVED", MORTGAGED),
         noi_clock(case_id="good", started_on=date(2026, 1, 1)),
     ]
-    ranked = scan(WORKFLOWS, clocks, as_of=date(2026, 4, 1))
-    assert [s.case_id for s in ranked] == ["good"]
+    result = scan(WORKFLOWS, clocks, as_of=date(2026, 4, 1))
+    assert [s.case_id for s in result.due] == ["good"]
+    assert [f.case_id for f in result.faults] == ["bad"]
+    assert "unknown workflow" in result.faults[0].reason
 
 
 def test_scan_covers_several_workflows_at_once():
@@ -197,8 +201,8 @@ def test_scan_covers_several_workflows_at_once():
         noi_clock(case_id="noi-late", started_on=date(2026, 1, 1)),
         notice_clock(7),
     ]
-    ranked = scan(WORKFLOWS, clocks, as_of=date(2026, 4, 1))
-    assert {s.workflow for s in ranked} == {"noi", "public_notice"}
+    result = scan(WORKFLOWS, clocks, as_of=date(2026, 4, 1))
+    assert {s.workflow for s in result.due} == {"noi", "public_notice"}
 
 
 # --------------------------------------------------------------------------
@@ -228,3 +232,54 @@ def test_a_case_closing_today_says_so():
 def test_severity_orders_worst_last():
     assert Severity.OK < Severity.DUE_SOON < Severity.DUE_TODAY < Severity.OVERDUE
     assert max([Severity.DUE_SOON, Severity.OVERDUE, Severity.OK]) is Severity.OVERDUE
+
+
+def test_scan_records_a_bad_stage_as_a_fault_and_carries_on():
+    """The reason `scan` exists: one malformed row cannot abort a sweep.
+
+    A nightly scan over the whole book that dies on the first bad record
+    leaves every case after it unwatched.
+    """
+    clocks = [
+        CaseClock("bad-stage", "noi", "INVENTED", MORTGAGED),
+        noi_clock(case_id="good", started_on=date(2026, 1, 1)),
+    ]
+    result = scan(WORKFLOWS, clocks, as_of=date(2026, 4, 1))
+
+    assert [s.case_id for s in result.due] == ["good"]
+    assert [f.case_id for f in result.faults] == ["bad-stage"]
+    assert "not a stage of noi" in result.faults[0].reason
+
+
+def test_scan_records_a_missing_objection_window_as_a_fault():
+    """The realistic bad row: window_days is optional and often unset."""
+    clocks = [notice_clock(None), noi_clock(case_id="good")]
+    result = scan(WORKFLOWS, clocks, as_of=date(2026, 3, 1))
+
+    assert [f.case_id for f in result.faults] == ["AG-3"]
+    assert "pass the one that applies" in result.faults[0].reason
+
+
+def test_a_fault_still_counts_as_needing_attention():
+    """A case nobody can assess is a case nobody is watching."""
+    result = scan(WORKFLOWS, [notice_clock(None)], as_of=date(2026, 3, 1))
+    assert result.due == []
+    assert result.needs_attention is True
+
+
+def test_a_clean_scan_needs_no_attention():
+    result = scan(WORKFLOWS, [noi_clock()], as_of=MORTGAGED)
+    assert result.needs_attention is False
+
+
+def test_a_clock_evaluated_against_the_wrong_workflow_is_refused():
+    """Every workflow starts at DOCUMENTS_RECEIVED, so the stage name alone
+    would match and yield a deadline computed from the wrong statute."""
+    mortgage_clock = CaseClock(
+        case_id="AG-9",
+        workflow="mortgage_registration",
+        stage="DOCUMENTS_RECEIVED",
+        started_on=MORTGAGED,
+    )
+    with pytest.raises(ValueError, match="clock is for 'mortgage_registration'"):
+        evaluate(NOI, mortgage_clock, as_of=MORTGAGED)

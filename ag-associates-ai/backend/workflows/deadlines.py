@@ -34,6 +34,8 @@ __all__ = [
     "DEFAULT_WARN_WITHIN_DAYS",
     "CaseClock",
     "DeadlineStatus",
+    "ScanFault",
+    "ScanResult",
     "Severity",
     "evaluate",
     "scan",
@@ -150,6 +152,15 @@ def evaluate(
     past: silently picking 7 days for a 30-day objection period would report a
     case as clear three weeks early.
     """
+    # Every workflow here begins at DOCUMENTS_RECEIVED, so a clock paired with
+    # the wrong definition would match on the stage name and return a deadline
+    # computed from the wrong statute — silently, and plausibly.
+    if clock.workflow != workflow.slug:
+        raise ValueError(
+            f"Case {clock.case_id}: clock is for {clock.workflow!r} but was "
+            f"evaluated against {workflow.slug!r}"
+        )
+
     if not workflow.knows(clock.stage):
         raise ValueError(
             f"Case {clock.case_id}: {clock.stage!r} is not a stage of {workflow.slug}"
@@ -174,34 +185,80 @@ def evaluate(
     )
 
 
+@dataclass(frozen=True)
+class ScanFault:
+    """A case the scan could not assess, and why."""
+
+    case_id: str
+    workflow: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class ScanResult:
+    """What a scan found: the cases that need attention, and the ones it
+    could not judge.
+
+    Faults are returned rather than logged and forgotten. A case whose window
+    cannot be computed is precisely a case nobody is watching, so burying it
+    would recreate the failure this module exists to prevent.
+    """
+
+    due: list[DeadlineStatus]
+    faults: list[ScanFault]
+
+    @property
+    def needs_attention(self) -> bool:
+        return bool(self.due or self.faults)
+
+
 def scan(
     workflows: Mapping[str, WorkflowDefinition],
     clocks: Iterable[CaseClock],
     as_of: date,
     warn_within_days: int = DEFAULT_WARN_WITHIN_DAYS,
     actionable_only: bool = True,
-) -> list[DeadlineStatus]:
+) -> ScanResult:
     """Assess many cases at once, most urgent first.
 
-    A case naming an unknown workflow is skipped rather than raised on: a scan
-    covering the whole book should not be stopped by one bad row, and the
-    per-case fault is still visible to ``evaluate`` when called directly.
+    No single case can stop the scan. A row naming an unknown workflow, an
+    unknown stage, or an objection window with no period stated is recorded as
+    a fault and the scan continues — a nightly sweep over the whole book must
+    not be aborted by one malformed record.
 
-    Ordering is by severity, then by how little time is left, so the first
-    entry is always the case in most trouble.
+    ``due`` is ordered by severity, then by how little time is left, so its
+    first entry is always the case in most trouble.
     """
-    results: list[DeadlineStatus] = []
+    due: list[DeadlineStatus] = []
+    faults: list[ScanFault] = []
 
     for clock in clocks:
         workflow = workflows.get(clock.workflow)
         if workflow is None:
+            faults.append(
+                ScanFault(
+                    case_id=clock.case_id,
+                    workflow=clock.workflow,
+                    reason=f"unknown workflow {clock.workflow!r}",
+                )
+            )
             continue
-        status = evaluate(workflow, clock, as_of, warn_within_days)
+
+        try:
+            status = evaluate(workflow, clock, as_of, warn_within_days)
+        except ValueError as exc:
+            faults.append(
+                ScanFault(
+                    case_id=clock.case_id, workflow=clock.workflow, reason=str(exc)
+                )
+            )
+            continue
+
         if status is None:
             continue
         if actionable_only and not status.is_actionable:
             continue
-        results.append(status)
+        due.append(status)
 
-    results.sort(key=lambda s: (-s.severity.rank, s.days_remaining))
-    return results
+    due.sort(key=lambda s: (-s.severity.rank, s.days_remaining))
+    return ScanResult(due=due, faults=faults)
