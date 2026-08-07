@@ -63,25 +63,42 @@ INTAKE_PORT = int(os.environ.get("EMAIL_INTAKE_PORT", "3004"))
 
 #: A recent-activity window, NOT the system of record.
 #:
-#: The durable record is twofold: the message itself stays UNSEEN in the
-#: mailbox — nothing here marks it read or moves it — so it is still there for
-#: a human, and every occurrence is logged at WARNING, which ships to the
-#: container log. This deque exists only so the health endpoint can report a
-#: count without reading the log. It is bounded because an unbounded queue in a
-#: long-lived poller is a memory leak, and it is process-local because it is a
-#: view, not storage. Losing it on restart loses nothing.
+#: The mailbox is the system of record. A passed-over message is fetched with
+#: BODY.PEEK[] and never flagged, so it stays UNSEEN: the next poll finds it
+#: again and a human sees it unread in the inbox. That is what actually keeps
+#: it. This deque only lets the health endpoint report a count without reading
+#: the log, so it is bounded — an unbounded queue in a long-lived poller is a
+#: memory leak — and process-local. Losing it on restart loses nothing, because
+#: the mail is still sitting unread where it arrived.
 _REVIEW_LIMIT = 50
 _awaiting_review: deque[dict] = deque(maxlen=_REVIEW_LIMIT)
 
+#: Message-IDs already noted this run. Because a passed-over message stays
+#: UNSEEN deliberately, every poll re-reads it; without this a single stranger's
+#: email would refill the whole window every minute and evict the others.
+#: Bounded for the same reason the deque is.
+_noted: deque[str] = deque(maxlen=_REVIEW_LIMIT * 10)
 
-def set_aside_for_review(sender: str, subject: str, received: str, reason: str) -> None:
+
+def set_aside_for_review(
+    sender: str, subject: str, received: str, reason: str, message_id: str = ""
+) -> None:
     """Hold an unrecognised message for a human instead of discarding it.
 
     Recording this is the whole point: an incomplete domain list should show up
     as something someone can act on, not as mail that never arrived. The
-    message stays unread in the mailbox; this only notes that it was passed
+    message is left unread in the mailbox; this only notes that it was passed
     over and why.
+
+    Repeat sightings of the same message are ignored, keyed on ``Message-ID``.
+    A message with no ``Message-ID`` is noted every time rather than dropped —
+    a duplicate in the window is a much smaller problem than a silence.
     """
+    if message_id and message_id in _noted:
+        return
+    if message_id:
+        _noted.append(message_id)
+
     _awaiting_review.append(
         {
             "sender": sender,
@@ -189,7 +206,13 @@ async def fetch_new_emails() -> list[dict]:
         for num in data[0].split():
             if not num:
                 continue
-            _, msg_data = mail.fetch(num, "(RFC822)")
+            # BODY.PEEK[], never RFC822. Fetching RFC822 sets \Seen as a side
+            # effect (RFC 3501), which would mark a message read merely for
+            # having been looked at — including one this poller then passes
+            # over. The next UNSEEN search would not return it, so an
+            # unrecognised message would be read, unprocessed and invisible.
+            # \Seen is set explicitly below, and only for messages handled.
+            _, msg_data = mail.fetch(num, "(BODY.PEEK[])")
             for response_part in msg_data:
                 if isinstance(response_part, tuple):
                     msg = email.message_from_bytes(response_part[1])
@@ -215,6 +238,7 @@ async def fetch_new_emails() -> list[dict]:
                             subject=subject,
                             received=date_str,
                             reason=recognition,
+                            message_id=decode_str(msg.get("Message-ID", "")),
                         )
                         continue
 
@@ -278,6 +302,23 @@ async def fetch_new_emails() -> list[dict]:
                             "attachments": attachments,
                         }
                     )
+
+        # Mark read only what was actually handed on for processing. Anything
+        # passed over stays UNSEEN, so it comes back on the next poll and a
+        # human sees it as unread in the mailbox — the mailbox, not the
+        # in-process queue, is what keeps it.
+        for num in seen_uids:
+            try:
+                mail.store(num, "+FLAGS", "\\Seen")
+            except Exception:
+                # Failing to flag risks the case being created twice; failing
+                # to say so risks nobody knowing why.
+                logger.exception("Could not mark message %r read", num)
+
+        try:
+            mail.close()
+        finally:
+            mail.logout()
 
         return list(seen_uids)
 
