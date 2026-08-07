@@ -49,15 +49,20 @@ python -m pytest -q                             # whole suite
 python -m pytest test_workflow_deadlines.py -q  # one file
 ```
 
-There are **two** Python lint jobs and they disagree. `main.yml` runs from
-`ag-associates-ai/backend` (this is the check named `ag-associates-ai / backend`);
-`ci.yml` runs from the repo root. Both run the same bare command:
+**Two** jobs run the Python lint — `AI Backend — Python` in `ci.yml` and
+`ag-associates-ai / backend` in `main.yml`. They differ only in Python version
+(3.12 vs 3.11); both set `working-directory: ag-associates-ai/backend` and run
+the same bare command, so there is one baseline, not two:
 
 ```bash
 pip install -U ruff                 # MUST be >= 0.16 — see below
-cd ag-associates-ai/backend && ruff check . && ruff format --check .
-cd "$(git rev-parse --show-toplevel)" && ruff check .
+cd ag-associates-ai/backend
+ruff check . && ruff format --check .
 ```
+
+Run it from anywhere else and the number is not comparable to CI's — ruff
+resolves first-party imports relative to its working directory, so `I001` fires
+on files at the repo root that are clean from `backend/`.
 
 Four test files exist (`test_workflow_definitions.py`, `test_workflow_deadlines.py`,
 `test_email_panel.py`, `test_accountant_agent.py`). The first three are pure Python —
@@ -189,23 +194,23 @@ different ways:
   reports **48** errors for the identical command where 0.16 reports **874**.
   A stale local ruff will tell you the tree is nearly clean. Check
   `ruff --version` before trusting any number.
-- **The working directory changes the answer, and the two jobs disagree.**
-  `main.yml` runs in `ag-associates-ai/backend`; `ci.yml` runs at the repo root.
-  Ruff resolves first-party imports relative to where it is invoked, so the
-  isort rule `I001` fires on files at one location and not the other. Fixing the
-  two `I001`s the root job reports *creates* two the backend job reports.
-  They cannot both be satisfied. Hold `ag-associates-ai/backend` at 874 — that
-  is the job reported as a check on the PR.
+- **The working directory changes the answer.** Ruff resolves first-party
+  imports relative to where it is invoked, so `I001` fires on files run from the
+  repo root that are clean from `backend/`. Both CI jobs set
+  `working-directory: ag-associates-ai/backend`; a root-level run is a different
+  number that no job checks. Read the job's `defaults.run.working-directory`
+  rather than inferring it from the `ruff` line — that inference was wrong here.
 - The rule set moves with the unpinned version, so an absolute number goes stale
   on unchanged code.
 
 So **an absolute error count proves nothing.** The only sound check is a delta:
-same binary, same directory, `origin/main` vs. the branch. Baselines as of
-ruff 0.16.1 — **874** from `ag-associates-ai/backend`, **918** from the repo root.
+same binary, same directory, `origin/main` vs. the branch. Baseline as of
+ruff 0.16.1, from `ag-associates-ai/backend` — **874**.
 
-**The pytest job cannot fail.** `ci.yml` runs
-`python -m pytest ... 2>/dev/null || echo "No pytest tests found"` — it swallows
-stderr *and* the exit code. Tests prove nothing in CI as configured.
+**The pytest job cannot fail.** `ci.yml`'s `AI Backend — Tests` runs
+`python -m pytest -v --tb=short 2>/dev/null || echo "No pytest tests found"` —
+it swallows stderr *and* the exit code, so it stays green whatever happens.
+Tests prove nothing in CI as configured; run them locally.
 
 **commitlint is enforced.** `subject-case: lower-case` rejects *any* uppercase in
 the subject — including acronyms like "NOI" or "89B". Scopes are gated by
