@@ -165,7 +165,7 @@ def test_scan_returns_the_worst_case_first():
 
     assert [s.case_id for s in result.due] == ["overdue", "due-today", "due-soon"]
     assert result.due[0].severity is Severity.OVERDUE
-    assert result.faults == []
+    assert result.faults == ()
 
 
 def test_scan_ranks_more_overdue_cases_ahead_of_less_overdue_ones():
@@ -179,7 +179,7 @@ def test_scan_ranks_more_overdue_cases_ahead_of_less_overdue_ones():
 
 def test_scan_hides_cases_that_are_comfortably_inside_their_window():
     clocks = [noi_clock(case_id="fine")]
-    assert scan(WORKFLOWS, clocks, as_of=MORTGAGED).due == []
+    assert scan(WORKFLOWS, clocks, as_of=MORTGAGED).due == ()
     relaxed = scan(WORKFLOWS, clocks, as_of=MORTGAGED, actionable_only=False)
     assert len(relaxed.due) == 1
 
@@ -263,8 +263,33 @@ def test_scan_records_a_missing_objection_window_as_a_fault():
 def test_a_fault_still_counts_as_needing_attention():
     """A case nobody can assess is a case nobody is watching."""
     result = scan(WORKFLOWS, [notice_clock(None)], as_of=date(2026, 3, 1))
-    assert result.due == []
+    assert result.due == ()
     assert result.needs_attention is True
+
+
+def test_scan_records_a_start_date_that_is_not_a_date_as_a_fault():
+    """`CaseClock` does no type checking and clocks are built from DB rows.
+
+    A `started_on` that arrived as a string reaches `date + timedelta` and
+    raises `TypeError` there, not `ValueError` — which would escape the scan
+    and leave every case after it unassessed.
+    """
+    clocks = [
+        noi_clock(case_id="bad-date", started_on="2026-03-01"),
+        noi_clock(case_id="good", started_on=date(2026, 1, 1)),
+    ]
+    result = scan(WORKFLOWS, clocks, as_of=date(2026, 4, 1))
+
+    assert [s.case_id for s in result.due] == ["good"]
+    assert [f.case_id for f in result.faults] == ["bad-date"]
+    assert result.faults[0].workflow == "noi"
+
+
+def test_a_scan_result_cannot_be_edited_after_the_fact():
+    """A verdict handed to a notifier must be the verdict the scan reached."""
+    result = scan(WORKFLOWS, [noi_clock(started_on=date(2026, 1, 1))], as_of=MORTGAGED)
+    with pytest.raises(AttributeError):
+        result.due.append(None)
 
 
 def test_a_clean_scan_needs_no_attention():

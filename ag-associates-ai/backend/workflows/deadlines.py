@@ -204,8 +204,8 @@ class ScanResult:
     would recreate the failure this module exists to prevent.
     """
 
-    due: list[DeadlineStatus]
-    faults: list[ScanFault]
+    due: tuple[DeadlineStatus, ...]
+    faults: tuple[ScanFault, ...]
 
     @property
     def needs_attention(self) -> bool:
@@ -222,9 +222,12 @@ def scan(
     """Assess many cases at once, most urgent first.
 
     No single case can stop the scan. A row naming an unknown workflow, an
-    unknown stage, or an objection window with no period stated is recorded as
-    a fault and the scan continues — a nightly sweep over the whole book must
-    not be aborted by one malformed record.
+    unknown stage, an objection window with no period stated, or a start date
+    that is not a date at all is recorded as a fault and the scan continues — a
+    nightly sweep over the whole book must not be aborted by one malformed
+    record. ``CaseClock`` does no runtime type checking, and clocks are built
+    from database rows, so a ``started_on`` that arrived as a string reaches the
+    date arithmetic and raises ``TypeError`` there.
 
     ``due`` is ordered by severity, then by how little time is left, so its
     first entry is always the case in most trouble.
@@ -246,7 +249,7 @@ def scan(
 
         try:
             status = evaluate(workflow, clock, as_of, warn_within_days)
-        except ValueError as exc:
+        except (ValueError, TypeError) as exc:
             faults.append(
                 ScanFault(
                     case_id=clock.case_id, workflow=clock.workflow, reason=str(exc)
@@ -261,4 +264,4 @@ def scan(
         due.append(status)
 
     due.sort(key=lambda s: (-s.severity.rank, s.days_remaining))
-    return ScanResult(due=due, faults=faults)
+    return ScanResult(due=tuple(due), faults=tuple(faults))

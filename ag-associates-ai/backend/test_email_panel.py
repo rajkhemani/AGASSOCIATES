@@ -100,8 +100,21 @@ def test_a_blank_override_falls_back_to_the_default(monkeypatch):
 
 
 def test_the_panel_lists_the_seven_published_institutions():
-    assert len(PANEL_INSTITUTIONS) == PANEL_SIZE
-    assert len(set(PANEL_INSTITUTIONS)) == PANEL_SIZE
+    """Spelled out, so a name silently dropped or added fails here.
+
+    A count alone would pass an edit that swapped one institution for another,
+    which is exactly the class of change that lost three clients' mail.
+    """
+    assert set(PANEL_INSTITUTIONS) == {
+        "Kotak Mahindra Bank Ltd.",
+        "Kotak Mahindra Prime Ltd.",
+        "Axis Finance Ltd.",
+        "Karur Vysya Bank",
+        "Cholamandalam Investment and Finance Company Ltd.",
+        "Muthoot Homefin (India) Ltd.",
+        "Easy Home Finance",
+    }
+    assert len(PANEL_INSTITUTIONS) == PANEL_SIZE  # no duplicates
 
 
 def test_the_three_previously_dropped_clients_are_on_the_panel():

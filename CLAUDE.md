@@ -8,14 +8,17 @@ Three independent subsystems plus shared docs. They share a domain (legal ops fo
 Indian panel advocates) and the root guideline files — **no code-level coupling**.
 Don't assume a change in one carries over.
 
-```
+```text
 AGASSOCIATES/
 ├── apps/web/            # Marketing site — Next.js 15 static export → GitHub Pages
 │                        #   THE LIVE SITE at advadiityagade.com. src/content/site.ts
 │                        #   is the single source for every firm fact on the page.
 ├── ag-associates-ai/    # AI Document Pipeline (FastAPI + Groq + pgvector)
-│   └── backend/         #   main.py, noi_agent.py, workflows/, email_intake/,
-│                        #   telegram_bot/, igr_executor.py, executor_agent.py
+│   ├── backend/         #   main.py, noi_agent.py, workflows/, email_intake/,
+│   │                    #   telegram_bot/, igr_executor.py, executor_agent.py
+│   └── frontend/        #   Next.js ops dashboard — a SECOND, separate Next.js app.
+│                        #   Ships as the `ag-ai-dashboard` container via deploy.yml,
+│                        #   NOT to Pages. nextjs.yml builds apps/web only.
 ├── ag-platform/         # LegalTech Collaboration Platform (Turborepo + Supabase)
 │   ├── src/             #   Vite + React frontend + Express backend (src/server/)
 │   └── services/        #   intake-api — Fastify gateway (built, NOT deployed)
@@ -41,9 +44,17 @@ ships inside it and governs the Pages custom domain.
 ### ag-associates-ai/backend
 
 ```bash
-python -m pytest -q                            # whole suite
-python -m pytest test_workflow_deadlines.py -q # one file
-ruff check . && ruff format --check .          # the ONLY enforced Python gate
+cd ag-associates-ai/backend
+python -m pytest -q                             # whole suite
+python -m pytest test_workflow_deadlines.py -q  # one file
+```
+
+The Python lint gate runs from the **repo root**, not from `backend/`, and the
+directory changes the count — reproduce it exactly:
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+ruff check . && ruff format --check .           # verbatim what ci.yml runs
 ```
 
 Four test files exist (`test_workflow_definitions.py`, `test_workflow_deadlines.py`,
@@ -164,18 +175,23 @@ out, and apex/www can form a redirect loop that takes the whole site down.
 
 ## CI & Conventions
 
-**`ruff` is the only enforced Python gate**, and it currently reports ~874
-pre-existing errors, so the job is permanently red. Before claiming a change adds
-none, note two traps that have produced wrong answers here:
+**`ruff` is the only enforced Python gate**, and it reports pre-existing errors,
+so the job is permanently red. A change is clean when it does not *add* to the
+count. Three things have produced wrong answers here:
 
-- **Bare `ruff check` uses ruff's defaults (`E4/E7/E9/F`) — it does not include
-  `UP` or `RUF`, which CI enforces.** Compare with
-  `ruff check --select E,F,W,I,UP,RUF,B,C4,SIM,TC,PT,PL`.
-- Run from a **pinned working directory**; results differ between repo root and
-  `ag-associates-ai/backend`.
+- **There is no `pyproject.toml` or `ruff.toml` anywhere in the repo**, so CI
+  runs on ruff's default rule set — `E4/E7/E9/F` only. `UP`, `RUF`, `I`, `B` and
+  the rest are *not* enforced. Checking with an explicit `--select` list reports
+  a number an order of magnitude larger that CI will never see.
+- The working directory changes the count (repo root vs.
+  `ag-associates-ai/backend`), because ruff walks from where it is invoked.
+  CI runs at the repo root.
+- CI installs `ruff` unpinned, so the absolute number drifts between runs on
+  unchanged code.
 
-CI installs `ruff` unpinned, so the absolute count drifts between runs on unchanged
-code. Compare against the baseline on `main`, not against yesterday's number.
+Together these mean **an absolute error count proves nothing.** The only
+meaningful check is a delta: run the exact CI command on `origin/main` and on
+the branch, with the same binary, and confirm the two numbers match.
 
 **The pytest job cannot fail.** `ci.yml` runs
 `python -m pytest ... 2>/dev/null || echo "No pytest tests found"` — it swallows
