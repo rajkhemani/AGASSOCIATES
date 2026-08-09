@@ -12,8 +12,10 @@ import logging
 import os
 from typing import Optional
 
-import httpx
-
+# httpx is imported inside the two functions that call it, not here. A hard
+# third-party import in a package __init__ is inherited by every submodule, so
+# it made `telegram_bot.otp_bridge` — which needs nothing but redis — impossible
+# to import, and therefore to test, without the whole bot's dependency set.
 logger = logging.getLogger(__name__)
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -36,6 +38,8 @@ def send_message(text: str, chat_id: Optional[str] = None) -> bool:
     if not configured():
         logger.warning("Telegram not configured — message skipped")
         return False
+    import httpx
+
     try:
         with httpx.Client(timeout=10.0) as client:
             resp = client.post(
@@ -90,6 +94,8 @@ def set_webhook(url: str) -> bool:
     payload: dict = {"url": url}
     if TELEGRAM_WEBHOOK_SECRET:
         payload["secret_token"] = TELEGRAM_WEBHOOK_SECRET
+    import httpx
+
     try:
         with httpx.Client(timeout=10.0) as client:
             resp = client.post(_bot_url("setWebhook"), json=payload)

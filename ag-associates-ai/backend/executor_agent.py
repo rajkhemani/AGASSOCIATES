@@ -145,7 +145,7 @@ class GrasRPAExecutor:
             # Store pending state so Telegram webhook can map reply → case
             if CHAT_ID:
                 otp_waiting_key = f"otp_waiting:{CHAT_ID}"
-                await r.setEx(otp_waiting_key, timeout_seconds + 30, case_id)
+                await r.setex(otp_waiting_key, timeout_seconds + 30, case_id)
 
                 # Notify staff via Telegram
                 from telegram_bot import send_otp_request
