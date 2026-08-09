@@ -107,6 +107,11 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       LLM_MOCK_MODE: ${LLM_MOCK_MODE:-false}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # executor_agent.wait_for_otp runs in this container and gates the whole
+      # OTP prompt on TELEGRAM_CHAT_ID; telegram_bot.configured() needs both.
+      # Neither was passed here, so the backend could not reach Telegram at all.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-fallback-dummy-key-for-init-only}
       # NeSL / IGR e-filing
       NESL_API_KEY: ${NESL_API_KEY:-}
