@@ -4,184 +4,251 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Layout
 
-The repo contains two major subsystems plus shared docs:
+Three active subsystems, plus the superseded `landing/` page and shared docs.
+They share a domain (legal ops for Indian panel advocates) and the root guideline
+files — **no code-level coupling**. Don't assume a change in one carries over.
 
-```
+```text
 AGASSOCIATES/
-├── ag-associates-ai/   # AI Document Pipeline (FastAPI + LangGraph + pgvector)
-│   ├── backend/        #   Python backend (agents.py, main.py, config.py, pdf_generator.py)
-│   ├── frontend/       #   Next.js 15 App Router dashboard
-│   ├── database/       #   init.sql for PostgreSQL + pgvector
-│   ├── docker-compose.yml  #   PostgreSQL (pgvector) + n8n
-│   └── output/         #   Generated .md / .pdf agreements (created at runtime)
-├── ag-platform/        # LegalTech Collaboration Platform (Turborepo + Supabase)
-│   ├── packages/       #   Shared packages (ai, db, types, ui)
-│   ├── src/            #   Vite + React frontend (App.tsx, components/, hooks/) +
-│   │                   #   Express backend under src/server/ (routes, aiRouter, db, migrations.sql)
-│   ├── services/       #   Intake API (Fastify gateway for bank-panel intake)
-│   ├── supabase/       #   Supabase migrations
-│   ├── tests/          #   Vitest tests (e.g. logger.test.ts)
-│   ├── server.ts       #   Express entry — runs src/server/migrations.sql on boot
-│   ├── render.yaml     #   Render.com deployment config
-│   └── turbo.json      #   Turborepo pipeline (npm workspaces: apps/*, packages/*, services/*)
-├── tasks/              # Task tracking (todo.md) + lessons learned (lessons.md)
-├── content/            # Static marketing content (served via GitHub Pages CNAME)
-├── *_GUIDELINES.md     # Root-level project policies — see "Project Policies" below
-├── CLAUDE.md           # This file
-├── CONTRIBUTING.md     # Contribution guide
-└── SECURITY.md         # Security policy
+├── apps/web/            # Marketing site — Next.js 15 static export → GitHub Pages
+│                        #   THE LIVE SITE at advadiityagade.com. src/content/site.ts
+│                        #   is the single source for every firm fact on the page.
+├── ag-associates-ai/    # AI Document Pipeline (FastAPI + Groq + pgvector)
+│   ├── backend/         #   main.py, noi_agent.py, workflows/, email_intake/,
+│   │                    #   telegram_bot/, igr_executor.py, executor_agent.py
+│   └── frontend/        #   Next.js ops dashboard — a SECOND, separate Next.js app.
+│                        #   Ships as the `ag-ai-dashboard` container via deploy.yml,
+│                        #   NOT to Pages. nextjs.yml builds apps/web only.
+├── ag-platform/         # LegalTech Collaboration Platform (Turborepo + Supabase)
+│   ├── src/             #   Vite + React frontend + Express backend (src/server/)
+│   └── services/        #   intake-api — Fastify gateway (built, NOT deployed)
+├── landing/             # Older static marketing page, served from the VPS
+├── supabase/migrations/ # Root-level, SEPARATE from ag-platform/supabase/migrations/
+└── tasks/               # todo.md + lessons.md (real, tracked — append to lessons.md)
 ```
 
 ## Common Commands
 
-The two subsystems are independent — `ag-associates-ai/` uses Python + Docker + Next.js; `ag-platform/` is a Turborepo. Commands below specify which.
+### apps/web (the live marketing site)
 
-### ag-associates-ai/
-
-All paths in this subsection are relative to `ag-associates-ai/`.
-
-**Infrastructure (Postgres + n8n):**
 ```bash
-docker-compose up -d                 # bring up pgvector (5432) + n8n (5678)
-docker-compose down                  # stop
-docker-compose down -v               # stop + wipe postgres_data/n8n_data volumes
-```
-
-**Backend (FastAPI, port 8001):**
-```bash
-cd backend
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-python generate_embeddings.py        # one-time: populate vector column for seeded templates
-python main.py                       # or: uvicorn main:app --reload --host 0.0.0.0 --port 8001
-```
-
-**Frontend (Next.js, port 3000):**
-```bash
-cd frontend
+cd apps/web
 npm install
-npm run dev                          # dev server
-npm run build && npm run start       # production build + serve
-npm run lint                         # next lint
+npm run dev
+npx tsc --noEmit && npm run lint && npm run build   # what to run before pushing
 ```
 
-**vLLM (external, port 8000 — not in docker-compose):**
-```bash
-python -m vllm.entrypoints.openai.api_server --model Qwen/Qwen2.5-7B-Instruct --host 0.0.0.0 --port 8000
-```
+Static export (`output: "export"`), so `out/` is the artifact. `public/CNAME`
+ships inside it and governs the Pages custom domain.
 
-`ag-associates-ai/` has **no test suite** (no pytest/jest config, no `tests/` directory). If asked to "run the tests" here, confirm with the user before inventing one. `ag-platform/` does have tests — see below.
-
-### ag-platform/
-
-All paths in this subsection are relative to `ag-platform/`. It's an npm-workspaces + Turborepo monorepo.
+### ag-associates-ai/backend
 
 ```bash
-npm install                          # installs root + all workspaces
-npm run dev                          # turbo dev (runs Vite frontend + Express backend)
-npm run build                        # turbo build
-npm run lint                         # turbo lint
-npm run type-check                   # turbo type-check
-npm test                             # vitest run (single run, not watch)
-npx vitest run tests/logger.test.ts  # run one test file
-npx vitest                           # watch mode
+cd ag-associates-ai/backend
+python -m pytest -q                             # whole suite
+python -m pytest test_workflow_deadlines.py -q  # one file
 ```
 
-The Express entry is [server.ts](ag-platform/server.ts); it boots Vite in middleware mode and runs `src/server/migrations.sql` against the Postgres pool defined in `src/server/db.ts` on startup. Deployment is configured via [render.yaml](ag-platform/render.yaml).
+**Two** jobs run the Python lint — `AI Backend — Python` in `ci.yml` and
+`ag-associates-ai / backend` in `main.yml`. They differ only in Python version
+(3.12 vs 3.11); both set `working-directory: ag-associates-ai/backend` and run
+the same bare command, so there is one baseline, not two:
 
-### Pre-commit hooks
+```bash
+pip install ruff==0.16.1            # pin it — see below, the version IS the ruleset
+cd ag-associates-ai/backend
+ruff check . && ruff format --check .
+```
 
-[.pre-commit-config.yaml](.pre-commit-config.yaml) runs `ruff` (lint + format) on Python and `eslint` on `.[jt]sx?` files, plus standard hygiene hooks (trailing-whitespace, large-files, detect-private-key). Install once with `pre-commit install`; run on demand with `pre-commit run --all-files`. Hooks are not yet enforced in CI, but commits fail locally if violations are present.
+CI installs `ruff` unpinned, so it drifts to whatever is current; 0.16.1 is what
+it resolved to when the 874 baseline below was taken. Pin locally to reproduce
+that number, and re-take the baseline against `origin/main` when CI moves on.
+
+Run it from anywhere else and the number is not comparable to CI's — ruff
+resolves first-party imports relative to its working directory, so `I001` fires
+on files at the repo root that are clean from `backend/`.
+
+Four test files exist (`test_workflow_definitions.py`, `test_workflow_deadlines.py`,
+`test_email_panel.py`, `test_accountant_agent.py`). The first three are pure Python —
+no DB, no network, no fixtures. `test_accountant_agent.py` needs `pdfplumber` and
+`gspread` at import time and won't collect without them.
+
+### ag-platform
+
+```bash
+npm install && npm run dev      # turbo: Vite frontend + Express backend
+npm test                        # vitest run
+npx vitest run tests/logger.test.ts
+```
 
 ## Architecture
 
-The two subsystems have **separate architectures, separate stacks, and no code-level coupling** — they share only a domain (legal ops for Indian panel advocates) and the root-level guideline files. Don't assume changes in one carry over to the other.
+### apps/web — the published site
 
-### ag-associates-ai/ — AI Document Pipeline
+Every firm-level fact (panel institutions, credentials, SLA figures, FAQ copy)
+lives in `src/content/site.ts`. Components read from it; nothing is hardcoded in
+JSX. Changing a lender name or a statutory citation is a one-line edit there.
 
-A 4-tier pipeline; understanding the data flow between tiers is essential before modifying any single piece.
+**Statutory copy must be sourced, never inferred.** Past incidents: an invented
+Section 89B trigger ("starts at disbursement" — it does not; the window runs 30
+days from the date the mortgage is created by deposit of title deeds) and a wrong
+stamp-duty article. If a claim isn't in the SOPs or confirmed by the firm, don't
+publish it.
 
-```
-WhatsApp ──► n8n (5678) ──► FastAPI /webhook/whatsapp (8001)
-                                      │
-                                      ▼
-                          LangGraph: Aisha ──► Drafter ──► Auditor ──┐
-                                      │            │         │       │
-                                      ▼            ▼         ▼   pass/fail loop
-                            vLLM (8000)   pgvector RAG   vLLM audit  │
-                                                                     ▼
-                                                             PDF via ReportLab
-                                                                     │
-                                                                     ▼
-                                                       /api/nesl/execute (mock)
-                                                                     │
-                             Next.js dashboard (3000) polls /dashboard/status
-```
+Named lender institutions are a confidentiality question, not just a content one —
+panel agreements often restrict naming the lender. Confirm before adding.
 
-**LangGraph pipeline (`backend/agents.py`)** is the heart of the system. It's a `StateGraph` with three nodes sharing a single `AgentState` TypedDict:
+### ag-associates-ai — workflow engine
 
-1. **`aisha_intake_node`** — Uses `ChatOpenAI` pointed at the local vLLM server to extract structured JSON (tenant, landlord, rent, address, dates, deposit) from raw text. Low temperature (0.1) + `JsonOutputParser`.
-2. **`drafter_node`** — Runs `similarity_search()` against `legal_templates` in pgvector, selects the best template, uses vLLM (temp 0.3) to inject extracted fields, writes markdown to `output/`, then calls `pdf_generator.convert_to_pdf()`. Falls back to any Maharashtra template if similarity search returns nothing. Increments `revision_count`.
-3. **`auditor_node`** — Scores the draft 0–100 against the extracted fields; `passed = score ≥ 85 && no critical issues`.
+**`backend/workflows/definitions.py` is the source of truth for workflow state.**
+A `WorkflowDefinition` holds stages, permitted transitions, storage keys and
+deadlines, and validates its own structure at import: every transition target must
+exist, every stage must be reachable, terminal stages must terminate, and no stage
+(including exception stages) may strand a case. A malformed workflow fails at
+import rather than on a half-filed case. Three workflows are defined: `NOI`,
+`MORTGAGE_REGISTRATION`, `PUBLIC_NOTICE`.
 
-Other specialized agents in the workforce include `executor_agent.py` (workflow management) and `accountant_agent.py` (bank statement reconciliation).
+`backend/workflows/deadlines.py` evaluates the statutory clocks — Section 89B
+(30 days) and the public-notice objection window (7/15/30 days, set per case).
+Pure functions, no I/O. `scan()` returns a `ScanResult` with both `due` and
+`faults`; a row it cannot judge is surfaced, never dropped.
 
-Routing is via `should_revise()`: on fail, loops back to `drafter` up to 3 revisions, then forces finish. Entry point is `aisha_intake`; exits at `END`.
+**State knowledge is still duplicated.** `main.py`'s `valid_statuses` literal and
+`auto_comms.py`'s `NOI_TEMPLATES` do not read from the registry. ADR 0002
+(`docs/adr/0002-noi-state-machine.md`) describes this; the registry closed one of
+its three touch points, not all three.
 
-`process_rental_request(raw_input, sender)` is the single public entrypoint into the graph and is called from both `/webhook/whatsapp` and `/api/generate-agreement` in `main.py`. Both endpoints wrap it in `asyncio.to_thread(...)` because the graph is synchronous and does blocking LLM/DB calls — preserve this pattern when adding new entrypoints.
+**Known-broken paths** (don't assume these work):
+- `noi_agent.generate_challan` calls `executor_agent.generate_noi_challan`, which
+  **does not exist**. The `AttributeError` is swallowed, so `CHALLAN_GENERATED` is
+  unreachable through code.
+- `auto_comms._send_email` hardcodes `"to": []` — no client email has ever sent.
+- GRAS challan generation is a mock with a hardcoded GRN; every portal form
+  interaction is commented out.
+- `executor_agent.wait_for_otp` calls `r.setEx(...)` — JavaScript spelling; Python
+  redis is `setex`.
+- NeSL has four client implementations; the one actually served is defined inline
+  in `main.py` and shadows the `nesl_client.py` import.
 
-**FastAPI endpoints (`backend/main.py`):**
-- `GET /health` — liveness
-- `POST /webhook/whatsapp` — n8n → backend bridge (payload: `WebhookPayload`)
-- `POST /api/generate-agreement` — direct API entry (`AgreementRequest` → `WorkflowResponse`)
-- `GET /dashboard/status` — counts templates, returns mocked `active_agents=3` and stub activities
-- `GET /templates` — lists templates, filters by `template_type` and `language`
-- `POST /api/nesl/execute` — **mock** government filing; sleeps 3s and returns a random `NESL-…` transaction ID
+**Two disconnected case stores.** Telegram bot → self-hosted Postgres `noi_cases`;
+`email_intake` and `intake-api` → Supabase `cases`. Nothing reconciles them.
 
-**Frontend (`frontend/app/page.tsx`)** is a single-page dashboard (`'use client'`). It does two independent things:
-- Polls `GET /dashboard/status` every 3s for real metrics.
-- Runs a **simulated** workflow cycle locally (setTimeout chain, 4s/step, 5s pause) that drives the progress UI and fires `POST /api/nesl/execute` exactly once per cycle. The guards (`neslFiledForCycleRef`, `neslAbortRef`) exist to prevent overlapping calls — don't remove them.
+**The only working intake is the IMAP poller** (`email_intake/agent.py`). The
+website form is a `mailto:`, `intake-api` is built but absent from `render.yaml`,
+and WhatsApp has an authenticated endpoint with no n8n workflow behind it.
+Recognised senders live in `email_intake/panel.py`, overridable via
+`BANK_EMAIL_DOMAINS`. Unrecognised mail is set aside for review, never discarded.
 
-**Database (`database/init.sql`)** is auto-loaded by the `pgvector/pgvector:pg16` container on first start. Creates `legal_templates(id, title, content, template_type, jurisdiction, language, embedding vector(384), …)` with an `ivfflat` cosine index and seeds three Maharashtra rent-agreement templates (English, Marathi, Hindi) with `embedding = NULL`.
+**There is no scheduler anywhere in the backend.** No APScheduler, Celery, or
+`repeat_every`. The single recurring loop is the email poller's `run_poller()`,
+which runs in its own container. Anything periodic needs a host decided first.
 
-### ag-platform/ — LegalTech Collaboration Platform
+### ag-platform
 
-A separate, more conventional web app — not a 4-tier AI pipeline. See [ag-platform/ARCHITECTURE.md](ag-platform/ARCHITECTURE.md) for the full design doc. Key points future Claude needs to know:
+`Cases` is the central entity; every table carries `org_id` for RLS-enforced
+multi-tenancy. A 10-state lifecycle (`RECEIVED → … → CLOSED`) spans all 13 case
+types, with transitions gated on role. Note this is a *different, coarser* model
+from `ag-associates-ai`'s per-workflow SOP state machines — they are not shared.
 
-- **`Cases` is the central entity.** Everything (documents, disbursements, invoices) hangs off it. Every table carries `org_id` for forward-compatible multi-tenancy enforced via Supabase RLS.
-- **Case lifecycle is a strict state machine** with 10 states (`RECEIVED → ASSIGNED → DOCUMENT_COLLECTION → IN_PROGRESS → PENDING_REGISTRATION → REGISTERED → QUALITY_CHECK → DELIVERED → INVOICED → CLOSED`, plus `ON_HOLD / REJECTED / CANCELLED`). There are 13 specific case types mapped to bank panel workflows. Each transition is gated on a role (PRINCIPAL/ADVOCATE/EXECUTIVE/CLERK/BANK_VIEWER) and fires side-effects (WhatsApp/email). New transitions must be added to both the DB constraint and the route handlers in [src/server/routes/](ag-platform/src/server/routes/).
-- **Intake Gateway.** A high-performance **Fastify** gateway in `services/intake-api/` handles bank-panel intake with Zod-validated webhooks and a Redis-backed OTP bridge.
-- **Stack divergence vs. `ag-associates-ai/`:** Postgres via **Supabase** (not raw pgvector), **Google Gemini** via Vercel AI SDK (not local vLLM), and **shadcn/ui + Tailwind** on a Vite-served React app (not Next.js). Don't reuse `ag-associates-ai/` config patterns here.
-- **Migrations run on boot.** [server.ts](ag-platform/server.ts) reads `src/server/migrations.sql` and executes it against `pool` from `src/server/db.ts` before mounting routes. Schema changes belong in that file; Supabase migrations under [supabase/](ag-platform/supabase/) are for the hosted environment.
-- **Workspaces folders that don't exist yet.** [package.json](ag-platform/package.json) declares `workspaces: ["apps/*", "packages/*", "services/*"]` but only `packages/` is populated today (`ai`, `db`, `types`, `ui`). The Vite app + Express server live at the repo root, not under `apps/`. If you scaffold an `apps/` workspace, expect Turborepo to start picking it up automatically.
+Stack diverges deliberately: Supabase (not raw pgvector), Google Gemini via Vercel
+AI SDK (not Groq), shadcn/ui + Tailwind on Vite (not Next.js).
 
-## Key Conventions & Gotchas
+## Environment & Deployment
 
-- **Output path.** `OUTPUT_DIR` in `config.py` defaults to `../output` relative to `backend/`. Both `agents.py` and `pdf_generator.py` use this via `from config import OUTPUT_DIR`. The directory is auto-created at runtime. Override with the `OUTPUT_DIR` env var if you need a custom location.
-- **Embedding dimension alignment.** `database/init.sql`, `config.py`, and `.env.example` all declare dimension `384` to match the `all-MiniLM-L6-v2` model. If you swap the embedding model, update `EMBEDDING_DIMENSION` in config, the `vector(N)` declaration in `init.sql`, and re-run `generate_embeddings.py`. Existing deployments must `docker-compose down -v` to wipe the pgvector volume.
-- **`generate_embedding()` in `agents.py` uses a lazy-loaded `SentenceTransformer`** (same model as `generate_embeddings.py`). The model is loaded on first RAG query, not at import time.
-- **LLM client assumes local vLLM.** Agents use `ChatOpenAI(openai_api_base=LLM_BASE_URL, openai_api_key="not-needed")`. When testing without a running vLLM, Aisha/Auditor will raise and `process_rental_request` will return `{"success": False, "error": ...}`. There is no retry or mock mode.
-- **n8n-to-backend networking.** n8n runs in Docker; to reach the FastAPI host, it uses `http://host.docker.internal:8001` (see `N8N_WHATSAPP_SETUP.md`), not `localhost`.
-- **Frontend API base URL.** Configured via `NEXT_PUBLIC_API_URL` (default `http://localhost:8001`). Must be an env var — it's inlined at build time.
-- **Dependency versions are pinned and bleeding-edge.** `langchain==0.3.0.dev1`, `langgraph==1.0.10rc1`, `langchain-openai==1.1.14`. Older docs in `LANGGRAPH_AGENTS.md` cite different versions (0.0.29 / 0.1.0) — trust `requirements.txt`. Next.js is `15.5.15` with the App Router.
-- **`.env.example` files exist** at both `ag-associates-ai/.env.example` (compose vars) and `ag-associates-ai/backend/.env.example` (backend vars). Copy and customize before running. Defaults in `config.py` include `secure_password_123` which is dev-only.
+**Production LLM is Groq `llama-3.3-70b-versatile`,** written into `/srv/ag/.env`
+by `scripts/deploy-all.sh`. The `config.py` defaults (`localhost:8000/v1`,
+`qwen2.5-7b-instruct`) are dev-only and always overridden — **there is no vLLM
+service in `docker-compose.prod.yml`.** Several docs still claim vLLM; they are wrong.
 
-## Git Workflow & CI
+**Government portal credentials are blank in production** and `NESL_USE_MOCK`
+defaults true. The IGR Playwright automation is real and complete but unconfigured.
 
-- Use feature branches (`fix/...`, `feat/...`, `docs/...`) and open PRs. Avoid pushing directly to main.
-- **CI workflows in [.github/workflows/](.github/workflows/):**
-  - `codeql.yml` — CodeQL on `javascript-typescript` and `python` for pushes/PRs to `main` and weekly.
-  - `nextjs.yml` — builds `ag-associates-ai/frontend` and **deploys to GitHub Pages on every push to `main`** (this is the production deploy path for the Next.js dashboard; the [CNAME](CNAME) file at root points it at the live domain). Verify `next build` succeeds locally before merging.
-  - `main.yml` — additional pipeline; inspect before relying on its behavior for a given change.
-- Lint/tests are **not** enforced in CI. Local `pre-commit` is the only mechanical gate.
-- The status markers in `ag-associates-ai/README.md` ("Day 1/2/3 ✅/❌") and the `DAY3_COMPLETE.md` / `LANGGRAPH_AGENTS.md` narratives describe the original 72-hour build roadmap. Treat them as historical context, not as a current TODO list.
+Ten containers behind Caddy on `advadiityagade.com` subdomains, deployed by
+`.github/workflows/deploy.yml` — `ubuntu-latest` + GHCR build + SSH, **not** a
+self-hosted runner, into `/srv/ag/deploy-<sha>` (docs saying `/srv/ag/repo` are stale).
+The smoke test warns but never fails, so a broken deploy still shows green.
+
+**Migrations do not auto-apply.** Root `supabase/migrations/` holds exactly one
+file and is separate from `ag-platform/supabase/migrations/`. No workflow or script
+runs either against Supabase — plan on manual execution in the SQL Editor.
+
+### The GitHub Pages hazard
+
+Pages **Source must stay "GitHub Actions"**. When set to "Deploy from a branch",
+GitHub's built-in Jekyll builder races the real deploy and overwrites the live site
+with a rendered README on every push. This has happened twice. A healthy HTTP 200
+is not proof the site is up — check the `<title>`; correct is
+`AG Associates — Banking Panel Advocates, Thane`.
+
+The apex and `www` must both resolve to Pages, DNS-only (grey cloud) on Cloudflare.
+If `www` points elsewhere, cert provisioning fails, "Enforce HTTPS" stays greyed
+out, and apex/www can form a redirect loop that takes the whole site down.
+
+## CI & Conventions
+
+**`ruff` is the only enforced Python gate**, and it reports pre-existing errors,
+so the job is permanently red. A change is clean when it does not *add* to the
+count. Getting that judgement right has failed here more than once, in three
+different ways:
+
+- **There is no `pyproject.toml` or `ruff.toml` anywhere in the repo**, so the
+  rule set is whatever the installed ruff defaults to — and **ruff 0.16 widened
+  that default** to include `UP`, `RUF`, `I`, `B`, `SIM`, `BLE`, `S` and `DTZ`.
+  CI does `pip install ruff` unpinned, so it gets the wide set. Ruff 0.15
+  reports **48** errors for the identical command where 0.16 reports **874**.
+  A stale local ruff will tell you the tree is nearly clean. Check
+  `ruff --version` before trusting any number.
+- **The working directory changes the answer.** Ruff resolves first-party
+  imports relative to where it is invoked, so `I001` fires on files run from the
+  repo root that are clean from `backend/`. Both CI jobs set
+  `working-directory: ag-associates-ai/backend`; a root-level run is a different
+  number that no job checks. Read the job's `defaults.run.working-directory`
+  rather than inferring it from the `ruff` line — that inference was wrong here.
+- The rule set moves with the unpinned version, so an absolute number goes stale
+  on unchanged code.
+
+So **an absolute error count proves nothing.** The only sound check is a delta:
+same binary, same directory, `origin/main` vs. the branch. Baseline as of
+ruff 0.16.1, from `ag-associates-ai/backend` — **874**.
+
+**The pytest job cannot fail.** `ci.yml`'s `AI Backend — Tests` runs
+`python -m pytest -v --tb=short 2>/dev/null || echo "No pytest tests found"` —
+it swallows stderr *and* the exit code, so it stays green whatever happens.
+Tests prove nothing in CI as configured; run them locally.
+
+**commitlint is enforced.** `subject-case: lower-case` rejects *any* uppercase in
+the subject — including acronyms like "NOI" or "89B". Scopes are gated by
+`scope-enum`: `ai`, `dashboard`, `web`, `platform`, `mobile`, `intake`, `docs`,
+`proto`, `ci`, `noi`, `rpa`, `telegram`, `otp`, `comms`, `email`, `release`.
+Validate locally with `npx commitlint --from HEAD~1 --to HEAD`.
+
+Other permanently-red checks, all pre-existing: `Lint — Pre-commit` (whitespace in
+`session-ses_19a4.md`), `ag-platform / turbo` (vitest needs a `ws` transport on
+Node < 22), both Cloudflare `Preview` deploys (invalid `CLOUDFLARE_API_TOKEN`),
+and `Security — Trivy`.
+
+## Secrets
+
+`session-ses_19a4.md` is a committed session transcript at the repo root. It has
+leaked one live credential already and is the source of the pre-commit failure. It
+serves no build purpose. **Do not add transcripts to the repo**, and treat any
+credential found in it as compromised — deleting the line does not help, since it
+remains in history.
 
 ## Project Policies
 
-The repo root contains a set of `*_GUIDELINES.md` files that encode project-specific conventions. They are policy, not aspiration — read the one relevant to your task before substantial work:
+Root-level `*_GUIDELINES.md` files are policy, not aspiration. Read the relevant
+one before substantial work: `ERROR_HANDLING_GUIDELINES.md` (note the load-bearing
+`sanitize()` in `ag-platform/src/server/utils/logger.ts`),
+`FRONTEND_UI_GUIDELINES.md`, `REFACTORING_GUIDELINES.md`, `TDD_GUIDELINES.md`,
+`GIT_GUIDELINES.md`, `HALLUCINATION_MITIGATION_GUIDELINES.md`,
+`RAG_AND_MEMORY_GUIDELINES.md`, `GOAL_DRIVEN_EXECUTION_GUIDELINES.md`,
+`DEPLOYMENT_PLAYBOOK.md`.
 
-- [ERROR_HANDLING_GUIDELINES.md](ERROR_HANDLING_GUIDELINES.md) — error/log conventions (note the recent `security: sanitize error logs` commits — there is a `sanitize()` util in `ag-platform/src/server/utils/logger.ts` that is now load-bearing).
-- [FRONTEND_UI_GUIDELINES.md](FRONTEND_UI_GUIDELINES.md), [REFACTORING_GUIDELINES.md](REFACTORING_GUIDELINES.md), [TDD_GUIDELINES.md](TDD_GUIDELINES.md), [GIT_GUIDELINES.md](GIT_GUIDELINES.md) — self-explanatory.
-- [HALLUCINATION_MITIGATION_GUIDELINES.md](HALLUCINATION_MITIGATION_GUIDELINES.md), [RAG_AND_MEMORY_GUIDELINES.md](RAG_AND_MEMORY_GUIDELINES.md) — apply when touching the LangGraph pipeline or pgvector RAG.
-- [GOAL_DRIVEN_EXECUTION_GUIDELINES.md](GOAL_DRIVEN_EXECUTION_GUIDELINES.md), [DEPLOYMENT_PLAYBOOK.md](DEPLOYMENT_PLAYBOOK.md) — process docs.
-- [tasks/todo.md](tasks/todo.md) and [tasks/lessons.md](tasks/lessons.md) are tracked, real files. When the user corrects an approach, append the pattern (with cause and remedy) to `tasks/lessons.md` and review it at the start of new sessions.
+When the user corrects an approach, append the pattern with cause and remedy to
+`tasks/lessons.md`, and read it at the start of a new session.
+
+The status markers in `ag-associates-ai/README.md` ("Day 1/2/3 ✅/❌"),
+`DAY3_COMPLETE.md`, `LANGGRAPH_AGENTS.md` and `docs/noi-automation-plan.md`
+describe an original build roadmap. They are historical narrative and contradict
+the code in places — trust the code.

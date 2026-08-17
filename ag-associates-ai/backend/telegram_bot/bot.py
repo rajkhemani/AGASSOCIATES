@@ -34,9 +34,11 @@ import redis.asyncio as aioredis
 from db import create_case, list_cases, get_case, update_case_status, create_task, list_tasks, create_challan, list_challans, approve_challan
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application, CallbackQueryHandler, CommandHandler,
+    Application, ApplicationHandlerStop, CallbackQueryHandler, CommandHandler,
     MessageHandler, ContextTypes, filters,
 )
+
+from telegram_bot.otp_bridge import capture_otp
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -548,6 +550,26 @@ async def autootp_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ── Message handlers ─────────────────────────────────────────────────────
 
+async def otp_reply_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Hand a staff reply to the case waiting on it, if there is one.
+
+    Registered in an earlier group than the chat handler so it sees the message
+    first, and stops propagation only when it actually takes the code — an
+    ordinary message falls through to normal handling untouched. The decision
+    itself lives in otp_bridge, which is testable without a bot.
+    """
+    case_id = await capture_otp(
+        await get_redis(), update.effective_chat.id, update.message.text
+    )
+    if not case_id:
+        return
+
+    await update.message.reply_text(
+        f"🔐 OTP received for <b>{case_id}</b> — submitting.", parse_mode="HTML"
+    )
+    raise ApplicationHandlerStop
+
+
 async def aisha_message_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not _is_aisha_mode(update.effective_chat.id):
         return
@@ -1023,6 +1045,13 @@ def main():
     app.add_handler(CommandHandler("noi", noi_command))
     app.add_handler(CommandHandler("task", task_command))
     app.add_handler(CommandHandler("challan", challan_command))
+
+    # Group -1 runs before the chat handlers: a staff member answering an OTP
+    # prompt is replying to the RPA run, not talking to Aisha. It hands over
+    # only when a case is actually waiting, so everything else falls through.
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, otp_reply_handler), group=-1
+    )
 
     app.add_handler(MessageHandler(filters.Document.ALL, document_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, aisha_message_handler))
