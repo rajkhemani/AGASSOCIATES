@@ -132,7 +132,7 @@ async function recordActivity(
       ]
     );
   } catch (error) {
-    logger.warning({ err: error }, 'Activity insert failed');
+    logger.warn({ err: error }, 'Activity insert failed');
   }
 }
 
@@ -190,7 +190,7 @@ async function handleOverdueCheck(job: Job<OverdueCheckJob>): Promise<any> {
       staff_kind: 'system',
       staff_short_name: 'overdue_worker',
       capability_code: 'invoice.overdue_check',
-      org_id: job.data.orgId || null,
+      org_id: job.data.orgId,
       summary: `Overdue check completed - ${count} invoices marked overdue`,
       status: 'ok',
     });
@@ -293,7 +293,7 @@ async function handleBankAdvanceSync(job: Job<BankAdvanceSyncJob>): Promise<any>
       staff_kind: 'system',
       staff_short_name: 'bank_sync_worker',
       capability_code: 'bank.advance_sync',
-      org_id: null,
+      org_id: undefined,
       summary: `Bank advance sync - ${bank.name}: ₹${bank.advance_balance} remaining`,
       payload: { bank_id: bankId, advance_balance: bank.advance_balance },
       status: 'ok',

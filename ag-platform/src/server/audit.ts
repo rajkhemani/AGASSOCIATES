@@ -98,7 +98,7 @@ export const AuditEvents = {
         requestId: data.requestId,
       }),
 
-    assigned: (data: { orgId: string; caseId: string; caseNumber: string; assigneeId: string; assigneeName: string; actorId?: string; requestId?: string }) =>
+    assigned: (data: { orgId: string; caseId: string; caseNumber: string; assigneeId: string; assigneeName: string; actorId?: string; actorName?: string; requestId?: string }) =>
       logAuditEvent({
         orgId: data.orgId,
         eventType: 'CASE_ASSIGNED',

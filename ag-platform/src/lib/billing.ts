@@ -1,5 +1,5 @@
 import { Decimal } from 'decimal.js';
-import { pool } from '../db.ts';
+import { pool } from '../server/db.ts';
 
 // Configure Decimal.js for financial precision
 Decimal.set({ precision: 28, rounding: Decimal.ROUND_HALF_UP });
@@ -61,10 +61,10 @@ export interface DisbursementReconciliation {
   bank_advance_used: Decimal;
 }
 
-export function calculateBillableFee(durationMinutes: number, hourlyRate: number): Decimal {
+export function calculateBillableFee(durationMinutes: number, hourlyRate: number): number {
   const safeDuration = Math.max(1, durationMinutes);
   const rawFee = new Decimal(safeDuration).div(60).mul(hourlyRate);
-  return rawFee.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+  return rawFee.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
 }
 
 export async function generateInvoiceFromTimesheets(
@@ -90,7 +90,7 @@ export async function generateInvoiceFromTimesheets(
       [orgId, caseIds]
     );
 
-    const entries: BillableEntry[] = entriesResult.rows.map(row => ({
+    const entries: BillableEntry[] = entriesResult.rows.map((row: any) => ({
       id: row.id,
       case_id: row.case_id,
       case_number: row.case_number,
@@ -101,10 +101,10 @@ export async function generateInvoiceFromTimesheets(
       start_time: row.start_time,
       end_time: row.end_time,
       duration_minutes: row.duration_minutes,
-      hourly_rate: row.hourly_rate ? new Decimal(row.hourly_rate) : null,
+      hourly_rate: row.hourly_rate ? new Decimal(row.hourly_rate).toNumber() : null,
       is_billable: row.is_billable,
       billable_amount: row.duration_minutes && row.hourly_rate
-        ? calculateBillableFee(row.duration_minutes, new Decimal(row.hourly_rate)).toNumber()
+        ? calculateBillableFee(row.duration_minutes, row.hourly_rate)
         : 0,
       invoiced: false,
       invoice_id: null,
@@ -241,7 +241,7 @@ export async function reconcileBankAdvances(orgId: string): Promise<Disbursement
     [orgId]
   );
 
-  return result.rows.map(row => ({
+  return result.rows.map((row: any) => ({
     case_id: row.case_id,
     case_number: row.case_number,
     disbursement_type: row.type,
@@ -302,7 +302,7 @@ export async function getOutstandingInvoices(orgId: string): Promise<Invoice[]> 
   );
 
   const now = new Date();
-  return result.rows.map(row => ({
+  return result.rows.map((row: any) => ({
     ...row,
     subtotal: new Decimal(row.subtotal),
     tax_rate: new Decimal(row.tax_rate),

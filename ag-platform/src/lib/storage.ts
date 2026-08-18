@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { v4 as uuidv4 } from 'crypto';
+import { randomUUID } from 'crypto';
 
 // Supabase client for storage operations
 let supabaseClient: SupabaseClient | null = null;
@@ -68,7 +68,7 @@ function generateStoragePath(caseId: string, fileName: string, category?: string
   const bucket = getBucketId(category);
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   const timestamp = Date.now();
-  const random = uuidv4().slice(0, 8);
+  const random = randomUUID().slice(0, 8);
   const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
   
   return `${bucket}/${caseId}/${category || 'general'}/${timestamp}-${random}-${safeName}`;
@@ -183,15 +183,21 @@ export async function listFiles(bucketId: string, prefix: string): Promise<strin
 export async function getFileMetadata(bucketId: string, path: string) {
   const supabase = getSupabaseStorageClient();
   
+  // Supabase Storage doesn't have a getMetadata method
+  // We can use list with the exact path to check if file exists
   const { data, error } = await supabase.storage
     .from(bucketId)
-    .getMetadata(path);
+    .list(path, { limit: 1 });
   
   if (error) {
     throw new Error(`Failed to get file metadata: ${error.message}`);
   }
   
-  return data;
+  if (!data || data.length === 0) {
+    throw new Error('File not found');
+  }
+  
+  return data[0];
 }
 
 export async function moveFile(bucketId: string, fromPath: string, toPath: string): Promise<void> {

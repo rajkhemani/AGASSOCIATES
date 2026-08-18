@@ -6,7 +6,7 @@ import WebSocket from "ws";
 import { Resend } from "resend";
 import { z } from "zod";
 import dotenv from "dotenv";
-import { createSupabaseMiddleware, requireOrgAccess } from "../auth.ts";
+import { createSupabaseMiddleware, requireOrgAccess } from "./auth.ts";
 
 dotenv.config();
 

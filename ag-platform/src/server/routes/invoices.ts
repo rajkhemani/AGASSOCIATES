@@ -179,19 +179,20 @@ router.post('/invoices/:id/paid', validateParams(invoiceParamsSchema), validate(
     const paidAt = req.body.paid_at ? new Date(req.body.paid_at) : new Date();
 
     // Verify ownership
+    const invoiceId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const check = await pool.query(
       `SELECT id FROM invoices WHERE id = $1 AND org_id = $2`,
-      [req.params.id, orgId]
+      [invoiceId, orgId]
     );
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    await markInvoicePaid(req.params.id, paidAt);
+    await markInvoicePaid(invoiceId, paidAt);
 
     const result = await pool.query(
       `SELECT * FROM invoices WHERE id = $1`,
-      [req.params.id]
+      [invoiceId]
     );
 
     res.json({ success: true, invoice: result.rows[0] });
@@ -204,7 +205,8 @@ router.post('/invoices/:id/paid', validateParams(invoiceParamsSchema), validate(
 // GET /api/v1/banks/:id/advance-status - Get bank advance status
 router.get('/banks/:id/advance-status', validateParams(z.object({ id: z.string().uuid() })), async (req, res) => {
   try {
-    const advance = await getBankAdvanceStatus(req.params.id);
+    const bankId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const advance = await getBankAdvanceStatus(bankId);
     res.json({ advance });
   } catch (error) {
     console.error('Bank advance status error:', error);

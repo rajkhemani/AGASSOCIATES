@@ -343,6 +343,7 @@ class TestPublicNoticeStateMachine:
     @pytest.mark.unit
     def test_public_notice_invalid_deadline(self):
         """Test that invalid deadline window raises error."""
+        from datetime import date
         from workflows.definitions import PUBLIC_NOTICE
 
         deadline = PUBLIC_NOTICE.deadlines["AWAITING_OBJECTIONS"]

@@ -57,7 +57,7 @@ router.post('/timesheets', validate(CreateTimesheetSchema), async (req, res) => 
     // Calculate billable amount if applicable
     let billableAmount = 0;
     if (is_billable && hourly_rate && duration_minutes !== undefined) {
-      billableAmount = calculateBillableFee(duration_minutes, new (await import('decimal.js')).Decimal(hourly_rate)).toNumber();
+      billableAmount = calculateBillableFee(duration_minutes, hourly_rate);
     }
 
     const result = await pool.query(

@@ -30,14 +30,15 @@ router.get('/bank-portal', async (req, res) => {
 router.get('/bank-portal/:bankId', validateParams(uuidParam), async (req, res) => {
   try {
     const orgId = req.user!.orgId!;
-    const config = await getBankPortalConfig(req.params.bankId);
+    const bankId = Array.isArray(req.params.bankId) ? req.params.bankId[0] : req.params.bankId;
+    const config = await getBankPortalConfig(bankId);
     
     if (!config || config.orgId !== orgId) {
       return res.status(404).json({ error: 'Bank portal config not found' });
     }
     
     // Also fetch workflow variants
-    const workflowVariants = await getBankWorkflowVariants(req.params.bankId);
+    const workflowVariants = await getBankWorkflowVariants(bankId);
     
     res.json({ success: true, config: { ...config, workflowVariants } });
   } catch (error) {
@@ -64,12 +65,13 @@ router.get('/bank-portal/:bankId/workflows', validateParams(uuidParam), async (r
     const orgId = req.user!.orgId!;
     
     // Verify bank belongs to org
-    const bankCheck = await pool.query('SELECT id FROM banks WHERE id = $1', [req.params.bankId]);
+    const bankId = Array.isArray(req.params.bankId) ? req.params.bankId[0] : req.params.bankId;
+    const bankCheck = await pool.query('SELECT id FROM banks WHERE id = $1', [bankId]);
     if (bankCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Bank not found' });
     }
     
-    const workflows = await getBankWorkflowVariants(req.params.bankId);
+    const workflows = await getBankWorkflowVariants(bankId);
     res.json({ success: true, workflows });
   } catch (error) {
     console.error('Bank workflows get error:', error);
@@ -80,9 +82,10 @@ router.get('/bank-portal/:bankId/workflows', validateParams(uuidParam), async (r
 // POST /api/v1/bank-portal/:bankId/workflows - Create or update workflow variant
 router.post('/bank-portal/:bankId/workflows', validateParams(uuidParam), requireRole('PRINCIPAL'), async (req, res) => {
   try {
+    const bankId = Array.isArray(req.params.bankId) ? req.params.bankId[0] : req.params.bankId;
     const variant = await createOrUpdateBankWorkflowVariant({
       ...req.body,
-      bankId: req.params.bankId,
+      bankId,
     });
     res.status(201).json({ success: true, variant });
   } catch (error: any) {
@@ -94,7 +97,8 @@ router.post('/bank-portal/:bankId/workflows', validateParams(uuidParam), require
 // POST /api/v1/bank-portal/:bankId/initialize - Initialize default workflows for a bank
 router.post('/bank-portal/:bankId/initialize', validateParams(uuidParam), requireRole('PRINCIPAL'), async (req, res) => {
   try {
-    await initializeBankDefaults(req.params.bankId);
+    const bankId = Array.isArray(req.params.bankId) ? req.params.bankId[0] : req.params.bankId;
+    await initializeBankDefaults(bankId);
     res.json({ success: true, message: 'Default workflows initialized' });
   } catch (error: any) {
     console.error('Bank defaults init error:', error);

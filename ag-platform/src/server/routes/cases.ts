@@ -68,7 +68,8 @@ router.get('/cases/stats', async (req, res) => {
 // GET /api/cases/:id - Get case by ID (org-scoped via RLS)
 router.get('/cases/:id', validateParams(uuidParam), async (req, res) => {
   try {
-    const kase = await CaseService.getCaseById(req.params.id, req.user!.orgId!);
+    const caseId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const kase = await CaseService.getCaseById(caseId, req.user!.orgId!);
     if (!kase) {
       res.status(404).json({ error: 'Case not found' });
       return;
@@ -82,7 +83,8 @@ router.get('/cases/:id', validateParams(uuidParam), async (req, res) => {
 // GET /api/cases/:id/timeline - Get case timeline
 router.get('/cases/:id/timeline', validateParams(uuidParam), async (req, res) => {
   try {
-    const entries = await CaseService.getCaseTimeline(req.params.id, req.user!.orgId!);
+    const caseId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const entries = await CaseService.getCaseTimeline(caseId, req.user!.orgId!);
     res.json(entries);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch timeline' });
@@ -112,12 +114,13 @@ router.put('/cases/:id/status', validateParams(uuidParam), validate(UpdateCaseSt
   try {
     const { status, notes } = req.body;
     const userId = req.user!.id;
+    const caseId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
-    await CaseService.updateStatus(req.params.id, status, userId, notes);
+    await CaseService.updateStatus(caseId, status, userId, notes);
 
     // Trigger AI pipeline for IN_PROGRESS status
     if (status === 'IN_PROGRESS') {
-      const caseDetails = await CaseService.getCaseById(req.params.id, req.user!.orgId!);
+      const caseDetails = await CaseService.getCaseById(caseId, req.user!.orgId!);
       if (caseDetails) {
         const aiBackend = process.env.AI_BACKEND_URL || 'http://127.0.0.1:8001';
         fetch(`${aiBackend}/api/generate-agreement`, {
@@ -141,9 +144,10 @@ router.put('/cases/:id/status', validateParams(uuidParam), validate(UpdateCaseSt
 router.patch('/cases/:id', validateParams(uuidParam), validate(UpdateCaseStatusSchema), async (req, res) => {
   try {
     const { status, notes } = req.body;
+    const caseId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
-    await CaseService.updateStatus(req.params.id, status, req.user!.id, notes || 'Status updated via pipeline');
-    const updatedCase = await CaseService.getCaseById(req.params.id, req.user!.orgId!);
+    await CaseService.updateStatus(caseId, status, req.user!.id, notes || 'Status updated via pipeline');
+    const updatedCase = await CaseService.getCaseById(caseId, req.user!.orgId!);
     res.json(updatedCase);
   } catch (error: any) {
     console.error('PATCH case error:', error);

@@ -77,7 +77,8 @@ router.post('/cases/:caseId/documents/upload-url', validateParams(uuidParam), as
     }
 
     // Verify case belongs to user's org
-    const caseCheck = await pool.query('SELECT id, org_id FROM cases WHERE id = $1', [req.params.caseId]);
+    const caseId = Array.isArray(req.params.caseId) ? req.params.caseId[0] : req.params.caseId;
+    const caseCheck = await pool.query('SELECT id, org_id FROM cases WHERE id = $1', [caseId]);
     if (caseCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Case not found' });
     }
@@ -86,7 +87,7 @@ router.post('/cases/:caseId/documents/upload-url', validateParams(uuidParam), as
     }
 
     const uploadUrl = await createSignedUploadUrl({
-      caseId: req.params.caseId,
+      caseId,
       orgId: userOrgId,
       fileName,
       contentType,
@@ -120,7 +121,8 @@ router.post('/cases/:caseId/documents/complete', validateParams(uuidParam), asyn
     }
 
     // Verify case belongs to user's org
-    const caseCheck = await pool.query('SELECT id, org_id FROM cases WHERE id = $1', [req.params.caseId]);
+    const caseId = Array.isArray(req.params.caseId) ? req.params.caseId[0] : req.params.caseId;
+    const caseCheck = await pool.query('SELECT id, org_id FROM cases WHERE id = $1', [caseId]);
     if (caseCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Case not found' });
     }
@@ -139,7 +141,7 @@ router.post('/cases/:caseId/documents/complete', validateParams(uuidParam), asyn
       `INSERT INTO documents (case_id, org_id, uploader_id, name, storage_path, bucket_id, content_type, size_bytes, category)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [req.params.caseId, userOrgId, userId, name, path, bucketId, contentType, sizeBytes || 0, category]
+      [caseId, userOrgId, userId, name, path, bucketId, contentType, sizeBytes || 0, category]
     );
     res.status(201).json({ success: true, document: result.rows[0] });
   } catch (error: any) {
@@ -152,13 +154,15 @@ router.post('/cases/:caseId/documents/complete', validateParams(uuidParam), asyn
 router.get('/cases/:caseId/documents/:documentId/download', validateParams(uuidParam), validateParams(z.object({ documentId: z.string().uuid() })), async (req, res) => {
   try {
     const userOrgId = req.user!.orgId!;
+    const caseId = Array.isArray(req.params.caseId) ? req.params.caseId[0] : req.params.caseId;
+    const documentId = Array.isArray(req.params.documentId) ? req.params.documentId[0] : req.params.documentId;
 
     // Verify document belongs to case and user's org
     const docCheck = await pool.query(
       `SELECT d.*, c.org_id FROM documents d
        JOIN cases c ON c.id = d.case_id
        WHERE d.id = $1 AND d.case_id = $2`,
-      [req.params.documentId, req.params.caseId]
+      [documentId, caseId]
     );
 
     if (docCheck.rows.length === 0) {
@@ -188,13 +192,15 @@ router.get('/cases/:caseId/documents/:documentId/download', validateParams(uuidP
 router.delete('/cases/:caseId/documents/:documentId', validateParams(uuidParam), validateParams(z.object({ documentId: z.string().uuid() })), async (req, res) => {
   try {
     const userOrgId = req.user!.orgId!;
+    const caseId = Array.isArray(req.params.caseId) ? req.params.caseId[0] : req.params.caseId;
+    const documentId = Array.isArray(req.params.documentId) ? req.params.documentId[0] : req.params.documentId;
 
     // Verify document belongs to case and user's org
     const docCheck = await pool.query(
       `SELECT d.*, c.org_id FROM documents d
        JOIN cases c ON c.id = d.case_id
        WHERE d.id = $1 AND d.case_id = $2`,
-      [req.params.documentId, req.params.caseId]
+      [documentId, caseId]
     );
 
     if (docCheck.rows.length === 0) {
@@ -232,18 +238,19 @@ router.get('/cases/:caseId/documents/list', validateParams(uuidParam), async (re
     const { bucketId = BUCKETS.CASE_DOCUMENTS } = req.query;
 
     // Verify case belongs to user's org
-    const caseCheck = await pool.query('SELECT id FROM cases WHERE id = $1 AND org_id = $2', [req.params.caseId, userOrgId]);
+    const caseId = Array.isArray(req.params.caseId) ? req.params.caseId[0] : req.params.caseId;
+    const caseCheck = await pool.query('SELECT id FROM cases WHERE id = $1 AND org_id = $2', [caseId, userOrgId]);
     if (caseCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Case not found' });
     }
 
-    const files = await listFiles(bucketId as string, req.params.caseId);
+    const files = await listFiles(bucketId as string, caseId);
 
     res.json({
       success: true,
       files,
       bucketId,
-      prefix: req.params.caseId,
+      prefix: caseId,
     });
   } catch (error: any) {
     console.error('Storage list error:', error);

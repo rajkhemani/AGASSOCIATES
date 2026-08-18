@@ -181,7 +181,7 @@ export async function checkSLAWarnings(orgId: string): Promise<SLAWarning[]> {
   const warnings: SLAWarning[] = [];
   const now = new Date();
   
-  for const case_ of cases) {
+  for (const case_ of cases) {
     if (!case_.slaDeadline || case_.slaWarningSent || case_.slaBreached) continue;
     
     const config = getSLAConfig(case_.caseType);
@@ -206,7 +206,7 @@ export async function checkSLABreaches(orgId: string): Promise<SLABreach[]> {
   const breaches: SLABreach[] = [];
   const now = new Date();
   
-  for const case_ of cases) {
+  for (const case_ of cases) {
     if (!case_.slaDeadline || case_.slaBreached) continue;
     
     if (now > case_.slaDeadline) {
