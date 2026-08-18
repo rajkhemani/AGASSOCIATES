@@ -717,3 +717,110 @@ DROP TRIGGER IF EXISTS trigger_audit_timesheet ON timesheets;
 CREATE TRIGGER trigger_audit_timesheet
     AFTER INSERT OR UPDATE ON timesheets
     FOR EACH ROW EXECUTE FUNCTION audit_timesheet_change();
+
+-- ============================================================
+-- BANK PORTAL CONFIG MIGRATION (Phase 5G)
+-- ============================================================
+
+-- BANK PORTAL CONFIGS TABLE
+CREATE TABLE IF NOT EXISTS bank_portal_configs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    bank_id UUID REFERENCES banks(id) ON DELETE CASCADE NOT NULL UNIQUE,
+    org_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    
+    -- Branding
+    logo_url TEXT,
+    primary_color TEXT DEFAULT '#1e40af',
+    secondary_color TEXT DEFAULT '#3b82f6',
+    favicon_url TEXT,
+    custom_domain TEXT,
+    
+    -- Portal settings
+    portal_name TEXT NOT NULL DEFAULT 'Bank Portal',
+    welcome_message TEXT,
+    support_email TEXT,
+    support_phone TEXT,
+    
+    -- Feature flags
+    features JSONB DEFAULT '{"caseTracking": true, "documentDownload": true, "invoiceView": true, "paymentStatus": true, "slaDashboard": true, "notifications": true, "apiAccess": false}',
+    
+    -- Workflow overrides
+    workflow_overrides JSONB DEFAULT '{}',
+    
+    -- SSO settings
+    sso JSONB DEFAULT '{"enabled": false, "provider": null, "entityId": null, "ssoUrl": null, "certificate": null, "attributeMapping": {}}',
+    
+    -- Custom CSS/JS
+    custom_css TEXT,
+    custom_js TEXT,
+    
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- BANK WORKFLOW VARIANTS TABLE
+CREATE TABLE IF NOT EXISTS bank_workflow_variants (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    bank_id UUID REFERENCES banks(id) ON DELETE CASCADE NOT NULL,
+    case_type case_type NOT NULL,
+    stages TEXT[] NOT NULL DEFAULT '{}',
+    transitions JSONB NOT NULL DEFAULT '{}',
+    required_documents TEXT[] NOT NULL DEFAULT '{}',
+    sla_warning_hours INTEGER NOT NULL DEFAULT 24,
+    sla_breach_hours INTEGER NOT NULL DEFAULT 0,
+    auto_assignment_rules JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(bank_id, case_type)
+);
+
+-- INDEXES
+CREATE INDEX IF NOT EXISTS idx_bank_portal_configs_bank_id ON bank_portal_configs(bank_id);
+CREATE INDEX IF NOT EXISTS idx_bank_portal_configs_org_id ON bank_portal_configs(org_id);
+CREATE INDEX IF NOT EXISTS idx_bank_workflow_variants_bank_id ON bank_workflow_variants(bank_id);
+CREATE INDEX IF NOT EXISTS idx_bank_workflow_variants_case_type ON bank_workflow_variants(case_type);
+
+-- TRIGGER for updated_at on bank_portal_configs
+DROP TRIGGER IF EXISTS update_bank_portal_configs_updated_at ON bank_portal_configs;
+CREATE TRIGGER update_bank_portal_configs_updated_at BEFORE UPDATE ON bank_portal_configs FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+-- TRIGGER for updated_at on bank_workflow_variants
+DROP TRIGGER IF EXISTS update_bank_workflow_variants_updated_at ON bank_workflow_variants;
+CREATE TRIGGER update_bank_workflow_variants_updated_at BEFORE UPDATE ON bank_workflow_variants FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+-- RLS POLICIES
+ALTER TABLE bank_portal_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bank_workflow_variants ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY bank_portal_configs_org_isolation ON bank_portal_configs
+  FOR ALL USING (org_id = current_setting('app.current_org_id')::uuid);
+
+CREATE POLICY bank_workflow_variants_org_isolation ON bank_workflow_variants
+  FOR ALL USING (
+    bank_id IN (SELECT id FROM banks WHERE id IN (
+      SELECT bank_id FROM cases WHERE org_id = current_setting('app.current_org_id')::uuid
+    ))
+  );
+
+-- VIEW for bank portal with workflow variants
+CREATE OR REPLACE VIEW bank_portal_with_workflows AS
+SELECT 
+  bpc.*,
+  b.name as bank_name,
+  b.short_code as bank_short_code,
+  jsonb_agg(
+    jsonb_build_object(
+      'caseType', bvw.case_type,
+      'stages', bvw.stages,
+      'transitions', bvw.transitions,
+      'requiredDocuments', bvw.required_documents,
+      'slaWarningHours', bvw.sla_warning_hours,
+      'slaBreachHours', bvw.sla_breach_hours,
+      'autoAssignmentRules', bvw.auto_assignment_rules
+    ) ORDER BY bvw.case_type
+  ) as workflow_variants
+FROM bank_portal_configs bpc
+JOIN banks b ON b.id = bpc.bank_id
+LEFT JOIN bank_workflow_variants bvw ON bvw.bank_id = bpc.bank_id
+GROUP BY bpc.id, b.name, b.short_code;

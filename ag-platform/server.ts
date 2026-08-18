@@ -14,6 +14,7 @@ import dashboardRoutes from "./src/server/routes/dashboard.ts";
 import neslRoutes from "./src/server/routes/nesl.ts";
 import authRoutes from "./src/server/routes/auth.ts";
 import invoiceRoutes from "./src/server/routes/invoices.ts";
+import bankPortalRoutes from "./src/server/routes/bankPortal.ts";
 
 // Sentry error tracking (optional, requires SENTRY_DSN env)
 import { initSentry, Sentry } from "./src/server/sentry.ts";
@@ -234,6 +235,7 @@ async function startServer() {
   app.use(API_PREFIX, dashboardRoutes);
   app.use(API_PREFIX, neslRoutes);
   app.use(API_PREFIX, invoiceRoutes);
+  app.use(API_PREFIX, bankPortalRoutes);
 
   app.use(`${API_PREFIX}/ai`, aiLimiter, aiRoutes);
 
