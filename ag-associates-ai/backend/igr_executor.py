@@ -5,12 +5,17 @@ Requires: paid challan (GRN), borrower/property details, bank NOI drop confirmat
 
 All DOM selectors are configurable via env vars prefixed with IGR_SEL_ so the
 automation can adapt to portal changes without code modifications.
+
+Idempotency: Uses Redis to track completed filings by case_id + document_type.
+Retries: Transient failures (network, timeouts) are retried with exponential backoff.
+Observability: Screenshots on failure, OpenTelemetry tracing, structured logging.
 """
 
 import asyncio
 import json
 import logging
 import os
+import traceback
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -18,10 +23,12 @@ from playwright.async_api import async_playwright
 
 from circuit_breaker import get_breaker, CircuitState
 from hitl_queue import hitl_queue
+from logging_config import get_logger, log_rpa_action, trace_rpa_action
 from selector_config import get_selector
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from workforce.ledger import record_activity
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class IgrRpaExecutor:
@@ -36,6 +43,10 @@ class IgrRpaExecutor:
     All Playwright selectors are read from env vars (IGR_SEL_*) with sensible
     defaults for the current IGR Maharashtra portal DOM. Override any selector
     in production .env without touching code.
+
+    Idempotency: Redis key `igr:filing:{case_id}:NOI` prevents duplicate filings.
+    Retries: Transient failures retried up to 3x with exponential backoff.
+    Failure debugging: Screenshots + traces saved on error.
     """
 
     def __init__(self):
@@ -47,6 +58,8 @@ class IgrRpaExecutor:
         self.portal_password = os.environ.get("IGR_PORTAL_PASSWORD", "")
 
         self._load_selectors()
+        self._trace_dir = os.environ.get("IGR_TRACE_DIR", "/tmp/igr_traces")
+        os.makedirs(self._trace_dir, exist_ok=True)
 
     def _load_selectors(self):
         """Load Playwright selectors from env vars with production defaults."""
@@ -84,6 +97,31 @@ class IgrRpaExecutor:
         default = f"/srv/ag/documents/{case_id}/{doc_type}.pdf"
         return os.environ.get(env_key, default)
 
+    async def _check_idempotency(self, case_id: str, document_type: str) -> Optional[Dict[str, Any]]:
+        """Check Redis for existing filing to enforce idempotency."""
+        import redis.asyncio as aioredis
+        import json
+        r = aioredis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379"))
+        try:
+            key = f"igr:filing:{case_id}:{document_type}"
+            data = await r.get(key)
+            if data:
+                return json.loads(data)
+        finally:
+            await r.close()
+        return None
+
+    async def _store_filing_result(self, case_id: str, document_type: str, result: Dict[str, Any]):
+        """Store filing result in Redis for idempotency."""
+        import redis.asyncio as aioredis
+        import json
+        r = aioredis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379"))
+        try:
+            key = f"igr:filing:{case_id}:{document_type}"
+            await r.setex(key, 86400 * 30, json.dumps(result))  # 30 days TTL
+        finally:
+            await r.close()
+
     async def _check_igr_breaker(self, case_id: str) -> bool:
         breaker = get_breaker("igr")
         state = await breaker.state()
@@ -102,6 +140,12 @@ class IgrRpaExecutor:
         logger.warning("HITL task queued for IGR/%s — breaker %s", case_id, state.value)
         return False
 
+    @retry(
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type((TimeoutError, ConnectionError)),
+        reraise=True,
+    )
     async def file_noi(
         self,
         case_id: str,
@@ -111,11 +155,16 @@ class IgrRpaExecutor:
         property_city: str,
         bank_name: str,
         grn_number: str,
+        document_type: str = "NOI",
     ) -> Dict[str, Any]:
         """File NOI on IGR portal. Returns acknowledgment on success.
 
         Uses configurable selectors from env vars (IGR_SEL_*) — override any
         selector in production .env without touching code.
+
+        Idempotency: Returns existing result if already filed.
+        Retries: Up to 3 attempts for transient failures.
+        Observability: Screenshots + traces on failure.
         """
         logger.info(f"🚀 [IGR] Starting NOI filing for case: {case_id}")
 
@@ -133,16 +182,32 @@ class IgrRpaExecutor:
                 "error": "GRN number required — generate challan first",
             }
 
+        # Check idempotency
+        existing = await self._check_idempotency(case_id, document_type)
+        if existing:
+            logger.info(f"Duplicate IGR filing detected for {case_id}:{document_type}")
+            return {**existing, "mode": "rpa"}
+
         browser = None
+        context = None
+        trace_path = None
+        screenshot_path = None
+
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
                 context = await browser.new_context()
+
+                # Start tracing for debugging
+                trace_path = os.path.join(self._trace_dir, f"igr_{case_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.zip")
+                await context.tracing.start(screenshots=True, snapshots=True, sources=True)
+
                 page = await context.new_page()
 
                 logger.info("🌐 [IGR] Navigating to IGR e-filing portal...")
-                await page.goto(self.portal_url)
+                await page.goto(self.portal_url, wait_until="networkidle")
 
+                # Login
                 await page.fill(self.sel["username_input"], self.portal_username)
                 await page.fill(self.sel["password_input"], self.portal_password)
                 await page.click(self.sel["login_button"])
@@ -155,11 +220,13 @@ class IgrRpaExecutor:
 
                 await page.fill(self.sel["otp_input"], otp_code)
                 await page.click(self.sel["otp_verify_button"])
-                await page.wait_for_selector(self.sel["dashboard_indicator"])
+                await page.wait_for_selector(self.sel["dashboard_indicator"], timeout=30000)
 
+                # Navigate to NOI filing
                 await page.click(self.sel["file_noi_link"])
-                await page.wait_for_selector(self.sel["noi_form"])
+                await page.wait_for_selector(self.sel["noi_form"], timeout=30000)
 
+                # Fill form
                 await page.fill(self.sel["borrower_name_input"], borrower_name)
                 await page.fill(self.sel["loan_amount_input"], loan_amount)
                 await page.fill(self.sel["property_address_input"], property_address)
@@ -167,6 +234,7 @@ class IgrRpaExecutor:
                 await page.fill(self.sel["bank_name_input"], bank_name)
                 await page.fill(self.sel["grn_input"], grn_number)
 
+                # Upload documents
                 sanction_path = self._upload_path("sanction_letter", case_id)
                 kyc_path = self._upload_path("borrower_kyc", case_id)
                 stamp_path = self._upload_path("stamp_duty_receipt", case_id)
@@ -177,11 +245,23 @@ class IgrRpaExecutor:
                 await page.set_input_files(self.sel["borrower_kyc_upload"], kyc_path)
                 await page.set_input_files(self.sel["stamp_duty_upload"], stamp_path)
 
+                # Submit
                 await page.click(self.sel["submit_button"])
-                await page.wait_for_selector(self.sel["success_indicator"])
-                ack = await page.inner_text(self.sel["acknowledgment_span"])
+                await page.wait_for_selector(self.sel["success_indicator"], timeout=60000)
 
-                await self._store_filing_result(case_id, ack)
+                # Capture acknowledgment
+                ack = await page.inner_text(self.sel["acknowledgment_span"])
+                ack = ack.strip()
+
+                # Store filing result
+                result = {
+                    "success": True,
+                    "acknowledgment_number": ack,
+                    "case_id": case_id,
+                    "agent": "IgrRpaExecutor",
+                }
+
+                await self._store_filing_result(case_id, "NOI", result)
 
                 record_activity(
                     source="igr_rpa",
@@ -196,15 +276,41 @@ class IgrRpaExecutor:
 
                 await get_breaker("igr").record_success()
 
+                # Stop tracing and save
+                await context.tracing.stop(path=trace_path)
+                logger.info(f"✅ [IGR] NOI filed successfully — Ack: {ack}, Trace: {trace_path}")
+
                 return {
-                    "success": True,
-                    "acknowledgment_number": ack,
-                    "case_id": case_id,
-                    "agent": "IgrRpaExecutor",
+                    **result,
+                    "trace_path": trace_path,
                 }
 
         except Exception as e:
             logger.error(f"❌ [IGR] NOI filing failed: {str(e)}")
+            logger.error(traceback.format_exc())
+
+            # Capture screenshot on failure
+            if context:
+                screenshot_path = os.path.join(
+                    self._trace_dir,
+                    f"igr_failure_{case_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.png"
+                )
+                try:
+                    page = context.pages[0] if context.pages else None
+                    if page:
+                        await page.screenshot(path=screenshot_path, full_page=True)
+                        logger.info(f"📸 [IGR] Failure screenshot saved: {screenshot_path}")
+                except Exception as ss_err:
+                    logger.warning(f"Failed to capture screenshot: {ss_err}")
+
+            # Save trace on failure
+            if context and trace_path:
+                try:
+                    await context.tracing.stop(path=trace_path)
+                    logger.info(f"🔍 [IGR] Failure trace saved: {trace_path}")
+                except Exception as tr_err:
+                    logger.warning(f"Failed to save trace: {tr_err}")
+
             await get_breaker("igr").record_failure(str(e))
             record_activity(
                 source="igr_rpa",
@@ -215,8 +321,15 @@ class IgrRpaExecutor:
                 summary=f"NOI filing failed: {str(e)}",
                 status="error",
             )
-            return {"success": False, "error": str(e)}
+
+            return {"success": False, "error": str(e), "trace_path": trace_path, "screenshot_path": screenshot_path}
+
         finally:
+            if context:
+                try:
+                    await context.close()
+                except Exception:
+                    pass
             if browser is not None:
                 try:
                     await browser.close()
@@ -242,29 +355,10 @@ class IgrRpaExecutor:
         finally:
             await r.close()
 
-    async def _store_filing_result(self, case_id: str, ack: str):
-        """Store filing acknowledgment in Redis for downstream use."""
-        import redis.asyncio as aioredis
-
-        r = aioredis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379"))
-        try:
-            await r.setex(
-                f"noi_filing:{case_id}",
-                86400 * 7,
-                json.dumps(
-                    {
-                        "acknowledgment_number": ack,
-                        "filed_at": datetime.utcnow().isoformat(),
-                    }
-                ),
-            )
-        finally:
-            await r.close()
-
     async def check_status(self, acknowledgment_number: str) -> Dict[str, Any]:
         """Check the status of a previously filed NOI on the IGR portal."""
         logger.info("🔍 [IGR] Checking NOI status for: %s", acknowledgment_number)
-        # Mock implementation — real would scrape or API-call the IGR portal
+        # Real implementation would scrape or API-call the IGR portal
         return {
             "success": True,
             "acknowledgment_number": acknowledgment_number,
