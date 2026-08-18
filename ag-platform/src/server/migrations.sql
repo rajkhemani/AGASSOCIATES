@@ -351,3 +351,366 @@ CREATE POLICY staff_activity_org_isolation ON staff_activity
     org_id = current_setting('app.current_org_id')::uuid
     OR org_id IS NULL
   );
+
+-- ============================================================
+-- AUDIT TRAIL MIGRATION (Phase 5E)
+-- ============================================================
+
+-- AUDIT EVENT TYPE ENUM
+DO $$ BEGIN
+    CREATE TYPE audit_event_type AS ENUM (
+        'CASE_CREATED',
+        'CASE_STATUS_CHANGED',
+        'CASE_ASSIGNED',
+        'CASE_REASSIGNED',
+        'DOCUMENT_UPLOADED',
+        'DOCUMENT_DOWNLOADED',
+        'DOCUMENT_DELETED',
+        'DOCUMENT_VERSIONED',
+        'DISBURSEMENT_CREATED',
+        'DISBURSEMENT_REIMBURSED',
+        'DISBURSEMENT_RECONCILED',
+        'INVOICE_GENERATED',
+        'INVOICE_SENT',
+        'INVOICE_PAID',
+        'INVOICE_OVERDUE',
+        'INVOICE_CANCELLED',
+        'TIMESHEET_LOGGED',
+        'TIMESHEET_INVOICED',
+        'BANK_ADVANCE_ADJUSTED',
+        'BANK_ADVANCE_SYNCED',
+        'USER_LOGIN',
+        'USER_LOGOUT',
+        'ROLE_CHANGED',
+        'ORG_SETTINGS_CHANGED',
+        'BANK_CONFIG_CHANGED',
+        'RPA_TASK_STARTED',
+        'RPA_TASK_COMPLETED',
+        'RPA_TASK_FAILED',
+        'AI_REQUEST_MADE',
+        'WEBHOOK_RECEIVED',
+        'WEBHOOK_PROCESSED',
+        'NOTIFICATION_SENT',
+        'SLA_WARNING',
+        'SLA_BREACHED',
+        'ESCALATION_TRIGGERED'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- AUDIT TRAIL TABLE
+CREATE TABLE IF NOT EXISTS audit_trail (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    org_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    event_type audit_event_type NOT NULL,
+    event_category TEXT NOT NULL, -- 'case', 'document', 'disbursement', 'invoice', 'timesheet', 'bank', 'user', 'system', 'rpa', 'ai', 'webhook', 'notification', 'sla', 'escalation'
+    
+    -- Actor
+    actor_id UUID, -- profile_id or user_id
+    actor_type TEXT, -- 'user', 'system', 'rpa', 'ai', 'webhook'
+    actor_name TEXT,
+    actor_role TEXT,
+    
+    -- Subject (what was affected)
+    subject_type TEXT, -- 'case', 'document', 'disbursement', 'invoice', 'timesheet', 'bank', 'user'
+    subject_id UUID,
+    subject_reference TEXT, -- case_number, invoice_number, etc.
+    
+    -- Change details
+    old_values JSONB DEFAULT '{}',
+    new_values JSONB DEFAULT '{}',
+    changed_fields TEXT[],
+    
+    -- Context
+    correlation_id UUID, -- for linking related events
+    causation_id UUID, -- what caused this event
+    ip_address INET,
+    user_agent TEXT,
+    request_id UUID,
+    
+    -- Metadata
+    metadata JSONB DEFAULT '{}',
+    severity TEXT NOT NULL DEFAULT 'info', -- 'info', 'warning', 'error', 'critical'
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for common query patterns
+CREATE INDEX IF NOT EXISTS idx_audit_trail_org_id ON audit_trail(org_id);
+CREATE INDEX IF NOT EXISTS idx_audit_trail_event_type ON audit_trail(event_type);
+CREATE INDEX IF NOT EXISTS idx_audit_trail_subject ON audit_trail(subject_type, subject_id);
+CREATE INDEX IF NOT EXISTS idx_audit_trail_actor ON audit_trail(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_trail_correlation ON audit_trail(correlation_id);
+CREATE INDEX IF NOT EXISTS idx_audit_trail_created_at ON audit_trail(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_trail_severity ON audit_trail(severity);
+
+-- RLS POLICY
+ALTER TABLE audit_trail ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY audit_trail_org_isolation ON audit_trail
+  FOR ALL USING (org_id = current_setting('app.current_org_id')::uuid);
+
+-- AUDIT TRAIL HELPER FUNCTION
+CREATE OR REPLACE FUNCTION log_audit_event(
+    p_org_id UUID,
+    p_event_type audit_event_type,
+    p_event_category TEXT,
+    p_actor_id UUID DEFAULT NULL,
+    p_actor_type TEXT DEFAULT 'user',
+    p_actor_name TEXT DEFAULT NULL,
+    p_actor_role TEXT DEFAULT NULL,
+    p_subject_type TEXT DEFAULT NULL,
+    p_subject_id UUID DEFAULT NULL,
+    p_subject_reference TEXT DEFAULT NULL,
+    p_old_values JSONB DEFAULT '{}',
+    p_new_values JSONB DEFAULT '{}',
+    p_changed_fields TEXT[] DEFAULT '{}',
+    p_correlation_id UUID DEFAULT NULL,
+    p_causation_id UUID DEFAULT NULL,
+    p_ip_address INET DEFAULT NULL,
+    p_user_agent TEXT DEFAULT NULL,
+    p_request_id UUID DEFAULT NULL,
+    p_metadata JSONB DEFAULT '{}',
+    p_severity TEXT DEFAULT 'info'
+) RETURNS UUID AS $$
+DECLARE
+    v_audit_id UUID;
+BEGIN
+    INSERT INTO audit_trail (
+        org_id, event_type, event_category,
+        actor_id, actor_type, actor_name, actor_role,
+        subject_type, subject_id, subject_reference,
+        old_values, new_values, changed_fields,
+        correlation_id, causation_id,
+        ip_address, user_agent, request_id,
+        metadata, severity
+    ) VALUES (
+        p_org_id, p_event_type, p_event_category,
+        p_actor_id, p_actor_type, p_actor_name, p_actor_role,
+        p_subject_type, p_subject_id, p_subject_reference,
+        p_old_values, p_new_values, p_changed_fields,
+        p_correlation_id, p_causation_id,
+        p_ip_address, p_user_agent, p_request_id,
+        p_metadata, p_severity
+    ) RETURNING id INTO v_audit_id;
+    
+    RETURN v_audit_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- TRIGGER FUNCTION FOR CASE STATUS CHANGES
+CREATE OR REPLACE FUNCTION audit_case_status_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_old_status TEXT;
+    v_new_status TEXT;
+    v_actor_id UUID;
+BEGIN
+    IF TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM NEW.status THEN
+        -- Get actor from request context (set by middleware)
+        v_actor_id := current_setting('app.current_user_id', true)::UUID;
+        
+        PERFORM log_audit_event(
+            p_org_id := NEW.org_id,
+            p_event_type := 'CASE_STATUS_CHANGED',
+            p_event_category := 'case',
+            p_actor_id := v_actor_id,
+            p_actor_type := 'user',
+            p_subject_type := 'case',
+            p_subject_id := NEW.id,
+            p_subject_reference := NEW.case_number,
+            p_old_values := jsonb_build_object('status', OLD.status),
+            p_new_values := jsonb_build_object('status', NEW.status),
+            p_changed_fields := ARRAY['status'],
+            p_severity := 'info'
+        );
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_audit_case_status ON cases;
+CREATE TRIGGER trigger_audit_case_status
+    AFTER UPDATE ON cases
+    FOR EACH ROW EXECUTE FUNCTION audit_case_status_change();
+
+-- TRIGGER FUNCTION FOR DOCUMENT CHANGES
+CREATE OR REPLACE FUNCTION audit_document_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_event_type audit_event_type;
+    v_actor_id UUID;
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        v_event_type := 'DOCUMENT_UPLOADED';
+    ELSIF TG_OP = 'DELETE' THEN
+        v_event_type := 'DOCUMENT_DELETED';
+    ELSIF TG_OP = 'UPDATE' THEN
+        v_event_type := 'DOCUMENT_VERSIONED';
+    END IF;
+    
+    v_actor_id := current_setting('app.current_user_id', true)::UUID;
+    
+    PERFORM log_audit_event(
+        p_org_id := COALESCE(NEW.org_id, OLD.org_id),
+        p_event_type := v_event_type,
+        p_event_category := 'document',
+        p_actor_id := v_actor_id,
+        p_actor_type := 'user',
+        p_subject_type := 'document',
+        p_subject_id := COALESCE(NEW.id, OLD.id),
+        p_subject_reference := COALESCE(NEW.name, OLD.name),
+        p_old_values := CASE WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD) ELSE '{}' END,
+        p_new_values := CASE WHEN TG_OP = 'INSERT' THEN to_jsonb(NEW) ELSE to_jsonb(NEW) END,
+        p_changed_fields := CASE 
+            WHEN TG_OP = 'UPDATE' THEN ARRAY(SELECT jsonb_object_keys(to_jsonb(NEW) - to_jsonb(OLD)))
+            ELSE ARRAY[]::TEXT[]
+        END,
+        p_severity := 'info'
+    );
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_audit_document ON documents;
+CREATE TRIGGER trigger_audit_document
+    AFTER INSERT OR UPDATE OR DELETE ON documents
+    FOR EACH ROW EXECUTE FUNCTION audit_document_change();
+
+-- TRIGGER FUNCTION FOR DISBURSEMENT CHANGES
+CREATE OR REPLACE FUNCTION audit_disbursement_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_event_type audit_event_type;
+    v_actor_id UUID;
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        v_event_type := 'DISBURSEMENT_CREATED';
+    ELSIF TG_OP = 'UPDATE' AND OLD.is_reimbursed IS DISTINCT FROM NEW.is_reimbursed AND NEW.is_reimbursed THEN
+        v_event_type := 'DISBURSEMENT_REIMBURSED';
+    ELSIF TG_OP = 'UPDATE' AND OLD.bank_advance_used IS DISTINCT FROM NEW.bank_advance_used THEN
+        v_event_type := 'DISBURSEMENT_RECONCILED';
+    ELSE
+        RETURN COALESCE(NEW, OLD);
+    END IF;
+    
+    v_actor_id := current_setting('app.current_user_id', true)::UUID;
+    
+    PERFORM log_audit_event(
+        p_org_id := (SELECT org_id FROM cases WHERE id = COALESCE(NEW.case_id, OLD.case_id)),
+        p_event_type := v_event_type,
+        p_event_category := 'disbursement',
+        p_actor_id := v_actor_id,
+        p_actor_type := 'user',
+        p_subject_type := 'disbursement',
+        p_subject_id := COALESCE(NEW.id, OLD.id),
+        p_subject_reference := (SELECT case_number FROM cases WHERE id = COALESCE(NEW.case_id, OLD.case_id)),
+        p_old_values := CASE WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD) ELSE '{}' END,
+        p_new_values := to_jsonb(NEW),
+        p_changed_fields := CASE 
+            WHEN TG_OP = 'UPDATE' THEN ARRAY(SELECT jsonb_object_keys(to_jsonb(NEW) - to_jsonb(OLD)))
+            ELSE ARRAY[]::TEXT[]
+        END,
+        p_severity := 'info'
+    );
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_audit_disbursement ON disbursements;
+CREATE TRIGGER trigger_audit_disbursement
+    AFTER INSERT OR UPDATE OR DELETE ON disbursements
+    FOR EACH ROW EXECUTE FUNCTION audit_disbursement_change();
+
+-- TRIGGER FUNCTION FOR INVOICE CHANGES
+CREATE OR REPLACE FUNCTION audit_invoice_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_event_type audit_event_type;
+    v_actor_id UUID;
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        v_event_type := 'INVOICE_GENERATED';
+    ELSIF TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM NEW.status THEN
+        CASE NEW.status
+            WHEN 'SENT' THEN v_event_type := 'INVOICE_SENT';
+            WHEN 'PAID' THEN v_event_type := 'INVOICE_PAID';
+            WHEN 'OVERDUE' THEN v_event_type := 'INVOICE_OVERDUE';
+            WHEN 'CANCELLED' THEN v_event_type := 'INVOICE_CANCELLED';
+            ELSE v_event_type := 'INVOICE_GENERATED'; -- fallback
+        END CASE;
+    ELSE
+        RETURN COALESCE(NEW, OLD);
+    END IF;
+    
+    v_actor_id := current_setting('app.current_user_id', true)::UUID;
+    
+    PERFORM log_audit_event(
+        p_org_id := NEW.org_id,
+        p_event_type := v_event_type,
+        p_event_category := 'invoice',
+        p_actor_id := v_actor_id,
+        p_actor_type := 'user',
+        p_subject_type := 'invoice',
+        p_subject_id := NEW.id,
+        p_subject_reference := NEW.invoice_number,
+        p_old_values := CASE WHEN TG_OP = 'UPDATE' THEN jsonb_build_object('status', OLD.status) ELSE '{}' END,
+        p_new_values := CASE WHEN TG_OP = 'UPDATE' THEN jsonb_build_object('status', NEW.status) ELSE to_jsonb(NEW) END,
+        p_changed_fields := CASE 
+            WHEN TG_OP = 'UPDATE' THEN ARRAY['status']
+            ELSE ARRAY[]::TEXT[]
+        END,
+        p_severity := CASE WHEN NEW.status IN ('OVERDUE', 'CANCELLED') THEN 'warning' ELSE 'info' END
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_audit_invoice ON invoices;
+CREATE TRIGGER trigger_audit_invoice
+    AFTER INSERT OR UPDATE ON invoices
+    FOR EACH ROW EXECUTE FUNCTION audit_invoice_change();
+
+-- TRIGGER FUNCTION FOR TIMESHEET CHANGES
+CREATE OR REPLACE FUNCTION audit_timesheet_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_event_type audit_event_type;
+    v_actor_id UUID;
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        v_event_type := 'TIMESHEET_LOGGED';
+    ELSIF TG_OP = 'UPDATE' AND OLD.invoiced IS DISTINCT FROM NEW.invoiced AND NEW.invoiced THEN
+        v_event_type := 'TIMESHEET_INVOICED';
+    ELSE
+        RETURN COALESCE(NEW, OLD);
+    END IF;
+    
+    v_actor_id := current_setting('app.current_user_id', true)::UUID;
+    
+    PERFORM log_audit_event(
+        p_org_id := NEW.org_id,
+        p_event_type := v_event_type,
+        p_event_category := 'timesheet',
+        p_actor_id := v_actor_id,
+        p_actor_type := 'user',
+        p_subject_type := 'timesheet',
+        p_subject_id := NEW.id,
+        p_subject_reference := NEW.task_description,
+        p_old_values := CASE WHEN TG_OP = 'UPDATE' THEN to_jsonb(OLD) ELSE '{}' END,
+        p_new_values := to_jsonb(NEW),
+        p_changed_fields := CASE 
+            WHEN TG_OP = 'UPDATE' THEN ARRAY(SELECT jsonb_object_keys(to_jsonb(NEW) - to_jsonb(OLD)))
+            ELSE ARRAY[]::TEXT[]
+        END,
+        p_severity := 'info'
+    );
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_audit_timesheet ON timesheets;
+CREATE TRIGGER trigger_audit_timesheet
+    AFTER INSERT OR UPDATE ON timesheets
+    FOR EACH ROW EXECUTE FUNCTION audit_timesheet_change();
