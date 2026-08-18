@@ -1,18 +1,29 @@
 import express from 'express';
 import { pool } from '../db.ts';
+import { createSupabaseMiddleware, requireOrgAccess } from '../auth.ts';
 
 const router = express.Router();
 
-router.get('/dashboard/status', async (_req, res) => {
+const authOrg = [createSupabaseMiddleware(), requireOrgAccess()];
+
+// All dashboard routes require authentication + org access
+router.use(...authOrg);
+
+router.get('/dashboard/status', async (req, res) => {
   try {
-    const totalTemplates = await pool.query('SELECT COUNT(*)::int FROM cases');
+    const orgId = req.user!.orgId!;
+
+    const totalTemplates = await pool.query('SELECT COUNT(*)::int FROM cases WHERE org_id = $1', [orgId]);
     const activeAgents = await pool.query(
-      "SELECT COUNT(DISTINCT assigned_executive_id)::int FROM cases WHERE assigned_executive_id IS NOT NULL"
+      "SELECT COUNT(DISTINCT assigned_executive_id)::int FROM cases WHERE org_id = $1 AND assigned_executive_id IS NOT NULL",
+      [orgId]
     );
     const recentTimeline = await pool.query(
       `SELECT ct.notes as action, ct.created_at as timestamp, c.case_number as details
        FROM case_timeline ct JOIN cases c ON c.id = ct.case_id
-       ORDER BY ct.created_at DESC LIMIT 10`
+       WHERE c.org_id = $1
+       ORDER BY ct.created_at DESC LIMIT 10`,
+      [orgId]
     );
 
     res.json({

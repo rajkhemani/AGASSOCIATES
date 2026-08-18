@@ -1,16 +1,15 @@
-
 import crypto from 'crypto';
 import { pool } from '../db.ts';
 import { Case, CaseStatus } from '../../types/domain.ts';
 
 export const CaseService = {
-  async getActiveCases(): Promise<Case[]> {
-    const res = await pool.query('SELECT * FROM cases ORDER BY sla_deadline ASC');
+  async getActiveCases(orgId: string): Promise<Case[]> {
+    const res = await pool.query('SELECT * FROM cases WHERE org_id = $1 ORDER BY sla_deadline ASC', [orgId]);
     return res.rows;
   },
 
-  async getCaseById(id: string): Promise<Case | null> {
-    const res = await pool.query('SELECT * FROM cases WHERE id = $1', [id]);
+  async getCaseById(id: string, orgId: string): Promise<Case | null> {
+    const res = await pool.query('SELECT * FROM cases WHERE id = $1 AND org_id = $2', [id, orgId]);
     return res.rows[0] || null;
   },
 
@@ -33,10 +32,10 @@ export const CaseService = {
     return res.rows[0];
   },
 
-  async getCaseTimeline(id: string): Promise<any[]> {
+  async getCaseTimeline(id: string, orgId: string): Promise<any[]> {
     const res = await pool.query(
-      'SELECT * FROM case_timeline WHERE case_id = $1 ORDER BY created_at DESC',
-      [id]
+      'SELECT ct.* FROM case_timeline ct JOIN cases c ON c.id = ct.case_id WHERE ct.case_id = $1 AND c.org_id = $2 ORDER BY ct.created_at DESC',
+      [id, orgId]
     );
     return res.rows;
   },

@@ -1,7 +1,13 @@
 import express from 'express';
 import crypto from 'crypto';
+import { createSupabaseMiddleware, requireOrgAccess, requireRole } from '../auth.ts';
 
 const router = express.Router();
+
+const authOrg = [createSupabaseMiddleware(), requireOrgAccess()];
+
+// All NeSL routes require authentication + org access
+router.use(...authOrg);
 
 /*
  * NeSL API Integration Contract
@@ -47,14 +53,20 @@ const router = express.Router();
  * Rate limit: 10 requests/minute per certificate
  */
 
-router.post('/nesl/execute', async (_req, res) => {
-  const transactionId = crypto.randomUUID();
+router.post('/nesl/execute', async (req, res) => {
+  try {
+    // In production, integrate with real NeSL API
+    // For now, return mock response
+    const transactionId = crypto.randomUUID();
 
-  res.json({
-    transaction_id: transactionId,
-    status: 'filed',
-    timestamp: new Date().toISOString(),
-  });
+    res.json({
+      transaction_id: transactionId,
+      status: 'filed',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to execute NeSL filing' });
+  }
 });
 
 export default router;

@@ -1,5 +1,4 @@
 import os
-import os
 import re
 import json
 import base64
@@ -12,11 +11,13 @@ import redis.asyncio as aioredis
 sentry_sdk = None
 if importlib.util.find_spec("sentry_sdk"):
     import sentry_sdk
+
 from fastapi import FastAPI, Header, HTTPException, status, Response, Request, Depends, Cookie
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
+
 from voice.voice_api import router as voice_router
 from workforce import workforce_router
 from auth import oauth_router, require_auth, require_permission, AuthContext
@@ -30,25 +31,35 @@ from nesl_client import NeslClient
 from noi_agent import noi_agent
 from hitl_queue import hitl_queue
 from circuit_breaker import breakers
+from config import (
+    ENVIRONMENT,
+    IS_PRODUCTION,
+    API_HOST,
+    API_PORT,
+    CORS_ALLOWED_ORIGINS,
+    LOG_LEVEL,
+    SENTRY_DSN,
+    SENTRY_TRACES_SAMPLE_RATE,
+    SENTRY_PROFILES_SAMPLE_RATE,
+    N8N_WEBHOOK_KEY,
+    LLM_MOCK_MODE,
+    get_mock_llm_response,
+)
 
+# 1. Structured Logging Configuration (Must happen before FastAPI is initialized)
+from logging_config import setup_logging, get_logger, RequestLoggingMiddleware
 
+setup_logging(log_level=LOG_LEVEL, json_output=IS_PRODUCTION)
+logger = get_logger(__name__)
 
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")
-IS_PRODUCTION = ENVIRONMENT == "production"
-
-# 1. Sentry Initialization (Must happen before FastAPI is initialized)
-SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+# 2. Sentry Initialization (Must happen before FastAPI is initialized)
 if SENTRY_DSN:
     _default_traces = 0.1 if IS_PRODUCTION else 1.0
     _default_profiles = 0.01 if IS_PRODUCTION else 1.0
     sentry_sdk.init(
         dsn=SENTRY_DSN,
-        traces_sample_rate=float(
-            os.environ.get("SENTRY_TRACES_SAMPLE_RATE", _default_traces)
-        ),
-        profiles_sample_rate=float(
-            os.environ.get("SENTRY_PROFILES_SAMPLE_RATE", _default_profiles)
-        ),
+        traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", _default_traces)),
+        profiles_sample_rate=float(os.environ.get("SENTRY_PROFILES_SAMPLE_RATE", _default_profiles)),
         environment=ENVIRONMENT,
     )
 
@@ -59,22 +70,21 @@ app = FastAPI(
     description="Deterministic Multi-Agent Legal Infrastructure",
 )
 
-# 3. CORS Configuration (Strictly for Next.js Frontend)
-origins = [
-    "http://localhost:3000",
-    "https://luxor9-legalos.vercel.app",
-]
-_extra = os.environ.get("CORS_EXTRA_ORIGINS", "")
-if _extra:
-    origins.extend([o.strip() for o in _extra.split(",") if o.strip()])
-
+# 3. CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=CORS_ALLOWED_ORIGINS or ["http://localhost:3000", "https://luxor9-legalos.vercel.app"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# 4. Request Logging Middleware (must be after CORS to capture all requests)
+app.add_middleware(RequestLoggingMiddleware)
+
+# 5. Metrics Middleware
+from metrics import MetricsMiddleware
+app.add_middleware(MetricsMiddleware)
 
 app.include_router(voice_router)
 app.include_router(workforce_router)
@@ -95,6 +105,16 @@ async def _shutdown_nesl():
 # 4. Health Check Endpoint (For Vercel/Docker probing)
 @app.on_event("startup")
 async def _startup_store():
+    # Initialize OpenTelemetry tracing
+    try:
+        from tracing import setup_tracing, setup_metrics, instrument_app
+        tracer_provider = setup_tracing()
+        setup_metrics()
+        instrument_app(app, tracer_provider)
+        logger.info("OpenTelemetry tracing initialized")
+    except Exception as e:
+        logger.warning("Failed to initialize OpenTelemetry tracing", error=str(e))
+
     ensure_tables()
     await init_agents()
 
@@ -118,7 +138,6 @@ async def shutdown_nesl_client():
 
 
 # 5. Core Webhook Entrypoint for n8n (Asynchronous)
-N8N_WEBHOOK_KEY = os.environ.get("N8N_WEBHOOK_KEY", "")
 
 
 def _verify_n8n_key(
@@ -138,7 +157,97 @@ def _verify_n8n_key(
 @app.get("/health", tags=["System"])
 async def health_check():
     """Returns 200 OK if the system is fully operational."""
-    return {"status": "ok", "agent_pool": "ready", "version": "2.0.0"}
+    return {"status": "ok", "agent_pool": "ready", "version": "2.0.0", "mock_mode": LLM_MOCK_MODE}
+
+
+@app.get("/health/deep", tags=["System"])
+async def deep_health_check():
+    """Deep health check - verifies all dependencies."""
+    import httpx
+    import redis.asyncio as aioredis
+    from config import get_database_url
+
+    checks = {
+        "database": "unknown",
+        "redis": "unknown",
+        "vllm": "unknown",
+        "supabase": "unknown",
+        "nesl": "unknown",
+    }
+
+    # Check database
+    try:
+        import psycopg2
+        conn = psycopg2.connect(get_database_url(), connect_timeout=5)
+        conn.close()
+        checks["database"] = "healthy"
+    except Exception as e:
+        checks["database"] = f"unhealthy: {str(e)[:100]}"
+
+    # Check Redis
+    try:
+        r = aioredis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379"))
+        await r.ping()
+        await r.close()
+        checks["redis"] = "healthy"
+    except Exception as e:
+        checks["redis"] = f"unhealthy: {str(e)[:100]}"
+
+    # Check vLLM
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{LLM_BASE_URL}/models")
+            if resp.status_code == 200:
+                checks["vllm"] = "healthy"
+            else:
+                checks["vllm"] = f"unhealthy: HTTP {resp.status_code}"
+    except Exception as e:
+        checks["vllm"] = f"unhealthy: {str(e)[:100]}"
+
+    # Check Supabase
+    try:
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        if supabase_url and supabase_key:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    f"{supabase_url}/rest/v1/",
+                    headers={"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"}
+                )
+                if resp.status_code in (200, 401):  # 401 means auth works but unauthorized
+                    checks["supabase"] = "healthy"
+                else:
+                    checks["supabase"] = f"unhealthy: HTTP {resp.status_code}"
+        else:
+            checks["supabase"] = "not_configured"
+    except Exception as e:
+        checks["supabase"] = f"unhealthy: {str(e)[:100]}"
+
+    # Check NeSL (mock)
+    try:
+        if NESL_USE_MOCK:
+            checks["nesl"] = "mock_mode"
+        else:
+            # Could add real NeSL check here
+            checks["nesl"] = "not_verified"
+    except Exception as e:
+        checks["nesl"] = f"unhealthy: {str(e)[:100]}"
+
+    all_healthy = all(v == "healthy" or v == "mock_mode" or v == "not_verified" for v in checks.values())
+
+    return {
+        "status": "healthy" if all_healthy else "degraded",
+        "checks": checks,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/metrics", tags=["System"])
+async def metrics_endpoint():
+    """Prometheus metrics endpoint."""
+    from fastapi.responses import Response
+    from metrics import get_metrics
+    return Response(content=get_metrics(), media_type="text/plain")
 
 
 @app.post("/webhooks/whatsapp", tags=["Ingestion"])
@@ -161,10 +270,13 @@ async def whatsapp_webhook(
         raise HTTPException(status_code=400, detail="Missing 'message' in payload")
 
     import asyncio
-    import logging
-    logger = logging.getLogger("uvicorn.error")
 
     try:
+        if LLM_MOCK_MODE:
+            # Return mock response for testing
+            mock_response = get_mock_llm_response("aisha_intake")
+            return {"success": True, "data": mock_response, "mock": True}
+
         result = await asyncio.to_thread(
             aisha_handle_message,
             raw_input,
@@ -204,10 +316,13 @@ async def generate_agreement(
     _verify_n8n_key(x_api_key)
 
     import asyncio
-    import logging
-    logger = logging.getLogger("uvicorn.error")
 
     try:
+        if LLM_MOCK_MODE:
+            # Return mock response for testing
+            mock_response = get_mock_llm_response("aisha_intake")
+            return {"success": True, "data": mock_response, "mock": True}
+
         result = await asyncio.to_thread(
             aisha_handle_message,
             request.message,
@@ -500,9 +615,7 @@ async def noi_workflow(
         )
         return NOIWorkflowResponse(success=result.get("success", False), data=result)
     except Exception as e:
-        import logging
-
-        logging.getLogger(__name__).error(f"NOI workflow error: {e}")
+        logger.error(f"NOI workflow error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
 
 
@@ -528,9 +641,7 @@ async def noi_status(
             },
         )
     except Exception as e:
-        import logging
-
-        logging.getLogger(__name__).error(f"NOI status error: {e}")
+        logger.error(f"NOI status error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
 
 
@@ -564,9 +675,7 @@ async def noi_webhook(payload: NOIWebhookPayload):
             success=True, data={"case_id": payload.case_id, "status": payload.status}
         )
     except Exception as e:
-        import logging
-
-        logging.getLogger(__name__).error(f"NOI webhook error: {e}")
+        logger.error(f"NOI webhook error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
 
 
@@ -628,4 +737,4 @@ async def circuit_breaker_status(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host=API_HOST, port=API_PORT, reload=not IS_PRODUCTION)

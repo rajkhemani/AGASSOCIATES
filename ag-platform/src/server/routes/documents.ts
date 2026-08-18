@@ -1,32 +1,28 @@
 import express from 'express';
-import jwt from 'jsonwebtoken';
 import { pool } from '../db.ts';
+import { createSupabaseMiddleware, requireOrgAccess } from '../auth.ts';
+import { validate, validateParams, CreateDocumentSchema } from '../validation.ts';
+import { z } from 'zod';
 
 const router = express.Router();
-const DEV_USER_ID = '28a4eb7d-162c-4161-817d-20c30ffa5f46';
-const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || '';
 
-function setUser(req: express.Request) {
-  if (!SUPABASE_JWT_SECRET) {
-    (req as any).user = { sub: DEV_USER_ID, role: 'admin', email: 'dev@local' };
-    return;
-  }
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
-    try {
-      const decoded = jwt.verify(authHeader.slice(7), SUPABASE_JWT_SECRET, { algorithms: ['HS256'] }) as any;
-      (req as any).user = { sub: decoded.sub || DEV_USER_ID, role: decoded.app_metadata?.role || 'applicant', email: decoded.email };
-    } catch { /* ignore */ }
-  }
-}
+const authOrg = [createSupabaseMiddleware(), requireOrgAccess()];
 
-function authMiddleware(req: express.Request, _res: express.Response, next: express.NextFunction) {
-  setUser(req);
-  next();
-}
+// All document routes require authentication + org access
+router.use(...authOrg);
 
-router.get('/cases/:caseId/documents', authMiddleware, async (req, res) => {
+const uuidParam = z.object({ caseId: z.string().uuid() });
+
+router.get('/cases/:caseId/documents', validateParams(uuidParam), async (req, res) => {
   try {
+    const userOrgId = req.user!.orgId!;
+
+    // Verify case belongs to user's org
+    const caseCheck = await pool.query('SELECT id FROM cases WHERE id = $1 AND org_id = $2', [req.params.caseId, userOrgId]);
+    if (caseCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Case not found' });
+    }
+
     const result = await pool.query(
       'SELECT * FROM documents WHERE case_id = $1 ORDER BY uploaded_at DESC',
       [req.params.caseId]
@@ -38,21 +34,26 @@ router.get('/cases/:caseId/documents', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/cases/:caseId/documents', authMiddleware, async (req, res) => {
+router.post('/cases/:caseId/documents', validateParams(uuidParam), validate(CreateDocumentSchema), async (req, res) => {
   try {
     const { name, storage_path, bucket_id, content_type, size_bytes, category } = req.body;
-    const user = (req as any).user;
+    const userOrgId = req.user!.orgId!;
+    const userId = req.user!.id;
 
-    if (!name || !storage_path) {
-      res.status(400).json({ error: 'name and storage_path are required' });
-      return;
+    // Verify case belongs to user's org
+    const caseCheck = await pool.query('SELECT id, org_id FROM cases WHERE id = $1', [req.params.caseId]);
+    if (caseCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Case not found' });
+    }
+    if (caseCheck.rows[0].org_id !== userOrgId && req.user!.role !== 'PRINCIPAL') {
+      return res.status(403).json({ error: 'Cannot upload to case in another organization' });
     }
 
     const result = await pool.query(
       `INSERT INTO documents (case_id, org_id, uploader_id, name, storage_path, bucket_id, content_type, size_bytes, category)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [req.params.caseId, req.body.org_id, user?.sub || DEV_USER_ID, name, storage_path, bucket_id || 'case-documents', content_type, size_bytes || 0, category]
+      [req.params.caseId, userOrgId, userId, name, storage_path, bucket_id || 'case-documents', content_type, size_bytes || 0, category]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {

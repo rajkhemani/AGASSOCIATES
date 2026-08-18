@@ -1,61 +1,59 @@
-
 import express from 'express';
-import jwt from 'jsonwebtoken';
 import { CaseService } from '../services/caseService.ts';
 import { pool } from '../db.ts';
+import { createSupabaseMiddleware, requireRole, requireOrgAccess } from '../auth.ts';
+import { validate, validateParams, CreateCaseSchema, UpdateCaseStatusSchema } from '../validation.ts';
+import { z } from 'zod';
 
 const router = express.Router();
-const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || '';
 
-const DEV_USER_ID = '28a4eb7d-162c-4161-817d-20c30ffa5f46';
+const auth = createSupabaseMiddleware();
+const authOrg = [createSupabaseMiddleware(), requireOrgAccess()];
 
-function setUser(req: express.Request) {
-  if (!SUPABASE_JWT_SECRET) {
-    (req as any).user = { sub: DEV_USER_ID, role: 'admin', email: 'dev@local' };
-    return;
-  }
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
-    try {
-      const decoded = jwt.verify(authHeader.slice(7), SUPABASE_JWT_SECRET, { algorithms: ['HS256'] }) as any;
-      (req as any).user = { sub: decoded.sub || DEV_USER_ID, role: decoded.app_metadata?.role || 'applicant', email: decoded.email };
-    } catch { /* ignore */ }
-  }
-}
+// All routes require authentication
+router.use(auth);
 
-router.use('/cases', (req, _res, next) => { setUser(req); next(); });
+// UUID param validation
+const uuidParam = z.object({ id: z.string().uuid() });
 
-router.get('/cases', async (_req, res) => {
+// GET /api/cases - List cases (org-scoped via RLS)
+router.get('/cases', async (req, res) => {
   try {
-    const cases = await CaseService.getActiveCases();
+    const cases = await CaseService.getActiveCases(req.user!.orgId!);
     res.json(cases);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch cases' });
   }
 });
 
+// GET /api/cases/stats - Dashboard stats (org-scoped)
 router.get('/cases/stats', async (req, res) => {
   try {
+    const orgId = req.user!.orgId!;
     const by = req.query.by;
+
     if (by === 'bank') {
       const result = await pool.query(`
         SELECT b.short_code, b.name, COUNT(c.id)::int as volume
         FROM cases c JOIN banks b ON b.id = c.bank_id
+        WHERE c.org_id = $1
         GROUP BY b.short_code, b.name ORDER BY volume DESC
-      `);
+      `, [orgId]);
       res.json(result.rows);
       return;
     }
-    const total = await pool.query("SELECT COUNT(*)::int FROM cases");
-    const inFlight = await pool.query("SELECT COUNT(*)::int FROM cases WHERE status NOT IN ('CLOSED','DELIVERED','REJECTED')");
-    const held = await pool.query("SELECT COUNT(*)::int FROM cases WHERE status = 'ON_HOLD'");
+
+    const total = await pool.query("SELECT COUNT(*)::int FROM cases WHERE org_id = $1", [orgId]);
+    const inFlight = await pool.query("SELECT COUNT(*)::int FROM cases WHERE org_id = $1 AND status NOT IN ('CLOSED','DELIVERED','REJECTED')", [orgId]);
+    const held = await pool.query("SELECT COUNT(*)::int FROM cases WHERE org_id = $1 AND status = 'ON_HOLD'", [orgId]);
     const medianTat = await pool.query(`
       SELECT COALESCE(
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (updated_at - received_date))/3600),
         0
       )::numeric(10,1) as median_hours
-      FROM cases WHERE status IN ('DELIVERED','CLOSED')
-    `);
+      FROM cases WHERE org_id = $1 AND status IN ('DELIVERED','CLOSED')
+    `, [orgId]);
+
     res.json({
       total: total.rows[0].count,
       inFlight: inFlight.rows[0].count,
@@ -67,9 +65,10 @@ router.get('/cases/stats', async (req, res) => {
   }
 });
 
-router.get('/cases/:id', async (req, res) => {
+// GET /api/cases/:id - Get case by ID (org-scoped via RLS)
+router.get('/cases/:id', validateParams(uuidParam), async (req, res) => {
   try {
-    const kase = await CaseService.getCaseById(req.params.id);
+    const kase = await CaseService.getCaseById(req.params.id, req.user!.orgId!);
     if (!kase) {
       res.status(404).json({ error: 'Case not found' });
       return;
@@ -80,22 +79,27 @@ router.get('/cases/:id', async (req, res) => {
   }
 });
 
-router.get('/cases/:id/timeline', async (req, res) => {
+// GET /api/cases/:id/timeline - Get case timeline
+router.get('/cases/:id/timeline', validateParams(uuidParam), async (req, res) => {
   try {
-    const entries = await CaseService.getCaseTimeline(req.params.id);
+    const entries = await CaseService.getCaseTimeline(req.params.id, req.user!.orgId!);
     res.json(entries);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch timeline' });
   }
 });
 
-router.post('/cases', async (req, res) => {
+// POST /api/cases - Create case (requires org access)
+router.post('/cases', validate(CreateCaseSchema), async (req, res) => {
   try {
-    const { borrower_name, org_id, bank_id, case_type } = req.body;
-    if (!borrower_name || !org_id || !bank_id || !case_type) {
-      res.status(400).json({ error: 'Missing required fields: borrower_name, org_id, bank_id, case_type' });
+    const { org_id } = req.body;
+
+    // Verify user has access to this org
+    if (req.user!.orgId !== org_id && req.user!.role !== 'PRINCIPAL') {
+      res.status(403).json({ error: 'Cannot create case for another organization' });
       return;
     }
+
     const newCase = await CaseService.createCase(req.body);
     res.status(201).json(newCase);
   } catch (error) {
@@ -103,28 +107,26 @@ router.post('/cases', async (req, res) => {
   }
 });
 
-router.put('/cases/:id/status', async (req, res) => {
-  let userId = DEV_USER_ID;
+// PUT /api/cases/:id/status - Update case status
+router.put('/cases/:id/status', validateParams(uuidParam), validate(UpdateCaseStatusSchema), async (req, res) => {
   try {
     const { status, notes } = req.body;
-    userId = req.body.userId || (req as any).user?.sub || DEV_USER_ID;
+    const userId = req.user!.id;
+
     await CaseService.updateStatus(req.params.id, status, userId, notes);
 
+    // Trigger AI pipeline for IN_PROGRESS status
     if (status === 'IN_PROGRESS') {
-      const caseDetails = await CaseService.getCaseById(req.params.id);
+      const caseDetails = await CaseService.getCaseById(req.params.id, req.user!.orgId!);
       if (caseDetails) {
-        const authHeader = req.headers.authorization || '';
         const aiBackend = process.env.AI_BACKEND_URL || 'http://127.0.0.1:8001';
         fetch(`${aiBackend}/api/generate-agreement`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': authHeader
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             raw_input: `Case ${caseDetails.case_number} for ${caseDetails.borrower_name}. Type: ${caseDetails.case_type}. Loan Amount: ${caseDetails.loan_amount}. Please draft necessary legal documents.`,
-            sender: userId || 'system'
-          })
+            sender: userId,
+          }),
         }).catch(err => console.error("Failed to trigger AI pipeline:", err));
       }
     }
@@ -135,28 +137,22 @@ router.put('/cases/:id/status', async (req, res) => {
   }
 });
 
-// Frontend AdvisorCockpit calls PATCH /api/cases/:id with { status }
-router.patch('/cases/:id', async (req, res) => {
-  let userId = DEV_USER_ID;
+// PATCH /api/cases/:id - Update case (Frontend AdvisorCockpit)
+router.patch('/cases/:id', validateParams(uuidParam), validate(UpdateCaseStatusSchema), async (req, res) => {
   try {
     const { status, notes } = req.body;
-    if (!status) {
-      res.status(400).json({ error: 'Status is required' });
-      return;
-    }
-    userId = req.headers['x-user-id'] as string || (req as any).user?.sub || DEV_USER_ID;
-    await CaseService.updateStatus(req.params.id, status, userId, notes || 'Status updated via pipeline');
-    const updatedCase = await CaseService.getCaseById(req.params.id);
+
+    await CaseService.updateStatus(req.params.id, status, req.user!.id, notes || 'Status updated via pipeline');
+    const updatedCase = await CaseService.getCaseById(req.params.id, req.user!.orgId!);
     res.json(updatedCase);
   } catch (error: any) {
     console.error('PATCH case error:', error);
-    console.error('PATCH req.user:', (req as any).user);
-    console.error('PATCH userId used:', userId);
     res.status(500).json({ error: error.message || 'Failed to update case' });
   }
 });
 
-router.get('/workforce/agents/status', async (_req, res) => {
+// Workforce agents status (admin only)
+router.get('/workforce/agents/status', requireRole('PRINCIPAL', 'ADVOCATE'), async (_req, res) => {
   res.json({
     agents: [
       { name: 'Aisha', role: 'Intake & OCR', load: 72, status: 'active' },

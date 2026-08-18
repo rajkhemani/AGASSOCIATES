@@ -5,18 +5,15 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**", "build/**"]
+      "outputs": ["dist/**", "build/**", "apps/web/dist/**"]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
-    "lint": {
-      "dependsOn": ["^build"]
-    },
-    "type-check": {
-      "dependsOn": ["^build"]
-    },
+    "lint": {},
+    "type-check": {},
+    "test": {},
     "clean": {
       "cache": false
     }
