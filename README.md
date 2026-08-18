@@ -1,10 +1,10 @@
 <p align="center">
   <h1 align="center">⚖️ AG Associates</h1>
   <p align="center">
-    <strong>AI-Driven Legal Operations &amp; SaaS Platform for Panel Advocates</strong>
+    <strong>AI-Driven Legal Operations & SaaS Platform for Panel Advocates</strong>
   </p>
   <p align="center">
-    Zero-Staff Automation · Title Search &amp; Registration · Bank Panel Operations · White-Label SaaS
+    Zero-Staff Automation · Title Search & Registration · Bank Panel Operations · White-Label SaaS
   </p>
 </p>
 
@@ -21,8 +21,12 @@
   <a href="#-the-ai-agentic-workforce">AI Agents</a> ·
   <a href="#-key-modules">Modules</a> ·
   <a href="#-quick-start">Quick Start</a> ·
+  <a href="#-detailed-setup-guide">Detailed Setup</a> ·
+  <a href="#-deployment">Deployment</a> ·
+  <a href="#-api-reference">API Reference</a> ·
   <a href="#-contributing">Contributing</a>
 </p>
+
 ---
 
 <p align="center">
@@ -50,6 +54,8 @@ AG Associates is the result of a radical thesis: **what if a law firm had zero s
 - 🏦 **Bank-panel ready from day one** — Kotak, Axis, Muthoot, Chola, Karur Vysya integration
 - 🇮🇳 **India-first** — Maharashtra SRO data, stamp duty engines, Marathi/Hindi support baked in
 - 🔄 **White-label DNA** — Multi-tenant from the first commit, not bolted on later
+
+---
 
 ## 📖 About
 
@@ -193,6 +199,7 @@ Orchestrates the conversational agents, handles webhook hardening with toggle pe
 ## 📋 Key Modules
 
 ### 🤖 AI Document Pipeline (`ag-associates-ai/`)
+
 - **FastAPI** backend with LangGraph pipeline (Aisha → Drafter → Auditor) + 7 conversational agents
 - **Multi-Agent System** — Redis Streams agent bus, PostgreSQL conversation memory, RBAC per agent
 - **Multi-Modal Pipeline** — any-to-any file understanding: audio → Whisper, images → OCR (Qwen2.5-VL), PDF → pdfplumber, Excel → openpyxl, DOCX → python-docx
@@ -205,6 +212,7 @@ Orchestrates the conversational agents, handles webhook hardening with toggle pe
 - **Circuit Breaker** pattern for external API resilience
 
 ### 📱 Legal Operations Platform (`ag-platform/`)
+
 - **Case Management** with 10-state state machine (RECEIVED → CLOSED), 13 case types
 - **Bank Portal** with Supabase RLS isolation per financial institution
 - **Document Vault** with 60-second signed URLs
@@ -215,6 +223,7 @@ Orchestrates the conversational agents, handles webhook hardening with toggle pe
 - **Landing Page** — Editorial-theme GSAP scroll storytelling at `landing/index.html`
 
 ### 📬 Intake & Communications
+
 - **Intake API** (Fastify) — high-performance gateway for bank-panel intake, SMS webhook, Redis-backed OTP bridge at `services/intake-api/`
 - **Coordinator Bot** (Telegraf) — hierarchical agent orchestration via Telegram at `services/coordinator/`
 - **Telegram Bot** — `/agents`, `/agent <name> <message>`, `/otp`, `/autootp`, `/claim`, `/voicemode`, `/hindi`, `/audit` commands
@@ -304,10 +313,25 @@ AGASSOCIATES/
 - Supabase account (PostgreSQL + auth)
 - Redis (for agent bus, OTP cache, job queue)
 
-### AI Pipeline (LangGraph)
+---
+
+## 📖 Detailed Setup Guide
+
+### Phase 1: Infrastructure Setup
 
 ```bash
+# Clone the repository
 git clone https://github.com/rajkhemani/AGASSOCIATES.git
+cd AGASSOCIATES
+
+# Copy environment template
+cp .env.example .env
+# Edit .env with your credentials (see Environment Variables section below)
+```
+
+### Phase 2: AI Pipeline (LangGraph + Multi-Agent)
+
+```bash
 cd AGASSOCIATES/ag-associates-ai
 
 # Start infrastructure (PostgreSQL + n8n)
@@ -317,11 +341,23 @@ docker-compose up -d
 cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-python generate_embeddings.py    # seed pgvector (one-time)
-python main.py                   # API at http://localhost:8001
+
+# Install Playwright for RPA (required for IGR/GRAS automation)
+playwright install chromium
+playwright install-deps chromium
+
+# One-time pgvector seeding
+python generate_embeddings.py
+
+# Run database migrations
+psql -U agadmin -d agdb -f database/agent_migrations.sql
+psql -U agadmin -d agdb -f database/init.sql
+
+# Start AI backend (FastAPI at http://localhost:8001)
+python main.py
 ```
 
-### vLLM (for conversational agents)
+#### vLLM Setup (for 7 conversational agents)
 
 ```bash
 # Required for 7-agent conversational system
@@ -330,168 +366,263 @@ python -m vllm.entrypoints.openai.api_server \
   --host 0.0.0.0 --port 8000
 ```
 
-### Multi-Agent System (Redis Streams)
+#### Multi-Agent System (Redis Streams)
 
 ```bash
-# Multi-agent DB tables (one-time)
-cd ag-associates-ai/backend
-psql -U agadmin -d agdb -f database/agent_migrations.sql
+# Start Redis (required for agent bus, OTP cache, job queue)
+docker run -d --name redis -p 6379:6379 redis:8-alpine
 
-# Then start main.py (agents initialize automatically)
+# Start AI backend (agents initialize automatically)
+cd AGASSOCIATES/ag-associates-ai/backend
 python main.py
 ```
 
-### AI Frontend Dashboard
-
-```bash
-cd AGASSOCIATES/ag-associates-ai/frontend
-npm install
-npm run dev                      # Next.js at http://localhost:3000
-```
-
-### Operations Platform
+### Phase 3: Operations Platform (`ag-platform/`)
 
 ```bash
 cd AGASSOCIATES/ag-platform
+
+# Install dependencies (uses Turborepo workspaces)
 npm install
-npm run dev                      # Vite + Express at http://localhost:3001
-npm test                         # Vitest test suite
+
+# Set up environment
+cp .env.example .env
+# Edit .env with your Supabase credentials
+
+# Run database migrations (creates all tables, RLS policies, triggers)
+npm run dev  # This runs migrations automatically on startup
+
+# Start development server (Vite + Express at http://localhost:3001)
+npm run dev
+
+# Run tests
+npm test
+
+# Type-check
+npm run type-check
+
+# Lint
+npm run lint
 ```
 
 ### Platform Services
 
 ```bash
-# Intake API (Fastify gateway)
+# Intake API (Fastify gateway for bank intake + OTP)
 cd AGASSOCIATES/ag-platform/services/intake-api
 npm install
-npm run dev                      # Fastify at http://localhost:3002
+npm run dev  # Fastify at http://localhost:3002
 
 # Coordinator Telegram bot
 cd AGASSOCIATES/ag-platform/services/coordinator
 npm install
-npm run dev                      # Telegraf bot (separate process)
+npm run dev  # Telegraf bot (separate process)
+
+# Email Intake (IMAP-based)
+cd AGASSOCIATES/ag-platform/services/email-intake
+npm install
+npm run dev
+```
+
+### Phase 4: AI Frontend Dashboard
+
+```bash
+cd AGASSOCIATES/ag-associates-ai/frontend
+npm install
+npm run dev  # Next.js at http://localhost:3000
 ```
 
 ### Pre-commit Hooks
 
 ```bash
 cd AGASSOCIATES
-pre-commit install               # ruff lint+fix + eslint on commit
-pre-commit run --all-files       # run all hooks manually
-```
-
-### Production Deploy
-
-```bash
-cd AGASSOCIATES
-docker compose -f docker-compose.prod.yml up -d
+pre-commit install  # ruff lint+fix + eslint on commit
+pre-commit run --all-files  # run all hooks manually
 ```
 
 ---
 
-## 🚢 Deployment Architecture
+## ⚙️ Environment Variables
 
-The platform is deployed on a **Hetzner Cloud VPS** (CCX23, NBG1 datacenter) via a fully automated CI/CD pipeline.
+### Required Variables (copy `.env.example` to `.env` and fill in)
 
-### Infrastructure
+| Category | Variables | Description |
+|----------|-----------|-------------|
+| **Supabase** | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` | Database, auth, RLS |
+| **LLM** | `LLM_BASE_URL`, `LLM_MODEL_NAME`, `LLM_MOCK_MODE`, `LLM_VISION_API_KEY` | vLLM, Gemini, OCR |
+| **Database** | `DATABASE_URL`, `DATABASE_PASSWORD` | PostgreSQL connection |
+| **Redis** | `REDIS_URL`, `REDIS_PASSWORD` | Agent bus, OTP, job queue |
+| **Telegram** | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET` | Bot, OTP, notifications |
+| **NeSL/IGR** | `NESL_API_KEY`, `NESL_API_BASE_URL`, `IGR_PORTAL_USERNAME`, `IGR_PORTAL_PASSWORD` | Government filing |
+| **Email** | `ZOHO_EMAIL_USER`, `ZOHO_EMAIL_PASS` | Email intake |
+| **Webhooks** | `N8N_WEBHOOK_KEY`, `WHATSAPP_WEBHOOK_SECRET` | n8n, WhatsApp integration |
+| **Payments** | `STRIPE_SECRET_KEY`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Billing |
+| **Monitoring** | `SENTRY_DSN` | Error tracking |
+| **CI/CD** | `GITHUB_TOKEN`, `VPS_SSH_KEY`, `VPS_HOST` | Deployment |
 
-| Layer | Technology | Details |
-|-------|-----------|---------|
-| **Host** | Hetzner CCX23 (4 vCPU, 32 GB RAM) | Ubuntu 22.04 LTS, Docker 24+ |
-| **Reverse Proxy** | Caddy 2 | Auto-TLS via Let's Encrypt, subdomain routing |
-| **Container Runtime** | Docker Compose | 10-service production stack |
-| **CI/CD** | GitHub Actions + GHCR | Build → Push → SSH deploy |
-| **Secrets** | GitHub Actions Secrets + Vars | `VPS_HOST`, `VPS_SSH_KEY`, `VPS_USER`, `SUPABASE_*` |
-| **Monitoring** | Sentry (optional) | Error tracking with env-based sampling rate |
+> **Note:** `.env.example` at repo root is the single authoritative source with 89+ variables. Copy it to `.env` and customize before running. Backend defaults in `config.py` include `secure_password_123` (dev-only — **must change for production**).
 
-### Production Stack (10 Services)
+---
 
-| Service | Image / Source | Port(s) | Healthcheck | Purpose |
-|---------|---------------|---------|-------------|---------|
-| `caddy` | caddy:2-alpine | 80, 443 | — | Reverse proxy + auto-TLS (Let's Encrypt) |
-| `postgres` | postgres:17-alpine | 5432 | pg_isready | Platform database (cases, users, timesheets) |
-| `redis` | redis:8-alpine | 6379 | redis-ping | OTP cache, job queue, session store |
-| `ai-backend` | `ghcr.io/rajkhemani/ag-ai-backend` | 8000 | `/health` | FastAPI + LangGraph agent pipeline |
-| `ai-dashboard` | `ghcr.io/rajkhemani/ag-ai-dashboard` | 3000 | wget :3000 | Next.js 15 admin dashboard |
-| `ag-platform` | `ghcr.io/rajkhemani/ag-platform` | 3001 | — | Express + Vite operations platform |
-| `n8n` | n8nio/n8n | 5678 | — | Workflow automation engine |
-| `intake-api` | `services/intake-api/` | 3002 | — | Fastify SMS webhook + OTP bridge |
-| `telegram-bot` | `ghcr.io/rajkhemani/ag-telegram-bot` | 3003, 3004 | :3004/health | Standalone Telegram microservice |
-| `email-intake` | `services/email-intake/` | — | — | IMAP-based email → case creation |
+## 🏗 Phase-by-Phase Feature Overview
 
-All services share a Docker bridge network and log to `docker logs`. Healthchecks restart unhealthy containers automatically.
+### Phase 1: Security Hardening ✅
+- **JWT bypass replaced** with real Supabase Auth (`@supabase/ssr`)
+- **RLS enabled** on all 10 tables with org isolation policies
+- **Zod validation** on all API routes (cases, timesheets, documents, invoices, banks)
+- **CORS** with strict allowlist + credentials
+- **Rate limiting**: global (1000/15min), auth (20/15min), webhooks (60/min), AI (100/15min)
 
-### Caddy Routing
+### Phase 2: Test Suites ✅
+- **ag-associates-ai (pytest)**: 55 tests (NOI agent, executor/RPA, multi-agent)
+- **ag-platform (Vitest)**: 9 tests (validation, auth, routes)
+- **CI**: GitHub Actions runs both suites with coverage thresholds
 
-| Domain / Path | Backend | Auth |
-|---------------|---------|------|
-| `advadiityagade.com` | Static landing page | None |
-| `app.advadiityagade.com` | ag-platform (:3001) | Supabase Auth + RLS |
-| `api.advadiityagade.com` | ai-backend (:8000) | API key |
-| `dashboard.advadiityagade.com` | ai-dashboard (:3000) | Supabase Auth |
-| `intake.advadiityagade.com` | intake-api (:3002) | API key |
-| `n8n.advadiityagade.com` | n8n (:5678) | Basic auth |
-| `docs.advadiityagade.com` | Static docs | None |
-| `/webhook*` | telegram-bot (:3003) | Telegram secret |
+### Phase 3: Observability ✅
+- **ag-associates-ai**: `structlog` + correlation IDs, Prometheus metrics (`/metrics`), OpenTelemetry tracing, `/health/deep`
+- **ag-platform**: `pino` structured logging, Prometheus metrics (`/metrics`), deep health checks
 
-### CI/CD Pipeline
+### Phase 4: API Versioning & Architecture ✅
+- All routes under `/api/v1/` prefix
+- OpenAPI 3.0 spec + Scalar docs at `/api/v1/docs`
+- Turborepo fixed: Vite app moved to `apps/web/`
 
-Three CI workflows run on push to `main`:
+### Phase 5: Data Integrity & Workflow Engine ✅
 
-**1. Docker Deploy (`deploy.yml`)** — triggers on changes to `ag-associates-ai/`, `ag-platform/`, or compose files:
+| Sub-phase | Feature | Key Capabilities |
+|-----------|---------|------------------|
+| **5A** | Real NeSL/IGR | Idempotency keys, retry logic, Redis deduplication, circuit breaker + HITL |
+| **5B** | Billing Engine | `generateInvoiceFromTimesheets()`, bank advance reconciliation, cron for overdue |
+| **5C** | Job Queue | BullMQ (10 queues), workers, cron (overdue 9AM, reconciliation 10-6PM, bank sync 30min) |
+| **5D** | File Upload | Supabase Storage signed URLs, direct client-to-storage, complete flow |
+| **5E** | Audit Trail | `audit_trail` table + triggers, `AuditEvents` namespace (40+ event types) |
+| **5F** | SLA/Escalation | Per-case-type configs, business-hours deadlines, auto-escalation, dashboard |
+| **5G** | Bank Portals | White-label configs, per-bank workflows (Kotak/HDFC/ICICI defaults) |
 
+---
+
+## 🔌 API Reference
+
+### Base URL
 ```
-Push → Git checkout → docker/build-push-action × 3
-  ├─ ag-ai-backend (FastAPI + Python deps)
-  ├─ ag-ai-dashboard (Next.js output)
-  └─ ag-platform (Vite build + Express runtime)
-
-Push to ghcr.io/rajkhemani/*:latest + :{sha}
-
-SSH into VPS (deploy@46.225.185.91):
-  ├─ git fetch && reset --hard origin/main
-  ├─ docker compose pull
-  ├─ docker compose up -d --remove-orphans
-  └─ docker image prune -f
-
-Smoke test: GET https://api.advadiityagade.com/health → 200 OK
-```
-
-**2. GitHub Pages (`nextjs.yml`)** — builds and deploys the Next.js dashboard to GitHub Pages on every push to `main` (CNAME at root → `advadiityagade.com`).
-
-**3. CodeQL (`codeql.yml`)** — security analysis on `javascript-typescript` and `python` for pushes/PRs to `main` and weekly.
-
-Secrets required in the GitHub repository:
-
-| Secret | Value | Used In |
-|--------|-------|---------|
-| `VPS_HOST` | `46.225.185.91` | SSH deploy step |
-| `VPS_PORT` | `22` | SSH deploy step |
-| `VPS_USER` | `deploy` | SSH deploy step |
-| `VPS_SSH_KEY` | Ed25519 private key | SSH authentication |
-| `GITHUB_TOKEN` | Auto-provided | GHCR push auth |
-| `PROD_DOMAIN` (var) | `advadiityagade.com` | `NEXT_PUBLIC_API_URL` build arg |
-| `SUPABASE_URL` (var) | Supabase project URL | Backend connection |
-| `SUPABASE_ANON_KEY` (var) | Supabase anon key | Client-side auth |
-
-### Deployment Directory Layout (VPS)
-
-```
-/srv/ag/
-├── repo/                    # Git clone (owned by deploy user)
-│   ├── docker-compose.prod.yml
-│   ├── Caddyfile
-│   ├── ag-associates-ai/
-│   └── ag-platform/
-├── .env                     # Runtime env vars (Postgres, Redis, tokens)
-├── data/                    # Persistent volumes (DB, Redis, uploads)
-└── deploy_key               # (Not on disk — provided via SSH agent)
+Development: http://localhost:3001/api/v1
+Production:  https://api.advadiityagade.com/api/v1
 ```
 
-### Bootstrapping a New VPS
+### Authentication
+```
+Authorization: Bearer <Supabase JWT>
+X-Request-ID: <auto-generated>
+```
+
+### Core Endpoints
+
+| Resource | Endpoints |
+|----------|-----------|
+| **Auth** | `POST /auth/login`, `POST /auth/register`, `GET /auth/me`, `POST /auth/logout`, `POST /auth/refresh` |
+| **Cases** | `GET /cases`, `POST /cases`, `GET /cases/:id`, `PATCH /cases/:id`, `PUT /cases/:id/status`, `GET /cases/:id/timeline`, `GET /cases/stats` |
+| **Documents** | `GET /cases/:caseId/documents`, `POST /cases/:caseId/documents/upload-url`, `POST /cases/:caseId/documents/complete`, `GET /cases/:caseId/documents/:documentId/download`, `DELETE /cases/:caseId/documents/:documentId`, `GET /cases/:caseId/documents/list` |
+| **Timesheets** | `GET /timesheets`, `POST /timesheets`, `GET /cases/:caseId/billable`, `GET /summary` |
+| **Invoices** | `POST /invoices`, `GET /invoices`, `GET /invoices/outstanding`, `GET /invoices/:id`, `POST /invoices/:id/send`, `POST /invoices/:id/paid`, `POST /invoices/auto-overdue` |
+| **Bank Portal** | `GET /bank-portal`, `POST /bank-portal`, `GET /bank-portal/:bankId`, `GET/POST /bank-portal/:bankId/workflows`, `POST /bank-portal/:bankId/initialize`, `GET /bank-portal/public/:domain` |
+| **Dashboard** | `GET /dashboard/status`, `GET /dashboard/sla`, `POST /dashboard/sla/check` |
+| **AI** | `POST /ai/generate-brief`, `POST /ai/suggest-tasks`, `POST /ai/draft-email`, `POST /ai/send-email`, `POST /ai/invoice-line-item`, `POST /ai/summarize-document`, `POST /ai/search-projects`, `POST /ai/ingest-project`, `POST /ai/vet-document` |
+| **System** | `GET /health`, `GET /health/deep`, `GET /metrics`, `GET /api/v1/queue/metrics` |
+| **Webhooks** | `POST /webhooks/virus-scan`, `POST /webhooks/whatsapp`, `POST /webhooks/n8n/intake` |
+
+### Example: Create Case
 
 ```bash
-# Prerequisites
+curl -X POST http://localhost:3001/api/v1/cases \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "borrower_name": "Rajesh Kumar",
+    "org_id": "7f45dc5f-6bef-4fae-b46a-a2306e69936d",
+    "bank_id": "7407ac8f-0cb7-434e-994c-4329a11939a7",
+    "case_type": "INTIMATION_MORTGAGE",
+    "loan_amount": 5000000,
+    "property_address": "Flat 101, Building A, Thane West",
+    "property_city": "Thane"
+  }'
+```
+
+### Example: Generate Invoice from Timesheets
+
+```bash
+curl -X POST http://localhost:3001/api/v1/invoices \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "case_ids": ["uuid-1", "uuid-2"],
+    "bank_id": "7407ac8f-0cb7-434e-994c-4329a11939a7",
+    "tax_rate": 0.18,
+    "payment_terms_days": 30
+  }'
+```
+
+### Example: Get Signed Document Upload URL
+
+```bash
+curl -X POST http://localhost:3001/api/v1/cases/<case-id>/documents/upload-url \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fileName": "sanction_letter.pdf",
+    "contentType": "application/pdf",
+    "category": "sanction_letter"
+  }'
+```
+
+---
+
+## 🏭 Production Deployment
+
+### Prerequisites
+
+- Hetzner Cloud VPS (CCX23, 4 vCPU, 32 GB RAM) — Ubuntu 22.04 LTS
+- Docker 24+ & Docker Compose v2
+- Domain with DNS pointing to VPS (`advadiityagade.com`)
+- GitHub repository with Actions enabled
+
+### One-Command Deploy
+
+```bash
+# On VPS (as deploy user)
+cd /srv/ag/repo
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### CI/CD Pipeline (Automatic on push to `main`)
+
+```yaml
+# .github/workflows/deploy.yml triggers on:
+# - ag-associates-ai/** changes
+# - ag-platform/** changes
+# - docker-compose.prod.yml changes
+
+# Builds 3 images → GHCR → SSH deploy to VPS
+# Smoke test: GET https://api.advadiityagade.com/health → 200 OK
+```
+
+### Required GitHub Secrets
+
+| Secret | Value |
+|--------|-------|
+| `VPS_HOST` | `46.225.185.91` |
+| `VPS_PORT` | `22` |
+| `VPS_USER` | `deploy` |
+| `VPS_SSH_KEY` | Ed25519 private key |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key |
+| `SUPABASE_JWT_SECRET` | JWT secret |
+| `GITHUB_TOKEN` | Auto-provided |
+
+### Manual VPS Bootstrap
+
+```bash
+# On fresh VPS
 apt update && apt install -y docker.io docker-compose-v2 fail2ban ufw
 ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
 
@@ -504,72 +635,62 @@ mkdir -p ~deploy/.ssh && chmod 700 ~deploy/.ssh
 cd /srv && mkdir ag && chown deploy:deploy ag
 su deploy
 git clone https://github.com/rajkhemani/AGASSOCIATES.git repo
-docker compose -f repo/docker-compose.prod.yml up -d
+cd repo
+cp .env.example .env
+# Edit .env with production values
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-A self-hosted GitHub Actions runner (`ag-prod-runner`) can be installed as an alternative deploy path — see `scripts/setup-runner.sh`.
+### Health Checks
 
----
+```bash
+# Basic
+curl https://api.advadiityagade.com/health
 
-## ⚙️ Environment Variables
+# Deep (checks DB, Redis, vLLM, Supabase, NeSL)
+curl https://api.advadiityagade.com/health/deep
 
-| File | Purpose | Key Variables |
-|------|---------|---------------|
-| `.env.example` (repo root) | Single source of truth for all env vars | `SUPABASE_*`, `LLM_*`, `TELEGRAM_*`, `REDIS_*`, `N8N_*`, `WHATSAPP_*`, `NESL_*`, `IGR_*`, `STRIPE_*`, `SENTRY_*` |
-| `ag-associates-ai/backend/config.py` | Python backend (env-based defaults) | `LLM_BASE_URL`, `LLM_MODEL_NAME`, `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
-| `ag-platform/.env` | Platform + Supabase | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GEMINI_API_KEY` |
-| `docker-compose.prod.yml` | Production stack | `POSTGRES_*`, `REDIS_*`, `CADDY_*`, `SENTRY_*`, `N8N_*` |
+# Metrics
+curl https://api.advadiityagade.com/metrics
 
-> **Note:** `.env.example` at repo root is the single authoritative source with 89 variables across 15 categories. Copy it to `.env` and customize before running. Backend defaults in `config.py` include `secure_password_123` (dev-only).
-
----
-
-## 🗺 Roadmap
-
-### Phase 1: Internal Automation ✅
-- [x] Database schema + Supabase RBAC authentication
-- [x] Core case management engine (13 case types)
-- [x] AI Document Processor (Index II parsing, stamp duty)
-- [x] Accountant Agent (bank statement reconciliation)
-- [x] 6-agent LangGraph pipeline
-- [x] RAG-powered legal template retrieval
-- [x] Bank portal with RLS isolation
-- [x] Telegram OTP relay + voice mode
-
-### Phase 2: Multi-Agent Intelligence ✅
-- [x] 7 conversational agents with Hinglish personalities (Auditor, Vyasa, Bouncer, Accountant, NOI, Executor, Drafter)
-- [x] Redis Streams agent bus with consumer groups (max 5 hops)
-- [x] RBAC-gated agent access (per-agent permissions)
-- [x] Multi-modal pipeline (audio, images, PDF, Excel, DOCX)
-- [x] Telegram agent commands (`/agents`, `/agent <name>`)
-- [x] Supervisor agent with webhook hardening
-- [x] NOI workflow state machine (9 states)
-- [x] Agent-initiated private messenger (proactive Telegram DMs)
-- [x] Intake API (Fastify gateway) + Coordinator bot (Telegraf)
-- [x] Editorial-theme landing page (GSAP scroll storytelling)
-
-### Phase 3: White-Label SaaS
-- [ ] Multi-tenant architecture (org_id parameterized)
-- [ ] Theming engine (logo, colors, fonts per firm)
-- [ ] Maharashtra-specific legal module (SRO data, stamp duty rates)
-- [ ] Onboarding for 5,000–15,000 panel advocate firms across India
+# Queue metrics
+curl https://api.advadiityagade.com/api/v1/queue/metrics
+```
 
 ---
 
 ## 🔒 Security
 
-- **Row-Level Security**: Supabase RLS isolates bank/client data at the database level
-- **Agent RBAC**: Per-agent access control (`agent.<name>.access`) — users see only agents they're authorized for
+- **Row-Level Security**: Supabase RLS isolates bank/client data at database level
+- **Agent RBAC**: Per-agent access control (`agent.<name>.access`)
 - **Data Sovereignty**: Deployed in `ap-south-1` (Mumbai) for Indian banking compliance
-- **Audit Logging**: Every case state transition logged to immutable `case_audit_logs`
-- **Conversation Memory**: Per-agent PostgreSQL tables with RBAC-gated access
+- **Audit Logging**: Every case state transition logged to immutable `audit_trail`
 - **Document Vault**: Private buckets with 60-second signed URLs
 - **Magic Links**: Passwordless client access with time-limited tokens
 - **Webhook Auth**: `x-api-key` verification via `secrets.compare_digest`
 - **Secret Scanning**: Pre-commit hook (`detect-private-key`) prevents credential leaks
-- **Circuit Breaker**: External API resilience with failover patterns
+- **Circuit Breaker**: External API resilience with HITL failover
 
-See [SECURITY.md](./SECURITY.md) for vulnerability reporting.
+---
+
+## 🗺 Roadmap
+
+### Phase 6: Multi-Agent Intelligence (In Progress)
+- [ ] Agent health monitoring (heartbeat, error rate, latency)
+- [ ] Agent-to-agent tracing (OpenTelemetry across Redis Streams)
+- [ ] RAG evaluation pipeline (precision@k, recall, hallucination rate)
+- [ ] Document classification router (auto-route to Auditor/Vyasa/Bouncer)
+- [ ] Excel Chat Bot (NL→SQL on case/disbursement data)
+- [ ] Semantic case search (pgvector on case_timeline + documents)
+
+### Phase 7: luxor9 SaaS Platform
+- [ ] Multi-tenant architecture (org_id parameterized)
+- [ ] Stripe/Razorpay billing + webhook handling
+- [ ] Self-serve onboarding wizard (org → bank panel → team → go live)
+- [ ] White-label bank portal (custom domain, branding, SSO)
+- [ ] Usage metering + quota enforcement (AI tokens, RPA runs, API calls)
+- [ ] Partner program (referral tracking, revenue share)
+- [ ] Documentation portal + API docs (OpenAPI)
 
 ---
 
@@ -579,25 +700,26 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines, commit conventions, and
 
 ### AI Agent Playbooks
 
-This codebase is built by — and welcomes contributions from — multiple AI engineering agents working alongside humans:
-
-| Agent | Playbook | What it covers |
-|-------|----------|---------------|
-| **Claude Code** | [`CLAUDE.md`](./CLAUDE.md) | Architecture, dev commands, repo-specific gotchas, workflow orchestration rules |
-| **OpenCode** | [`AGENTS.md`](./AGENTS.md) | Session guidance, corrections to CLAUDE.md, subsystem boundaries |
+| Agent | Playbook | Coverage |
+|-------|----------|----------|
+| **Claude Code** | [`CLAUDE.md`](./CLAUDE.md) | Architecture, dev commands, repo gotchas, workflow orchestration |
+| **OpenCode** | [`AGENTS.md`](./AGENTS.md) | Session guidance, corrections, subsystem boundaries |
 
 ### Engineering Guidelines
 
-Domain-specific policies are encoded in root-level `*_GUIDELINES.md` files — read the relevant one before touching that domain:
+Domain-specific policies in root-level `*_GUIDELINES.md`:
 
-- [`GIT_GUIDELINES.md`](./GIT_GUIDELINES.md) · [`TDD_GUIDELINES.md`](./TDD_GUIDELINES.md) · [`REFACTORING_GUIDELINES.md`](./REFACTORING_GUIDELINES.md)
-- [`ERROR_HANDLING_GUIDELINES.md`](./ERROR_HANDLING_GUIDELINES.md) · [`HALLUCINATION_MITIGATION_GUIDELINES.md`](./HALLUCINATION_MITIGATION_GUIDELINES.md)
-- [`FRONTEND_UI_GUIDELINES.md`](./FRONTEND_UI_GUIDELINES.md) · [`RAG_AND_MEMORY_GUIDELINES.md`](./RAG_AND_MEMORY_GUIDELINES.md)
-- [`GOAL_DRIVEN_EXECUTION_GUIDELINES.md`](./GOAL_DRIVEN_EXECUTION_GUIDELINES.md) · [`DEPLOYMENT_PLAYBOOK.md`](./DEPLOYMENT_PLAYBOOK.md)
+- `GIT_GUIDELINES.md` · `TDD_GUIDELINES.md` · `REFACTORING_GUIDELINES.md`
+- `ERROR_HANDLING_GUIDELINES.md` · `HALLUCINATION_MITIGATION_GUIDELINES.md`
+- `FRONTEND_UI_GUIDELINES.md` · `RAG_AND_MEMORY_GUIDELINES.md`
+- `GOAL_DRIVEN_EXECUTION_GUIDELINES.md` · `DEPLOYMENT_PLAYBOOK.md`
 
 ### Pre-commit Enforcement
 
-[`.pre-commit-config.yaml`](./.pre-commit-config.yaml) runs `ruff` (lint + format) on Python and `eslint` on `.[jt]sx?` files plus standard hygiene hooks (trailing-whitespace, large-files, detect-private-key). Install once with `pre-commit install`; run on demand with `pre-commit run --all-files`.
+```bash
+pre-commit install  # ruff lint+format + eslint on commit
+pre-commit run --all-files  # run all hooks manually
+```
 
 ---
 
