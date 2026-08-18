@@ -107,6 +107,9 @@ CREATE TABLE IF NOT EXISTS cases (
     assigned_executive_id UUID REFERENCES profiles(id),
     disbursement_total NUMERIC(15, 2) DEFAULT 0,
     professional_fee NUMERIC(15, 2) DEFAULT 0,
+    sla_warning_sent BOOLEAN DEFAULT FALSE,
+    sla_breached BOOLEAN DEFAULT FALSE,
+    sla_escalated BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
