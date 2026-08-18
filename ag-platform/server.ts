@@ -27,6 +27,9 @@ import { metricsMiddleware, metricsHandler, setDbPoolConnections } from "./src/s
 // OpenAPI
 import { setupOpenAPI, openAPISpec } from "./src/server/openapi.ts";
 
+// Job Queue
+import { startCronJobs, shutdownJobQueue, getQueueMetrics } from "./src/server/jobQueue.ts";
+
 // Load environment variables
 dotenv.config();
 initSentry();
@@ -199,6 +202,17 @@ async function startServer() {
   // Prometheus metrics endpoint
   app.get("/metrics", metricsHandler);
 
+  // Job queue metrics endpoint
+  app.get(`${API_PREFIX}/queue/metrics`, async (req, res) => {
+    try {
+      const metrics = await getQueueMetrics();
+      res.json({ success: true, metrics });
+    } catch (error) {
+      logger.error({ err: error }, 'Queue metrics error');
+      res.status(500).json({ error: 'Failed to fetch queue metrics' });
+    }
+  });
+
   // Webhook endpoints with stricter rate limiting
   app.post("/api/webhooks/virus-scan", webhookLimiter, async (req, res) => {
     try {
@@ -266,7 +280,20 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     logger.info({ port: PORT, apiVersion: API_VERSION }, `Server running on http://localhost:${PORT}`);
+
+    // Start cron jobs for job queue
+    startCronJobs();
   });
+
+  // Graceful shutdown
+  const shutdown = async () => {
+    logger.info('Shutting down server...');
+    await shutdownJobQueue();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 startServer();

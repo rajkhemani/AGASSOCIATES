@@ -318,3 +318,36 @@ CREATE POLICY bank_advance_reconciliation_org_isolation ON bank_advance_reconcil
       SELECT bank_id FROM invoices WHERE org_id = current_setting('app.current_org_id')::uuid
     ))
   );
+
+-- ============================================================
+-- JOB QUEUE MIGRATION (Phase 5C)
+-- ============================================================
+
+-- STAFF ACTIVITY TABLE (for job queue audit trail)
+CREATE TABLE IF NOT EXISTS staff_activity (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    source TEXT NOT NULL, -- 'agent' | 'human' | 'voice' | 'system' | 'job_queue'
+    staff_short_name TEXT,
+    staff_kind TEXT, -- 'agent' | 'human' | 'system'
+    capability_code TEXT,
+    case_id UUID REFERENCES cases(id) ON DELETE SET NULL,
+    org_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
+    summary TEXT DEFAULT '',
+    payload JSONB DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'ok', -- 'ok' | 'error' | 'warn'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_staff_activity_org_id ON staff_activity(org_id);
+CREATE INDEX IF NOT EXISTS idx_staff_activity_case_id ON staff_activity(case_id);
+CREATE INDEX IF NOT EXISTS idx_staff_activity_capability ON staff_activity(capability_code);
+CREATE INDEX IF NOT EXISTS idx_staff_activity_created_at ON staff_activity(created_at DESC);
+
+-- RLS POLICY
+ALTER TABLE staff_activity ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY staff_activity_org_isolation ON staff_activity
+  FOR ALL USING (
+    org_id = current_setting('app.current_org_id')::uuid
+    OR org_id IS NULL
+  );
