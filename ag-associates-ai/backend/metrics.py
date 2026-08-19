@@ -1,5 +1,6 @@
 """Prometheus metrics for ag-associates-ai."""
 
+import os
 from prometheus_client import Counter, Histogram, Gauge, CollectorRegistry, generate_latest
 from typing import Optional
 
@@ -188,8 +189,6 @@ system_info = Gauge(
 
 # Initialize system info
 system_info.labels(version="2.0.0", environment=os.environ.get("ENVIRONMENT", "development")).set(1)
-
-import os
 
 
 def record_http_request(method: str, endpoint: str, status_code: int, duration: float):

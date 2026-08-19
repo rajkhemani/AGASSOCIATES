@@ -1,0 +1,215 @@
+# Caddyfile.waf - ModSecurity WAF with OWASP CRS for AGASSOCIATES Stack
+# Compatible with Coolify deployment
+
+{
+	# Global ModSecurity configuration
+	modsecurity {
+		# Enable ModSecurity
+		enabled true
+
+		# Use OWASP CRS 4.x rules
+		rules `
+			# Include OWASP CRS setup
+			Include /etc/caddy/owasp-crs/crs-setup.conf
+			Include /etc/caddy/owasp-crs/rules/*.conf
+
+			# AGASSOCIATES specific customizations
+			SecRuleEngine On
+			SecRequestBodyAccess On
+			SecRequestBodyLimit 13107200
+			SecRequestBodyNoFilesLimit 131072
+			SecRequestBodyInMemoryLimit 131072
+			SecRequestBodyLimitAction Reject
+			SecResponseBodyAccess On
+			SecResponseBodyLimit 524288
+			SecResponseBodyLimitAction ProcessPartial
+
+			# Audit logging
+			SecAuditEngine RelevantOnly
+			SecAuditLogRelevantStatus "^(?:5|4(?!04))"
+			SecAuditLogParts ABIJDEFHZ
+			SecAuditLogType Serial
+			SecAuditLog /var/log/caddy/modsec_audit.log
+			SecAuditLogFormat JSON
+
+			# Custom rules for AGASSOCIATES
+			# Block known bad User-Agents
+			SecRule REQUEST_HEADERS:User-Agent "@rx (?i)(sqlmap|nmap|nikto|dirb|gobuster|w3af|acunetix|netsparker|burp|zap|wfuzz|dirbuster|hydra|medusa|john|hashcat|metasploit|msfconsole|msfcli|msfd|msfrpc|msfrpcd|armitage|cobaltstrike|beacon|empire|powerup|powersploit|mimikatz|sekurlsa|lsadump|pwdump|fgdump|cachedump|gsecdump|lsaremote|secretsdump|wmiexec|psexec|smbexec|atexec|dcomexec|wmiexec|winrm|evil-winrm|winrs|scshell|scclient|dcerpc|rpcdump|rpcinfo|rpcclient|srvinfo|enum4linux|rpcenum|ldapenum|ldapsearch|ldapmodify|ldapadd|ldapdelete|ldapcompare|ldappasswd|ldapwhoami|ldapexop|kinit|klist|ktutil|kdestroy|kadmin|kdb5_util|kprop|kpropd|kadmind|krb5kdc|kdc|asn1|der|pem|crt|key|pfx|p12|p7b|p7c|spc|cer|cert|pem|key|csr|req|conf|cnf|openssl|ca|certificate|private|public|rsa|dsa|ecdsa|ed25519|ssh|scp|sftp|rsync|ftp|sftponly|chroot|jail|docker|container|kubernetes|k8s|helm|kubectl|kubeadm|kubelet|kube-proxy|kube-scheduler|kube-controller-manager|kube-apiserver|etcd|etcdctl|calico|flannel|weave|cilium|istio|linkerd|consul|vault|nomad|terraform|packer|vagrant|ansible|chef|puppet|salt|saltstack|jenkins|gitlab|github|bitbucket|jira|confluence|sonarqube|nexus|artifactory|harbor|registry|dockerhub|quay|gcr|ecr|acr|ghcr|docker.io|index.docker.io|registry-1.docker.io|auth.docker.io|registry.hub.docker.io|docker.io/v2|docker.io/v1|docker.io/v2/_catalog|docker.io/v2/.*/tags/list|docker.io/v2/.*/manifests/.*|docker.io/v2/.*/blobs/.*|docker.io/v2/.*/blobs/uploads/.*|docker.io/v2/.*/blobs/uploads/\?.*|docker.io/v2/.*/blobs/uploads/\?location=.*|docker.io/v2/.*/blobs/uploads/\?digest=.*|docker.io/v2/.*/blobs/uploads/\?mount=.*|docker.io/v2/.*/blobs/uploads/\?from=.*|docker.io/v2/.*/blobs/uploads/\?ref=.*|docker.io/v2/.*/blobs/uploads/\?repo=.*|docker.io/v2/.*/blobs/uploads/\?ns=.*|docker.io/v2/.*/blobs/uploads/\?ns=.*&repo=.*)" "id:1000001,phase:1,deny,status:403,msg:'Blocked malicious User-Agent',tag:'AGASSOCIATES/blocked-ua'"
+
+			# Block requests with suspicious paths
+			SecRule REQUEST_URI "@rx (?i)(/wp-admin|/wp-login|/wp-content|/wp-includes|/xmlrpc\.php|/admin\.php|/administrator|/phpmyadmin|/pma|/mysql|/dbadmin|/sqladmin|/myadmin|/adminer|/config\.php|/configuration\.php|/settings\.php|/setup\.php|/install\.php|/upgrade\.php|/update\.php|/backup\.php|/dump\.sql|/database\.sql|/db\.sql|/backup\.sql|\.git|\.svn|\.hg|\.bzr|\.env|\.env\.local|\.env\.production|\.env\.staging|\.env\.development|\.htaccess|\.htpasswd|\.well-known/acme-challenge|\.well-known/pki-validation|\.well-known/security\.txt|/actuator|/health|/metrics|/prometheus|/grafana|/kibana|/elasticsearch|/kibana|/logstash|/filebeat|/metricbeat|/heartbeat|/packetbeat|/auditbeat|/functionbeat|/journalbeat|/winlogbeat|/osquery|/osqueryd|/kolide|/fleet|/velociraptor|/grr|/cuckoo|/volatility|/rekall|/redline|/ftk|/encase|/xways|/axiom|/magnet|/belkasoft|/oxygen|/cellebrite|/msab|/blackbag|/accessdata|/guidance|/opentext|/nuix|/relativity|/ediscovery|/forensic|/incident|/response|/malware|/ransomware|/apt|/threat|/intel|/ioc|/yara|/sigma|/snort|/suricata|/zeek|/bro|/wireshark|/tcpdump|/tshark|/dumpcap|/capinfos|/editcap|/mergecap|/text2pcap|/pcap|/pcapng|/har|/curl|/wget|/aria2|/fetch|/powershell|/cmd|/bash|/sh|/zsh|/fish|/tcsh|/ksh|/python|/perl|/ruby|/php|/node|/java|/go|/rust|/cargo|/npm|/yarn|/pnpm|/bun|/deno|/composer|/pip|/pip3|/pipx|/poetry|/uv|/hatch|/flit|/maturin|/setuptools|/wheel|/twine|/build|/dist|/egg|/egg-info|/src|/lib|/bin|/include|/share|/man|/info|/doc|/html|/css|/js|/ts|/jsx|/tsx|/vue|/svelte|/astro|/next|/nuxt|/gatsby|/remix|/vite|/webpack|/rollup|/esbuild|/swc|/babel|/typescript|/eslint|/prettier|/jest|/vitest|/cypress|/playwright|/puppeteer|/selenium|/webdriver|/chromedriver|/geckodriver|/safaridriver|/edgedriver|/iedriver|/operadriver|/phantomjs|/slimerjs|/casperjs|/nightmare|/zombie|/cheerio|/jsdom|/htmlparser|/domparser|/xmldom|/xml2js|/fast-xml-parser|/xmlbuilder|/xml2json|/json2xml|/csv|/tsv|/xlsx|/xls|/ods|/pdf|/doc|/docx|/ppt|/pptx|/odt|/odp|/odg|/odf|/rtf|/txt|/md|/markdown|/rst|/tex|/latex|/bib|/bibtex|/csl|citeproc|/pandoc|/asciidoctor|/asciidoc|/restructuredtext|/sphinx|/mkdocs|/gitbook|/hugo|/jekyll|/hexo|/pelican|/nikola|/zola|/eleventy|/11ty|/vitepress|/vuepress|/docusaurus|/docsify|/docute|/gitbook|/mkdocstrings|/pdoc|/sphinx-autodoc|/apidoc|/swagger|/openapi|/redoc|/swagger-ui|/rapidoc|/elements|/stoplight|/prism|/apiblueprint|/apiary|/postman|/insomnia|/hoppscotch|/bruno|/yaak|/firecamp|/thunderclient|/restclient|/vscode-restclient|/httpyac|/httpie|/curl|/wget|/aria2|/fetch|/axios|/superagent|/got|/ky|/node-fetch|/undici|/fetch|/axios|/superagent|/got|/ky|/node-fetch|/undici)" "id:1000002,phase:1,deny,status:403,msg:'Blocked suspicious path',tag:'AGASSOCIATES/blocked-path'"
+
+			# Rate limiting per IP
+			SecAction "id:1000003,phase:1,pass,nolog,initcol:ip=%{REMOTE_ADDR},setvar:ip.requests=+1,expirevar:ip.requests=300"
+			SecRule IP:REQUESTS "@gt 100" "id:1000004,phase:1,deny,status:429,msg:'Rate limit exceeded',tag:'AGASSOCIATES/rate-limit'"
+
+			# Block SQL injection attempts in args
+			SecRule ARGS "@rx (?i)(union\s+select|select\s+.*\s+from|insert\s+into|update\s+.*\s+set|delete\s+from|drop\s+table|alter\s+table|create\s+table|exec\s*\(|execute\s*\(|sp_executesql|xp_cmdshell|sp_oacreate|sp_oamethod|sp_oagetproperty|sp_oasetproperty|sp_oadestroy|openrowset|opendatasource|bulk\s+insert|bcp|load_file|into\s+outfile|into\s+dumpfile|load_data|mysql_dump|pg_dump|mysqldump|sqlcmd|osql|isql|sqlplus|db2|sqlcli|sqlplus|sqlplusw|sqlplus.exe|osql.exe|isql.exe|sqlcmd.exe|bcp.exe|mysql.exe|mysqldump.exe|pg_dump.exe|pg_dumpall.exe|psql.exe|sqlite3.exe|sqlite.exe)" "id:1000005,phase:2,deny,status:403,msg:'SQL injection attempt',tag:'AGASSOCIATES/sql-injection'"
+
+			# Block XSS attempts
+			SecRule ARGS "@rx (?i)(<script|<iframe|<object|<embed|<applet|<meta|<link|<style|<form|<input|<textarea|<select|<option|<button|<img|<video|<audio|<source|<track|<canvas|<svg|<math|<foreignObject|onload|onerror|onclick|onmouseover|onmouseout|onkeydown|onkeyup|onkeypress|onchange|onsubmit|onfocus|onblur|onresize|onscroll|onunload|onbeforeunload|onhashchange|onmessage|onstorage|onpopstate|onpageshow|onpagehide|ononline|onoffline|ondevicemotion|ondeviceorientation|ontouchstart|ontouchmove|ontouchend|ontouchcancel|ongesturestart|ongesturechange|ongestureend|onorientationchange|ondevicelight|ondeviceproximity|onuserproximity|onbatterystatus|onbatterylow|onbatterycritical|onchargingchange|onchargingtimechange|ondischargingtimechange|onnetworkchange|onwifichange|onbluetoothchange|onnfcchange|onusbchange|onhidchange|ongamepadconnected|ongamepaddisconnected|onvrdisplayconnect|onvrdisplaydisconnect|onvrdisplaypresentchange|onvrdisplaypointerrestricted|onvrdisplaypointerunrestricted|onanimationstart|onanimationend|onanimationiteration|ontransitionstart|ontransitionend|ontransitionrun|ontransitioncancel|onwebkitanimationstart|onwebkitanimationend|onwebkitanimationiteration|onwebkittransitionstart|onwebkittransitionend|onwebkittransitionrun|onwebkittransitioncancel)" "id:1000006,phase:2,deny,status:403,msg:'XSS attempt',tag:'AGASSOCIATES/xss'"
+
+			# Block path traversal
+			SecRule ARGS "@rx (\.\./|\.\.\\|%2e%2e%2f|%2e%2e%5c|%2e%2e/|%2e%2e\\)" "id:1000007,phase:2,deny,status:403,msg:'Path traversal attempt',tag:'AGASSOCIATES/path-traversal'"
+
+			# Block command injection
+			SecRule ARGS "@rx (?i)(;|&&|\|\||`|\$\(|\$\{|\|>|<\(|>\)|2>&1|1>&2|>/dev/null|>/dev/zero|>/tmp/|>/var/tmp/|>/var/log/|>/etc/passwd|>/etc/shadow|>/etc/group|>/etc/hosts|>/etc/hostname|>/etc/resolv.conf|>/etc/ssh/|>/root/|>/home/|>/opt/|>/usr/local/|>/var/www/|>/var/lib/docker/|>/var/lib/kubelet/|>/etc/kubernetes/|>/etc/rancher/|>/etc/cni/|>/etc/caddy/|>/etc/nginx/|>/etc/apache2/|>/etc/httpd/|>/etc/lighttpd/|>/etc/traefik/|>/etc/haproxy/|>/etc/envoy/|>/etc/istio/|>/etc/linkerd/|>/etc/consul/|>/etc/vault/|>/etc/nomad/|>/etc/terraform/|>/etc/packer/|>/etc/vagrant/|>/etc/ansible/|>/etc/chef/|>/etc/puppet/|>/etc/salt/)" "id:1000008,phase:2,deny,status:403,msg:'Command injection attempt',tag:'AGASSOCIATES/command-injection'"
+
+			# Custom rule: Block requests to internal endpoints
+			SecRule REQUEST_URI "@rx ^/(internal|admin|api/v1/internal|health/ready|health/live|metrics|debug/pprof|debug/vars|actuator)" "id:1000009,phase:1,deny,status:404,msg:'Internal endpoint access denied',tag:'AGASSOCIATES/internal-endpoint'"
+
+			# Custom rule: Require specific headers for API endpoints
+			SecRule REQUEST_URI "@beginsWith /api/" "id:1000010,phase:1,pass,chain,msg:'Missing required API header'"
+				SecRule REQUEST_HEADERS:X-API-Key "!@rx ." "t:lowercase"
+
+			# Custom rule: Limit request body size for specific endpoints
+			SecRule REQUEST_URI "@beginsWith /api/upload" "id:1000011,phase:1,pass,chain,msg:'Upload size limit exceeded'"
+				SecRule REQUEST_BODY_LENGTH "@gt 10485760"
+
+			# Geo-blocking (optional - uncomment and configure as needed)
+			# SecRule REMOTE_ADDR "@geoLookup" "id:1000012,phase:1,deny,status:403,msg:'Geo-blocked country',tag:'AGASSOCIATES/geo-block'"
+			# SecGeoLookupDb /etc/caddy/GeoLite2-Country.mmdb
+
+			# Bot detection
+			SecRule REQUEST_HEADERS:User-Agent "@rx (?i)(bot|crawler|spider|scraper|scan|monitor|check|uptime|pingdom|statuscake|uptimerobot|hetrixtools|site24x7|newrelic|datadog|appdynamics|dynatrace|elastic|splunk|sumologic|loggly|papertrail|logentries|logz|sematext|scalyr|humio|cortex|loki|promtail|grafana|loki|prometheus|alertmanager|pushgateway|node_exporter|blackbox_exporter|mysqld_exporter|postgres_exporter|redis_exporter|mongodb_exporter|kafka_exporter|rabbitmq_exporter|nginx_exporter|apache_exporter|caddy_exporter|traefik_exporter|haproxy_exporter|envoy_exporter|istio_exporter|linkerd_exporter|consul_exporter|vault_exporter|nomad_exporter|kube_state_metrics|kubelet_exporter|apiserver_exporter|controller_manager_exporter|scheduler_exporter|etcd_exporter|calico_exporter|cilium_exporter|flannel_exporter|weave_exporter|flux_exporter|argocd_exporter|tekton_exporter|jenkins_exporter|gitlab_exporter|github_exporter|bitbucket_exporter|jira_exporter|confluence_exporter|sonarqube_exporter|nexus_exporter|artifactory_exporter|harbor_exporter|registry_exporter|docker_exporter|kubernetes_exporter|helm_exporter|kubeadm_exporter|kubectl_exporter|kustomize_exporter|helmfile_exporter|kustomize_exporter|flux_exporter|argocd_exporter|tekton_exporter|jenkins_exporter|gitlab_exporter|github_exporter|bitbucket_exporter|jira_exporter|confluence_exporter|sonarqube_exporter|nexus_exporter|artifactory_exporter|harbor_exporter|registry_exporter|docker_exporter|kubernetes_exporter|helm_exporter|kubeadm_exporter|kubectl_exporter|kustomize_exporter|helmfile_exporter)" "id:1000013,phase:1,deny,status:403,msg:'Bot detected',tag:'AGASSOCIATES/bot'"
+		`
+	}
+
+	# Security headers
+	header {
+		# HSTS
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+		# CSP
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net https://unpkg.com; img-src 'self' data: https:; connect-src 'self' https://api.agassociates.com wss://api.agassociates.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests; block-all-mixed-content"
+
+		# X-Frame-Options
+		X-Frame-Options "DENY"
+
+		# X-Content-Type-Options
+		X-Content-Type-Options "nosniff"
+
+		# Referrer-Policy
+		Referrer-Policy "strict-origin-when-cross-origin"
+
+		# Permissions-Policy
+		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
+
+		# X-Permitted-Cross-Domain-Policies
+		X-Permitted-Cross-Domain-Policies "none"
+
+		# Cross-Origin-Opener-Policy
+		Cross-Origin-Opener-Policy "same-origin"
+
+		# Cross-Origin-Resource-Policy
+		Cross-Origin-Resource-Policy "same-origin"
+
+		# Cross-Origin-Embedder-Policy
+		Cross-Origin-Embedder-Policy "require-corp"
+
+		# Remove server header
+		Server ""
+
+		# Custom security headers
+		X-Robots-Tag "noindex, nofollow, nosnippet, noarchive, notranslate, noimageindex"
+		X-DNS-Prefetch-Control "off"
+		X-Download-Options "noopen"
+		X-Powered-By ""
+	}
+
+	# TLS configuration
+	tls {
+		# Minimum TLS version
+		min_version tls1.2
+
+		# Cipher suites
+		ciphers TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+
+		# Curve preferences
+		curves x25519 secp256r1 secp384r1
+
+		# Session tickets
+		session_tickets false
+	}
+
+	# Logging
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 100MiB
+			roll_keep 30
+			roll_local_time true
+		}
+		format json
+		level INFO
+	}
+
+	# Admin API (restricted to localhost)
+	admin localhost:2019
+}
+
+# Import site configurations
+import sites/*.caddy
+
+# ModSecurity WAF configuration for each site
+(waffile) {
+	# ModSecurity configuration per site
+	modsecurity {
+		enabled true
+		rules `
+			Include /etc/caddy/owasp-crs/crs-setup.conf
+			Include /etc/caddy/owasp-crs/rules/*.conf
+
+			# Site-specific rule exclusions
+			# Example: SecRuleRemoveById 942100 942110 942120 942130 942140 942150 942160 942170 942180 942190 942200 942210 942220 942230 942240 942250 942260 942270 942280 942290 942300 942310 942320 942330 942340 942350 942360 942370 942380 942390 942400 942410 942420 942430 942440 942450 942460 942470 942480 942490 942500
+
+			# Custom rules for this site
+			SecRule REQUEST_HEADERS:X-Forwarded-For "@rx ^$" "id:2000001,phase:1,deny,status:403,msg:'Missing X-Forwarded-For header',tag:'AGASSOCIATES/missing-xff'"
+		`
+	}
+
+	# Rate limiting per site
+	rate_limit {
+		zone site_limit {
+			key {remote_ip}
+			events 50
+			window 1m
+		}
+	}
+
+	# Security headers per site
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net https://unpkg.com; img-src 'self' data: https:; connect-src 'self' https://api.agassociates.com wss://api.agassociates.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests; block-all-mixed-content"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
+		X-Permitted-Cross-Domain-Policies "none"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+		Cross-Origin-Embedder-Policy "require-corp"
+		Server ""
+		X-Robots-Tag "noindex, nofollow, nosnippet, noarchive, notranslate, noimageindex"
+		X-DNS-Prefetch-Control "off"
+		X-Download-Options "noopen"
+		X-Powered-By ""
+	}
+}
+
+# Example site configuration with WAF
+# agassociates.com {
+# 	import waffile
+#
+# 	reverse_proxy app:3000 {
+# 		header_up X-Forwarded-Proto {scheme}
+# 		header_up X-Forwarded-For {remote_host}
+# 		header_up X-Real-IP {remote_host}
+# 	}
+#
+# 	# Health check endpoint (bypass WAF)
+# 	@health path /health/*
+# 	handle @health {
+# 		modsecurity off
+# 		reverse_proxy app:3000
+# 	}
+# }

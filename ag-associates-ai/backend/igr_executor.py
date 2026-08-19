@@ -23,7 +23,7 @@ from playwright.async_api import async_playwright
 
 from circuit_breaker import get_breaker, CircuitState
 from hitl_queue import hitl_queue
-from logging_config import get_logger, log_rpa_action, trace_rpa_action
+from logging_config import get_logger, log_rpa_action
 from selector_config import get_selector
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from workforce.ledger import record_activity

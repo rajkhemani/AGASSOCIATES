@@ -63,12 +63,56 @@ if SENTRY_DSN:
         environment=ENVIRONMENT,
     )
 
-# 2. FastAPI Application Instance
-app = FastAPI(
-    title="AG Associates - Luxor9 LegalOS API",
-    version="2.0.0",
-    description="Deterministic Multi-Agent Legal Infrastructure",
-)
+# 3. Scheduler (APScheduler) for periodic tasks
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
+
+scheduler = AsyncIOScheduler()
+
+def start_scheduler():
+    """Start the background scheduler for periodic tasks."""
+    if not scheduler.running:
+        # Daily SLA checks at 9 AM IST
+        scheduler.add_job(
+            run_daily_sla_checks,
+            CronTrigger(hour=9, minute=0, timezone="Asia/Kolkata"),
+            id="daily_sla_checks",
+            replace_existing=True,
+        )
+        
+        # Hourly document status sync
+        scheduler.add_job(
+            sync_document_statuses,
+            IntervalTrigger(hours=1),
+            id="sync_document_statuses",
+            replace_existing=True,
+        )
+        
+        # Daily OTP cleanup (2 AM)
+        scheduler.add_job(
+            cleanup_expired_otps,
+            CronTrigger(hour=2, minute=0, timezone="Asia/Kolkata"),
+            id="cleanup_expired_otps",
+            replace_existing=True,
+        )
+        
+        # Weekly report generation (Monday 8 AM)
+        scheduler.add_job(
+            generate_weekly_reports,
+            CronTrigger(day_of_week="mon", hour=8, minute=0, timezone="Asia/Kolkata"),
+            id="weekly_reports",
+            replace_existing=True,
+        )
+        
+        scheduler.start()
+        logger.info("Background scheduler started")
+
+async def stop_scheduler():
+    """Stop the background scheduler."""
+    if scheduler.running:
+        scheduler.shutdown(wait=True)
+        logger.info("Background scheduler stopped")
 
 # 3. CORS Configuration
 app.add_middleware(
@@ -115,26 +159,98 @@ async def _startup_store():
     except Exception as e:
         logger.warning("Failed to initialize OpenTelemetry tracing", error=str(e))
 
+    # Start background scheduler
+    start_scheduler()
+    
     ensure_tables()
     await init_agents()
 
 
-# NeSL client singleton
-_nesl_client = None
+@app.on_event("shutdown")
+async def _shutdown_scheduler():
+    await stop_scheduler()
 
 
-def _get_nesl_client() -> NeslClient:
-    global _nesl_client
-    if _nesl_client is None:
-        _nesl_client = NeslClient()
-    return _nesl_client
+@app.on_event("shutdown")
+async def _shutdown_playground():
+    await _playground_sm.shutdown()
 
 
-async def shutdown_nesl_client():
-    global _nesl_client
-    if _nesl_client:
-        await _nesl_client.close()
-        _nesl_client = None
+@app.on_event("shutdown")
+async def _shutdown_nesl():
+    await shutdown_nesl_client()
+
+
+# Scheduler task functions
+async def run_daily_sla_checks():
+    """Run daily SLA checks for all active cases."""
+    logger.info("Running daily SLA checks...")
+    try:
+        # Import here to avoid circular imports
+        from sla import runSLACheck
+        from database import get_organizations
+        
+        orgs = await get_organizations()
+        for org in orgs:
+            await runSLACheck(org.id)
+        logger.info("Daily SLA checks completed")
+    except Exception as e:
+        logger.error(f"Daily SLA checks failed: {e}")
+
+async def sync_document_statuses():
+    """Sync document statuses from Supabase."""
+    logger.info("Syncing document statuses...")
+    try:
+        # Import here to avoid circular imports
+        from document_sync import sync_all_documents
+        await sync_all_documents()
+        logger.info("Document status sync completed")
+    except Exception as e:
+        logger.error(f"Document status sync failed: {e}")
+
+async def cleanup_expired_otps():
+    """Clean up expired OTPs from Redis."""
+    logger.info("Cleaning up expired OTPs...")
+    try:
+        import redis.asyncio as redis
+        import os
+        
+        REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+        r = redis.from_url(REDIS_URL)
+        
+        # Scan for OTP keys and delete expired ones
+        async for key in r.scan_iter(match="otp:*"):
+            ttl = await r.ttl(key)
+            if ttl == -2:  # Key doesn't exist
+                await r.delete(key)
+            elif ttl == -1:  # Key exists but no expiry set
+                await r.delete(key)
+        
+        # Clean up otp_waiting keys
+        async for key in r.scan_iter(match="otp_waiting:*"):
+            ttl = await r.ttl(key)
+            if ttl <= 0:
+                await r.delete(key)
+        
+        await r.close()
+        logger.info("OTP cleanup completed")
+    except Exception as e:
+        logger.error(f"OTP cleanup failed: {e}")
+
+async def generate_weekly_reports():
+    """Generate weekly reports for all organizations."""
+    logger.info("Generating weekly reports...")
+    try:
+        # Import here to avoid circular imports
+        from reports import generate_weekly_report
+        from database import get_organizations
+        
+        orgs = await get_organizations()
+        for org in orgs:
+            await generate_weekly_report(org.id)
+        logger.info("Weekly reports generated")
+    except Exception as e:
+        logger.error(f"Weekly report generation failed: {e}")
 
 
 # 5. Core Webhook Entrypoint for n8n (Asynchronous)
@@ -430,85 +546,6 @@ class NeslExecuteResponse(BaseModel):
     message: Optional[str] = None
     error: Optional[str] = None
     mode: str = "mock"
-
-
-# ── Mock Implementation (Default) ──────────────────────────────────────────
-import asyncio
-import time
-import uuid
-
-
-class MockNeslClient:
-    async def file(self, req: NeslFilingRequest) -> NeslFilingResult:
-        delay = float(os.environ.get("NESL_MOCK_DELAY_SEC", "3"))
-        await asyncio.sleep(delay)
-        return NeslFilingResult(
-            transaction_id=f"NESL-MOCK-{uuid.uuid4().hex[:12].upper()}",
-            status="FILED",
-            provider="mock",
-            filed_at=datetime.now(timezone.utc).isoformat(),
-            message=f"Mock filing successful after {delay}s delay",
-            source="mock",
-        )
-
-    async def close(self):
-        pass
-
-
-# ── Production Client (Stubs — replace with real IGR/NeSL integration) ───────
-class ProductionNeslClient(MockNeslClient):
-    def __init__(self):
-        self.api_base = os.environ.get("NESL_API_BASE_URL", "")
-        self.api_key = os.environ.get("NESL_API_KEY", "")
-        self.client_id = os.environ.get("NESL_CLIENT_ID", "")
-        self.client_secret = os.environ.get("NESL_CLIENT_SECRET", "")
-        self.timeout = float(os.environ.get("NESL_REQUEST_TIMEOUT_SEC", "30"))
-
-    async def file(self, req: NeslFilingRequest) -> NeslFilingResult:
-        raise NotImplementedError(
-            "Production NeSL client not implemented — configure NESL_API_BASE_URL, "
-            "NESL_API_KEY, NESL_CLIENT_ID, NESL_CLIENT_SECRET from NeSL sandbox"
-        )
-
-
-class NeslClient:
-    """Unified NeSL client — picks mock or production based on env."""
-
-    def __init__(self):
-        self._mock = MockNeslClient()
-        self._prod = None
-        self._use_mock = os.environ.get("NESL_USE_MOCK", "true").lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-
-    async def file(self, req: NeslFilingRequest) -> NeslFilingResult:
-        if self._use_mock:
-            return await self._mock.file(req)
-        if self._prod is None:
-            self._prod = ProductionNeslClient()
-        return await self._prod.file(req)
-
-    async def execute(self, case_id: str, document_type: str) -> NeslExecuteResponse:
-        req = NeslFilingRequest(
-            case_id=case_id, document_type=document_type, metadata={}
-        )
-        result = await self.file(req)
-        return NeslExecuteResponse(
-            success=result.status == "FILED",
-            transaction_id=result.transaction_id,
-            filing_reference=result.transaction_id,
-            message=result.message,
-            mode="mock" if self._use_mock else "production",
-        )
-
-    async def close(self):
-        if self._mock:
-            await self._mock.close()
-        if self._prod:
-            await self._prod.close()
 
 
 # ── NeSL API Routes ─────────────────────────────────────────────────────────

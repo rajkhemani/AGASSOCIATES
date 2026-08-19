@@ -3,8 +3,18 @@ import pino from 'pino';
 
 const logger = pino();
 
+const redisUrl = process.env.REDIS_URL || 'redis://:redis123@localhost:6379';
+const url = new URL(redisUrl);
+const password = url.password || 'redis123';
+const hostname = url.hostname || 'localhost';
+const port = parseInt(url.port || '6379', 10);
+
 export const redisClient = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379'
+  socket: {
+    host: hostname,
+    port: port,
+  },
+  password: password,
 });
 
 redisClient.on('error', (err) => logger.error({ err }, 'Redis Client Error'));

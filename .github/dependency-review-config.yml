@@ -1,0 +1,138 @@
+# Dependency Review Configuration for AGASSOCIATES
+# Used by actions/dependency-review-action@v4
+# Place at: .github/dependency-review-config.yml
+
+# Fail the build on vulnerabilities of these severities
+fail-on-severity: high
+
+# Allow specific vulnerabilities (by GHSA ID) - use sparingly
+# allow-ghsas:
+#   - GHSA-xxxx-xxxx-xxxx
+
+# Allow specific packages with vulnerabilities (by package name)
+# allow-packages:
+#   - lodash@4.17.21
+
+# Configuration for different ecosystems
+ecosystems:
+  # Python (pip) configuration
+  python:
+    # Requirements files to scan
+    requirements-files:
+      - "ag-associates-ai/backend/requirements.txt"
+      - "ag-associates-ai/backend/requirements-dev.txt"
+      - "ag-platform/services/intake-api/requirements.txt"
+      - "ag-platform/services/coordinator/requirements.txt"
+
+    # Ignore specific vulnerabilities for Python packages
+    # ignore-vulnerabilities:
+    #   - "GHSA-xxxx-xxxx-xxxx"
+
+  # Node.js (npm/yarn/pnpm) configuration
+  node:
+    # Package managers to use
+    package-managers:
+      - npm
+      - pnpm
+
+    # Package.json files to scan
+    package-files:
+      - "ag-associates-ai/frontend/package.json"
+      - "ag-platform/package.json"
+      - "ag-platform/services/intake-api/package.json"
+      - "ag-platform/services/coordinator/package.json"
+
+    # Ignore dev dependencies
+    ignore-dev-dependencies: true
+
+    # Ignore specific vulnerabilities for Node packages
+    # ignore-vulnerabilities:
+    #   - "GHSA-xxxx-xxxx-xxxx"
+
+  # Go configuration
+  go:
+    # Go module files
+    mod-files:
+      - "go.mod"
+
+    # Ignore specific vulnerabilities
+    # ignore-vulnerabilities:
+    #   - "GHSA-xxxx-xxxx-xxxx"
+
+# License policies
+licenses:
+  # Allow these licenses
+  allow:
+    - "MIT"
+    - "Apache-2.0"
+    - "BSD-2-Clause"
+    - "BSD-3-Clause"
+    - "ISC"
+    - "Python-2.0"
+    - "CC0-1.0"
+    - "Unlicense"
+    - "CC-BY-4.0"
+    - "CC-BY-SA-4.0"
+
+  # Deny these licenses (will fail the build)
+  deny:
+    - "AGPL-3.0"
+    - "GPL-3.0"
+    - "LGPL-3.0"
+    - "SSPL-1.0"
+    - "Commons-Clause"
+    - "Elastic-2.0"
+    - "MongoDB-2.0"
+    - "BSL-1.0"
+    - "Confluent-Community-License"
+    - "Timescale-License"
+
+  # Warn on these licenses (but don't fail)
+  warn:
+    - "GPL-2.0"
+    - "LGPL-2.0"
+    - "MPL-2.0"
+    - "CDDL-1.0"
+    - "EPL-2.0"
+
+# Scope configuration
+# Only scan production dependencies (not dev/test)
+include-dev-dependencies: false
+
+# Configuration for private registries
+# private-registries:
+#   - url: "https://npm.pkg.github.com"
+#     token: "${{ secrets.GITHUB_TOKEN }}"
+
+# Advanced options
+# Maximum number of vulnerabilities to report
+max-vulnerabilities: 100
+
+# Timeout for the scan
+timeout: 300
+
+# Output format
+# format: "json"
+
+# Enable/disable specific checks
+checks:
+  # Check for vulnerable dependencies
+  vulnerabilities: true
+  # Check for license compliance
+  licenses: true
+  # Check for malicious packages
+  malware: true
+  # Check for outdated dependencies
+  outdated: false
+  # Check for unused dependencies
+  unused: false
+
+# Custom policies (for organization-specific rules)
+# policies:
+#   - name: "No packages from untrusted sources"
+#     type: "source"
+#     config:
+#       allowed_sources:
+#         - "pypi.org"
+#         - "npmjs.org"
+#         - "github.com"

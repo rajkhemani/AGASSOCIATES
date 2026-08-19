@@ -16,36 +16,20 @@ import authRoutes from "./src/server/routes/auth.ts";
 import invoiceRoutes from "./src/server/routes/invoices.ts";
 import bankPortalRoutes from "./src/server/routes/bankPortal.ts";
 
-// Sentry error tracking (optional, requires SENTRY_DSN env)
-import { initSentry, Sentry } from "./src/server/sentry.ts";
-
-// Structured logging
-import { logger, requestLoggingMiddleware, errorLoggingMiddleware } from "./src/server/logger.ts";
-
-// Metrics
-import { metricsMiddleware, metricsHandler, setDbPoolConnections } from "./src/server/metrics.ts";
-
-// OpenAPI
-import { setupOpenAPI, openAPISpec } from "./src/server/openapi.ts";
-
-// Job Queue
-import { startCronJobs, shutdownJobQueue, getQueueMetrics, initializeQueues } from "./src/server/jobQueue.ts";
-
-// Load environment variables
 dotenv.config();
-const sentry = initSentry();
+
+console.log('[1] Environment loaded');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+console.log('[2] __dirname:', __dirname);
 
-// We'll import AI API routes from another file to keep it clean
 import aiRoutes from "./src/server/aiRouter.ts";
 import { pool } from "./src/server/db.ts";
+console.log('[3] Imports loaded');
 
-// API Version
 const API_VERSION = "v1";
 const API_PREFIX = `/api/${API_VERSION}`;
 
-// CORS Configuration - Strict allowlist for production
 const corsOrigins = process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || [
   'http://localhost:3000',
   'http://localhost:5173',
@@ -54,60 +38,53 @@ const corsOrigins = process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || [
 
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    if (!origin) return callback(null, true); // Allow non-browser requests
+    if (!origin) return callback(null, true);
     if (corsOrigins.includes(origin)) return callback(null, true);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Org-ID'],
-  maxAge: 86400, // 24 hours
+  maxAge: 86400,
 };
 
 async function runMigrations() {
+  console.log('[runMigrations] Starting...');
   try {
     const migrationPath = path.join(process.cwd(), "src/server/migrations.sql");
+    console.log('[runMigrations] Reading file:', migrationPath);
     const sql = fs.readFileSync(migrationPath, "utf8");
+    console.log('[runMigrations] Executing query...');
     await pool.query(sql);
-    logger.info("Database migrations completed successfully");
+    console.log('[runMigrations] Completed successfully');
   } catch (error) {
-    logger.error({ err: error }, "Migration failed");
+    console.error('[runMigrations] Failed:', error);
   }
 }
 
 async function startServer() {
+  console.log('[startServer] Creating express app...');
   const app = express();
   const PORT = parseInt(process.env.PORT || "3001", 10);
+  console.log('[startServer] Port:', PORT);
 
+  console.log('[startServer] Running migrations...');
   await runMigrations();
+  console.log('[startServer] Migrations done');
 
-  // Add trust proxy for rate limiting behind a reverse proxy
   app.set("trust proxy", 1);
-
   app.use(cors(corsOptions));
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(cookieParser());
+  console.log('[startServer] Middleware loaded');
 
-  // Sentry request handler (must be before other middleware/routes) - only if SENTRY_DSN is set
-  if (process.env.SENTRY_DSN) {
-    app.use(sentry.Handlers.requestHandler());
-  }
-
-  // Structured request logging
-  app.use(requestLoggingMiddleware());
-
-  // Metrics middleware
-  app.use(metricsMiddleware());
-
-  // Add Request ID
   app.use((req, res, next) => {
     req.headers['x-request-id'] = req.headers['x-request-id'] || crypto.randomUUID();
     res.setHeader('X-Request-ID', req.headers['x-request-id']);
     next();
   });
 
-  // Global rate limiter
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 1000,
@@ -117,35 +94,24 @@ async function startServer() {
   });
   app.use(globalLimiter);
 
-  // Stricter rate limiter for auth endpoints
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 20,
     message: { error: { code: 'RATE_LIMITED', message: 'Too many authentication attempts, please try again later.' } },
   });
 
-  // Stricter rate limiter for webhook endpoints
   const webhookLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 60,
     message: { error: { code: 'RATE_LIMITED', message: 'Webhook rate limit exceeded.' } },
   });
 
-  // Rate Limiting for AI Routes
   const aiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
     message: { error: { code: 'RATE_LIMITED', message: "Too many requests to AI services, please try again later." } },
   });
 
-  // Monitor DB pool
-  pool.on('acquire', () => setDbPoolConnections(pool.totalCount - pool.idleCount, pool.idleCount));
-  pool.on('release', () => setDbPoolConnections(pool.totalCount - pool.idleCount, pool.idleCount));
-
-  // Setup OpenAPI
-  setupOpenAPI(app, API_PREFIX);
-
-  // Health check (no version prefix)
   app.get("/api/health", async (req, res) => {
     let dbStatus = "unknown";
     try {
@@ -154,83 +120,12 @@ async function startServer() {
         dbStatus = "connected";
       }
     } catch (e) {
-      logger.error({ err: e }, "Database connection failed");
       dbStatus = "disconnected";
     }
     res.json({ status: "ok", database: dbStatus, version: API_VERSION });
   });
 
-  // Deep health check
-  app.get("/api/health/deep", async (req, res) => {
-    const checks = {
-      database: "unknown",
-      supabase: "unknown",
-    };
-
-    try {
-      await pool.query('SELECT 1 as result');
-      checks.database = "healthy";
-    } catch (e) {
-      checks.database = `unhealthy: ${String(e).substring(0, 100)}`;
-    }
-
-    try {
-      const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-      if (supabaseUrl && supabaseKey) {
-        const response = await fetch(`${supabaseUrl}/rest/v1/`, {
-          headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
-        });
-        if (response.ok || response.status === 401) {
-          checks.supabase = "healthy";
-        } else {
-          checks.supabase = `unhealthy: HTTP ${response.status}`;
-        }
-      } else {
-        checks.supabase = "not_configured";
-      }
-    } catch (e) {
-      checks.supabase = `unhealthy: ${String(e).substring(0, 100)}`;
-    }
-
-    const allHealthy = Object.values(checks).every(v => v === "healthy" || v === "not_configured");
-
-    res.json({
-      status: allHealthy ? "healthy" : "degraded",
-      checks,
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  // Prometheus metrics endpoint
-  app.get("/metrics", metricsHandler);
-
-  // Job queue metrics endpoint
-  app.get(`${API_PREFIX}/queue/metrics`, async (req, res) => {
-    try {
-      const metrics = await getQueueMetrics();
-      res.json({ success: true, metrics });
-    } catch (error) {
-      logger.error({ err: error }, 'Queue metrics error');
-      res.status(500).json({ error: 'Failed to fetch queue metrics' });
-    }
-  });
-
-  // Webhook endpoints with stricter rate limiting
-  app.post("/api/webhooks/virus-scan", webhookLimiter, async (req, res) => {
-    try {
-      const { bucketId, filePath } = req.body;
-      logger.info({ bucketId, filePath }, "Virus scan webhook received");
-      res.json({ status: "ok", safe: true });
-    } catch (e) {
-      res.status(500).json({ error: "Virus scan failed" });
-    }
-  });
-
-  // Auth routes (login, register, logout, me) - with auth rate limiting
   app.use(`${API_PREFIX}/auth`, authLimiter, authRoutes);
-
-  // Protected routes - require authentication
   app.use(API_PREFIX, caseRoutes);
   app.use(API_PREFIX, timesheetRoutes);
   app.use(API_PREFIX, documentRoutes);
@@ -238,11 +133,11 @@ async function startServer() {
   app.use(API_PREFIX, neslRoutes);
   app.use(API_PREFIX, invoiceRoutes);
   app.use(API_PREFIX, bankPortalRoutes);
-
   app.use(`${API_PREFIX}/ai`, aiLimiter, aiRoutes);
+  console.log('[startServer] Routes registered');
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    console.log('[startServer] Loading Vite middleware...');
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -250,8 +145,8 @@ async function startServer() {
       root: path.join(process.cwd(), "apps/web"),
     });
     app.use(vite.middlewares);
+    console.log('[startServer] Vite middleware loaded');
   } else {
-    // Production serving
     const distPath = path.join(process.cwd(), "apps/web/dist");
     app.use(express.static(distPath));
     app.get("*all", (req, res) => {
@@ -259,18 +154,9 @@ async function startServer() {
     });
   }
 
-  // Sentry error handler (must be after all routes, before other error handlers) - only if SENTRY_DSN is set
-  if (process.env.SENTRY_DSN) {
-    app.use(sentry.Handlers.errorHandler());
-  }
-
-  // Structured error logging
-  app.use(errorLoggingMiddleware());
-
-  // Global Structured Error Handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     const requestId = req.headers['x-request-id'];
-    logger.error({ err: err, requestId }, `System Error: ${err.message}`);
+    console.error({ err: err, requestId }, `System Error: ${err.message}`);
 
     const statusCode = err.status || 500;
     const isClientError = statusCode >= 400 && statusCode < 500;
@@ -285,19 +171,11 @@ async function startServer() {
   });
 
   app.listen(PORT, "0.0.0.0", () => {
-    logger.info({ port: PORT, apiVersion: API_VERSION }, `Server running on http://localhost:${PORT}`);
-
-    // Initialize job queues after server is listening
-    initializeQueues();
-    
-    // Start cron jobs for job queue
-    startCronJobs();
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 
-  // Graceful shutdown
   const shutdown = async () => {
-    logger.info('Shutting down server...');
-    await shutdownJobQueue();
+    console.log('Shutting down server...');
     process.exit(0);
   };
 
@@ -305,4 +183,5 @@ async function startServer() {
   process.on('SIGINT', shutdown);
 }
 
-startServer();
+console.log('[main] Starting server...');
+startServer().catch(console.error);

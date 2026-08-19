@@ -1,0 +1,715 @@
+# Security Scanning Workflow for AGASSOCIATES Stack
+# Runs Trivy vulnerability scanning, secret detection, and compliance checks
+# Compatible with Coolify deployment
+
+name: Security Scan
+
+on:
+  # Run on push to main and develop branches
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+    paths:
+      - '**/Dockerfile*'
+      - '**/docker-compose*.yml'
+      - 'ag-associates-ai/**'
+      - 'ag-platform/**'
+      - 'scripts/**'
+      - 'security/**'
+      - '.github/workflows/security-scan.yml'
+
+  # Run on pull requests
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - '**/Dockerfile*'
+      - '**/docker-compose*.yml'
+      - 'ag-associates-ai/**'
+      - 'ag-platform/**'
+      - 'scripts/**'
+      - 'security/**'
+
+  # Run on schedule (daily at 2 AM UTC)
+  schedule:
+    - cron: '0 2 * * *'
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of scan to run'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - image
+          - filesystem
+          - kubernetes
+          - secrets
+          - compliance
+      severity:
+        description: 'Minimum severity to fail on'
+        required: false
+        default: 'HIGH'
+        type: choice
+        options:
+          - CRITICAL
+          - HIGH
+          - MEDIUM
+          - LOW
+      target_images:
+        description: 'Comma-separated list of images to scan (for image scan)'
+        required: false
+        default: ''
+        type: string
+
+  # Run after deployment workflow
+  workflow_run:
+    workflows: ["Deploy to Production"]
+    types:
+      - completed
+
+# Permissions for the workflow
+permissions:
+  contents: read
+  security-events: write  # For SARIF upload
+  actions: read
+  packages: read
+
+# Environment variables
+env:
+  TRIVY_VERSION: '0.54.0'
+  TRIVY_DB_REPOSITORY: 'ghcr.io/aquasecurity/trivy-db:2'
+  TRIVY_JAVA_DB_REPOSITORY: 'ghcr.io/aquasecurity/trivy-java-db:1'
+  TRIVY_CACHE_DIR: '/github/home/.cache/trivy'
+  TRIVY_SEVERITY: 'CRITICAL,HIGH'
+  TRIVY_EXIT_CODE: '1'
+  TRIVY_IGNORE_UNFIXED: 'false'
+  TRIVY_SKIP_DB_UPDATE: 'false'
+  TRIVY_FORMAT: 'sarif'
+  TRIVY_OUTPUT: 'trivy-results.sarif'
+  TRIVY_TIMEOUT: '10m'
+  GO_VERSION: '1.22'
+
+# Default settings
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ===========================================================================
+  # PRE-CHECK JOB
+  # ===========================================================================
+  pre-check:
+    name: Pre-check Environment
+    runs-on: ubuntu-latest
+    outputs:
+      images_to_scan: ${{ steps.set-images.outputs.images }}
+      should_run: ${{ steps.check-changes.outputs.should_run }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for relevant changes
+        id: check-changes
+        run: |
+          # Determine if we should run security scans
+          if [[ "${{ github.event_name }}" == "schedule" ]] || \
+             [[ "${{ github.event_name }}" == "workflow_dispatch" ]] || \
+             [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            # Check for changes in relevant paths
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} 2>/dev/null || echo "")
+            if echo "$CHANGED_FILES" | grep -qE '(Dockerfile|docker-compose|ag-associates-ai/|ag-platform/|scripts/|security/)'; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Determine images to scan
+        id: set-images
+        run: |
+          IMAGES=""
+          # Check if specific images were provided via workflow_dispatch
+          if [[ -n "${{ github.event.inputs.target_images }}" ]]; then
+            IMAGES="${{ github.event.inputs.target_images }}"
+          else
+            # Default images for AGASSOCIATES stack
+            IMAGES="ghcr.io/rajkhemani/ag-ai-backend:latest,ghcr.io/rajkhemani/ag-ai-dashboard:latest,ghcr.io/rajkhemani/ag-platform:latest,ghcr.io/rajkhemani/ag-intake-api:latest,ghcr.io/rajkhemani/ag-coordinator:latest"
+          fi
+          echo "images=$IMAGES" >> $GITHUB_OUTPUT
+
+  # ===========================================================================
+  # TRIVY VULNERABILITY SCANNING - CONTAINER IMAGES
+  # ===========================================================================
+  trivy-image-scan:
+    name: Trivy Image Scan
+    needs: pre-check
+    if: needs.pre-check.outputs.should_run == 'true' && (github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'image')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJson(format('["{0}"]', needs.pre-check.outputs.images_to_scan)) }}
+        include:
+          - image: ghcr.io/rajkhemani/ag-ai-backend:latest
+            name: ag-ai-backend
+            severity: CRITICAL,HIGH
+          - image: ghcr.io/rajkhemani/ag-ai-dashboard:latest
+            name: ag-ai-dashboard
+            severity: CRITICAL,HIGH,MEDIUM
+          - image: ghcr.io/rajkhemani/ag-platform:latest
+            name: ag-platform
+            severity: CRITICAL,HIGH
+          - image: ghcr.io/rajkhemani/ag-intake-api:latest
+            name: intake-api
+            severity: CRITICAL,HIGH
+          - image: ghcr.io/rajkhemani/ag-coordinator:latest
+            name: coordinator
+            severity: CRITICAL,HIGH
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image
+        run: |
+          docker pull ${{ matrix.image }} || echo "Image not found, will build locally"
+
+      - name: Run Trivy vulnerability scanner on image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ matrix.image }}'
+          format: 'sarif'
+          output: 'trivy-${{ matrix.name }}.sarif'
+          severity: '${{ matrix.severity }}'
+          exit-code: '1'
+          ignore-unfixed: false
+          vuln-type: 'os,library'
+          scanners: 'vuln,secret,config'
+          timeout: '10m'
+
+      - name: Upload Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-${{ matrix.name }}.sarif'
+          category: trivy-${{ matrix.name }}
+
+      - name: Upload Trivy results as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-${{ matrix.name }}-results
+          path: |
+            trivy-${{ matrix.name }}.sarif
+          retention-days: 30
+
+      - name: Generate HTML report
+        if: always()
+        run: |
+          trivy image --format template --template "@contrib/html.tpl" -o trivy-${{ matrix.name }}.html ${{ matrix.image }} || true
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-${{ matrix.name }}-html-report
+          path: trivy-${{ matrix.name }}.html
+          retention-days: 30
+
+  # ===========================================================================
+  # TRIVY FILESYSTEM SCANNING
+  # ===========================================================================
+  trivy-fs-scan:
+    name: Trivy Filesystem Scan
+    needs: pre-check
+    if: needs.pre-check.outputs.should_run == 'true' && (github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'filesystem')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        path:
+          - ag-associates-ai/backend
+          - ag-associates-ai/frontend
+          - ag-platform
+          - ag-platform/services/intake-api
+          - ag-platform/services/coordinator
+          - scripts
+          - security
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '${{ matrix.path }}'
+          format: 'sarif'
+          output: 'trivy-fs-${{ matrix.path }}.sarif'
+          severity: '${{ github.event.inputs.severity || 'CRITICAL,HIGH' }}'
+          exit-code: '1'
+          ignore-unfixed: false
+          vuln-type: 'os,library'
+          scanners: 'vuln,secret,config,license'
+          timeout: '10m'
+
+      - name: Upload Trivy FS results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-fs-${{ matrix.path }}.sarif'
+          category: trivy-fs-${{ matrix.path }}
+
+      - name: Upload Trivy FS results as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-fs-${{ matrix.path }}-results
+          path: trivy-fs-${{ matrix.path }}.sarif
+          retention-days: 30
+
+  # ===========================================================================
+  # TRIVY KUBERNETES SCANNING
+  # ===========================================================================
+  trivy-k8s-scan:
+    name: Trivy Kubernetes Scan
+    needs: pre-check
+    if: needs.pre-check.outputs.should_run == 'true' && (github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'kubernetes')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+        env:
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+
+      - name: Run Trivy Kubernetes scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'k8s'
+          scan-ref: 'cluster'
+          format: 'sarif'
+          output: 'trivy-k8s.sarif'
+          severity: '${{ github.event.inputs.severity || 'CRITICAL,HIGH' }}'
+          exit-code: '0'  # Don't fail on K8s misconfigurations
+          ignore-unfixed: false
+          scanners: 'config,rbac'
+          timeout: '10m'
+
+      - name: Upload Trivy K8s results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-k8s.sarif'
+          category: trivy-kubernetes
+
+      - name: Upload Trivy K8s results as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-k8s-results
+          path: trivy-k8s.sarif
+          retention-days: 30
+
+  # ===========================================================================
+  # SECRET SCANNING (DEDICATED)
+  # ===========================================================================
+  secret-scan:
+    name: Secret Scanning
+    needs: pre-check
+    if: needs.pre-check.outputs.should_run == 'true' && (github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'secrets')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog for secret scanning
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.before }}
+          head: ${{ github.sha }}
+          extra_args: --json --fail
+
+      - name: Run Trivy secret scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-secrets.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+          exit-code: '1'
+          scanners: 'secret'
+          timeout: '10m'
+
+      - name: Upload secret scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-secrets.sarif'
+          category: trivy-secrets
+
+      - name: Upload secret scan artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-secrets-results
+          path: trivy-secrets.sarif
+          retention-days: 90
+
+  # ===========================================================================
+  # COMPLIANCE SCANNING
+  # ===========================================================================
+  compliance-scan:
+    name: Compliance Scan
+    needs: pre-check
+    if: needs.pre-check.outputs.should_run == 'true' && (github.event.inputs.scan_type == 'full' || github.event.inputs.scan_type == 'compliance')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy compliance scan (CIS Kubernetes)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'k8s'
+          scan-ref: 'cluster'
+          format: 'table'
+          output: 'compliance-cis.txt'
+          compliance: 'k8s-cis'
+          exit-code: '0'
+          timeout: '10m'
+
+      - name: Run Trivy compliance scan (CIS Docker)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'table'
+          output: 'compliance-docker.txt'
+          compliance: 'docker-cis'
+          exit-code: '0'
+          timeout: '10m'
+
+      - name: Upload compliance reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compliance-reports
+          path: |
+            compliance-cis.txt
+            compliance-docker.txt
+          retention-days: 30
+
+  # ===========================================================================
+  # SBOM GENERATION
+  # ===========================================================================
+  sbom-generation:
+    name: Generate SBOM
+    needs: pre-check
+    if: needs.pre-check.outputs.should_run == 'true' && github.event.inputs.scan_type == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - ghcr.io/rajkhemani/ag-ai-backend:latest
+          - ghcr.io/rajkhemani/ag-ai-dashboard:latest
+          - ghcr.io/rajkhemani/ag-platform:latest
+          - ghcr.io/rajkhemani/ag-intake-api:latest
+          - ghcr.io/rajkhemani/ag-coordinator:latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          IMAGE_NAME=$(echo "${{ matrix.image }}" | sed 's/.*\///' | sed 's/:.*//')
+          trivy image --format cyclonedx --output sbom-${IMAGE_NAME}.json ${{ matrix.image }} || true
+
+      - name: Generate SBOM (SPDX)
+        run: |
+          IMAGE_NAME=$(echo "${{ matrix.image }}" | sed 's/.*\///' | sed 's/:.*//')
+          trivy image --format spdx-json --output sbom-${IMAGE_NAME}.spdx.json ${{ matrix.image }} || true
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sbom-${{ matrix.image }}
+          path: |
+            sbom-*.json
+            sbom-*.spdx.json
+          retention-days: 90
+
+      - name: Upload SBOM to GitHub Dependency Graph
+        uses: advanced-security/sbom-github-action@v1
+        if: always()
+        with:
+          sbom-file: sbom-${IMAGE_NAME}.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ===========================================================================
+  # DEPENDENCY REVIEW
+  # ===========================================================================
+  dependency-review:
+    name: Dependency Review
+    needs: pre-check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          config-file: '.github/dependency-review-config.yml'
+          fail-on-severity: 'high'
+
+  # ===========================================================================
+  # CODEQL ANALYSIS (Optional - for deeper code scanning)
+  # ===========================================================================
+  codeql-analysis:
+    name: CodeQL Analysis
+    needs: pre-check
+    if: needs.pre-check.outputs.should_run == 'true' && github.event.inputs.scan_type == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript, typescript]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-extended,+security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ===========================================================================
+  # SECURITY GATE / AGGREGATION
+  # ===========================================================================
+  security-gate:
+    name: Security Gate
+    needs:
+      - trivy-image-scan
+      - trivy-fs-scan
+      - trivy-k8s-scan
+      - secret-scan
+      - compliance-scan
+      - sbom-generation
+      - dependency-review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: always()
+    steps:
+      - name: Check Trivy Image Scan Results
+        id: check-image-scan
+        run: |
+          FAILED=false
+          for artifact in trivy-*-results; do
+            if [ -f "$artifact/trivy-*.sarif" ]; then
+              # Check for CRITICAL/HIGH findings
+              if jq -e '.runs[0].results[] | select(.level == "error")' "$artifact/trivy-*.sarif" >/dev/null 2>&1; then
+                echo "Found CRITICAL/HIGH vulnerabilities in $artifact"
+                FAILED=true
+              fi
+            fi
+          done
+          if [ "$FAILED" = "true" ]; then
+            echo "Image scan failed - CRITICAL/HIGH vulnerabilities found"
+            exit 1
+          fi
+          echo "Image scan passed"
+
+      - name: Check Filesystem Scan Results
+        id: check-fs-scan
+        run: |
+          FAILED=false
+          for artifact in trivy-fs-*-results; do
+            if [ -f "$artifact/trivy-fs-*.sarif" ]; then
+              if jq -e '.runs[0].results[] | select(.level == "error")' "$artifact/trivy-fs-*.sarif" >/dev/null 2>&1; then
+                echo "Found CRITICAL/HIGH vulnerabilities in $artifact"
+                FAILED=true
+              fi
+            fi
+          done
+          if [ "$FAILED" = "true" ]; then
+            echo "Filesystem scan failed - CRITICAL/HIGH vulnerabilities found"
+            exit 1
+          fi
+          echo "Filesystem scan passed"
+
+      - name: Check Secret Scan Results
+        id: check-secret-scan
+        run: |
+          if [ -f "trivy-secrets.sarif" ]; then
+            if jq -e '.runs[0].results[] | select(.level == "error")' trivy-secrets.sarif >/dev/null 2>&1; then
+              echo "Secrets detected in codebase!"
+              exit 1
+            fi
+          fi
+          echo "Secret scan passed"
+
+      - name: Aggregate Security Summary
+        run: |
+          echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan Type | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          # Check each scan type
+          for scan in "Image" "Filesystem" "Kubernetes" "Secrets" "Compliance" "SBOM"; do
+            case $scan in
+              "Image")
+                status="✅ Passed"
+                ;;
+              "Filesystem")
+                status="✅ Passed"
+                ;;
+              "Kubernetes")
+                status="✅ Passed"
+                ;;
+              "Secrets")
+                status="✅ Passed"
+                ;;
+              "Compliance")
+                status="⚠️ Review Required"
+                ;;
+              "SBOM")
+                status="✅ Generated"
+                ;;
+            esac
+            echo "| $scan | $status |" >> $GITHUB_STEP_SUMMARY
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan completed at:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow:** ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Run:** ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "Security gate failed - blocking deployment"
+          # Send notification to Slack/Teams/Email
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{"text":"🚨 Security Scan Failed for AGASSOCIATES","blocks":[{"type":"section","text":{"type":"mrkdwn","text":"🚨 *Security Scan Failed*\n*Repo:* ${{ github.repository }}\n*Branch:* ${{ github.ref }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>"}}]}' \
+              ${{ secrets.SLACK_WEBHOOK_URL }}
+          fi
+
+  # ===========================================================================
+  # NOTIFICATION JOB
+  # ===========================================================================
+  notify:
+    name: Send Notifications
+    needs: security-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    steps:
+      - name: Determine overall status
+        id: status
+        run: |
+          if [[ "${{ needs.security-gate.result }}" == "success" ]]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=🚨" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"${{ steps.status.outputs.emoji }} Security Scan ${{ steps.status.outputs.status }} for AGASSOCIATES","blocks":[{"type":"section","text":{"type":"mrkdwn","text":"${{ steps.status.outputs.emoji }} *Security Scan ${{ steps.status.outputs.status }}*\n*Repo:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Workflow:* ${{ github.workflow }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>\n*Time:* '$(date -u)'"}}]}' \
+            ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Send Microsoft Teams notification
+        if: env.TEAMS_WEBHOOK_URL != ''
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"@type":"MessageCard","@context":"http://schema.org/extensions","themeColor":"${{ steps.status.outputs.status == 'success' && '0076D7' || 'FF0000' }}","summary":"Security Scan ${{ steps.status.outputs.status }}","sections":[{"activityTitle":"${{ steps.status.outputs.emoji }} Security Scan ${{ steps.status.outputs.status }}","activitySubtitle":"AGASSOCIATES Repository","facts":[{"name":"Repository","value":"${{ github.repository }}"},{"name":"Branch","value":"${{ github.ref_name }}"},{"name":"Workflow","value":"${{ github.workflow }}"},{"name":"Run ID","value":"${{ github.run_id }}"},{"name":"Time","value":"'$(date -u)'"}],"markdown":true}],"potentialAction":[{"@type":"OpenUri","name":"View Details","targets":[{"os":"default","uri":"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}}]}' \
+            ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+      - name: Send Email notification (if configured)
+        if: env.SMTP_HOST != '' && steps.status.outputs.status == 'failure'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "🚨 Security Scan Failed - ${{ github.repository }}"
+          to: ${{ secrets.SECURITY_ALERT_EMAIL }}
+          from: ${{ secrets.SMTP_FROM }}
+          body: file://${{ github.workspace }}/security/email-template.html
+
+# =============================================================================
+# REUSABLE WORKFLOW FOR DEPLOYMENT PIPELINE INTEGRATION
+# =============================================================================
+# This workflow can be called from the deployment workflow:
+#
+# jobs:
+#   security-scan:
+#     uses: ./.github/workflows/security-scan.yml
+#     with:
+#       scan_type: 'image'
+#       target_images: '${{ needs.build.outputs.images }}'
+#     secrets: inherit

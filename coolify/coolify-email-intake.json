@@ -1,0 +1,83 @@
+{
+  "name": "email-intake",
+  "description": "AG Associates Email Intake Agent (IMAP poller + AI processing)",
+  "type": "docker",
+  "dockerCompose": {
+    "version": "3.8",
+    "services": {
+      "email-intake": {
+        "build": {
+          "context": "./ag-associates-ai/backend/email_intake",
+          "dockerfile": "Dockerfile"
+        },
+        "image": "ghcr.io/luxoranova9/email-intake:latest",
+        "container_name": "ag_email_intake",
+        "restart": "unless-stopped",
+        "environment": {
+          "EMAIL_IMAP_HOST": "${EMAIL_IMAP_HOST}",
+          "EMAIL_IMAP_PORT": "${EMAIL_IMAP_PORT:-993}",
+          "EMAIL_IMAP_USER": "${EMAIL_IMAP_USER}",
+          "EMAIL_IMAP_PASS": "${EMAIL_IMAP_PASS}",
+          "SUPABASE_URL": "${SUPABASE_URL}",
+          "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}",
+          "LLM_BASE_URL": "http://ai-backend:8000/v1",
+          "LLM_MODEL_NAME": "${LLM_MODEL_NAME}",
+          "LLM_API_KEY": "${LLM_API_KEY}",
+          "REDIS_URL": "redis://:${REDIS_PASSWORD}@redis:6379",
+          "EMAIL_POLL_INTERVAL": "${EMAIL_POLL_INTERVAL:-60}",
+          "EMAIL_INTAKE_PORT": "3004"
+        },
+        "depends_on": [
+          "redis"
+        ],
+        "healthcheck": {
+          "test": ["CMD", "curl", "-f", "http://localhost:3004/health"],
+          "interval": "30s",
+          "timeout": "5s",
+          "start_period": "10s",
+          "retries": 3
+        },
+        "networks": ["ag_net"],
+        "labels": {
+          "coolify.managed": "true",
+          "coolify.service": "email-intake"
+        }
+      }
+    },
+    "networks": {
+      "ag_net": {
+        "driver": "bridge"
+      }
+    }
+  },
+  "domains": [],
+  "environmentVariables": [
+    { "key": "EMAIL_IMAP_HOST", "value": "${EMAIL_IMAP_HOST}", "isSecret": false },
+    { "key": "EMAIL_IMAP_PORT", "value": "${EMAIL_IMAP_PORT:-993}", "isSecret": false },
+    { "key": "EMAIL_IMAP_USER", "value": "${EMAIL_IMAP_USER}", "isSecret": true },
+    { "key": "EMAIL_IMAP_PASS", "value": "${EMAIL_IMAP_PASS}", "isSecret": true },
+    { "key": "SUPABASE_URL", "value": "${SUPABASE_URL}", "isSecret": false },
+    { "key": "SUPABASE_SERVICE_ROLE_KEY", "value": "${SUPABASE_SERVICE_ROLE_KEY}", "isSecret": true },
+    { "key": "LLM_BASE_URL", "value": "http://ai-backend:8000/v1", "isSecret": false },
+    { "key": "LLM_MODEL_NAME", "value": "${LLM_MODEL_NAME}", "isSecret": false },
+    { "key": "LLM_API_KEY", "value": "${LLM_API_KEY}", "isSecret": true },
+    { "key": "REDIS_PASSWORD", "value": "${REDIS_PASSWORD}", "isSecret": true },
+    { "key": "EMAIL_POLL_INTERVAL", "value": "${EMAIL_POLL_INTERVAL:-60}", "isSecret": false }
+  ],
+  "resourceLimits": {
+    "cpu": "0.5",
+    "memory": "512m",
+    "memorySwap": "512m"
+  },
+  "buildSettings": {
+    "buildPack": "dockerfile",
+    "dockerfilePath": "./ag-associates-ai/backend/email_intake/Dockerfile",
+    "contextPath": "./ag-associates-ai/backend/email_intake"
+  },
+  "port": 3004,
+  "healthCheckPath": "/health",
+  "healthCheckInterval": 30,
+  "healthCheckTimeout": 5,
+  "healthCheckRetries": 3,
+  "healthCheckStartPeriod": 10
+}

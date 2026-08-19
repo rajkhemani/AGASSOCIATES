@@ -1,0 +1,77 @@
+{
+  "name": "intake-api",
+  "description": "AG Associates Intake API Gateway (Fastify + Redis + Supabase)",
+  "type": "docker",
+  "dockerCompose": {
+    "version": "3.8",
+    "services": {
+      "intake-api": {
+        "build": {
+          "context": "./ag-platform/services/intake-api",
+          "dockerfile": "Dockerfile"
+        },
+        "image": "ghcr.io/luxoranova9/intake-api:latest",
+        "container_name": "ag_intake_api",
+        "restart": "unless-stopped",
+        "environment": {
+          "NODE_ENV": "production",
+          "PORT": "3002",
+          "REDIS_URL": "redis://:${REDIS_PASSWORD}@redis:6379",
+          "SUPABASE_URL": "${SUPABASE_URL}",
+          "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}"
+        },
+        "depends_on": [
+          "redis"
+        ],
+        "healthcheck": {
+          "test": ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3002/health"],
+          "interval": "30s",
+          "timeout": "5s",
+          "start_period": "10s",
+          "retries": 3
+        },
+        "networks": ["ag_net"],
+        "labels": {
+          "coolify.managed": "true",
+          "coolify.service": "intake-api"
+        }
+      }
+    },
+    "networks": {
+      "ag_net": {
+        "driver": "bridge"
+      }
+    }
+  },
+  "domains": [
+    {
+      "domain": "intake.${DOMAIN}",
+      "port": 3002,
+      "redirectHttp": true,
+      "https": true
+    }
+  ],
+  "environmentVariables": [
+    { "key": "REDIS_PASSWORD", "value": "${REDIS_PASSWORD}", "isSecret": true },
+    { "key": "SUPABASE_URL", "value": "${SUPABASE_URL}", "isSecret": false },
+    { "key": "SUPABASE_SERVICE_ROLE_KEY", "value": "${SUPABASE_SERVICE_ROLE_KEY}", "isSecret": true },
+    { "key": "NODE_ENV", "value": "production", "isSecret": false },
+    { "key": "PORT", "value": "3002", "isSecret": false }
+  ],
+  "resourceLimits": {
+    "cpu": "0.5",
+    "memory": "512m",
+    "memorySwap": "512m"
+  },
+  "buildSettings": {
+    "buildPack": "dockerfile",
+    "dockerfilePath": "./ag-platform/services/intake-api/Dockerfile",
+    "contextPath": "./ag-platform/services/intake-api"
+  },
+  "port": 3002,
+  "healthCheckPath": "/health",
+  "healthCheckInterval": 30,
+  "healthCheckTimeout": 5,
+  "healthCheckRetries": 3,
+  "healthCheckStartPeriod": 10
+}

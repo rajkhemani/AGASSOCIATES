@@ -1,0 +1,1120 @@
+# Network Policies for AGASSOCIATES Coolify Services
+# Kubernetes NetworkPolicy resources for service-to-service communication control
+# Compatible with Coolify deployment on Kubernetes
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: agassociates
+  labels:
+    app: agassociates
+    policy: default-deny
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  # No ingress rules = deny all ingress
+  # No egress rules = deny all egress
+---
+# Allow DNS resolution for all pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: agassociates
+  labels:
+    app: agassociates
+    policy: dns
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Caddy Reverse Proxy - Ingress from Internet, Egress to Backend Services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: caddy-ingress-egress
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: caddy
+    policy: ingress-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: caddy
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow HTTP/HTTPS from Internet (via LoadBalancer/Ingress Controller)
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    # Allow health checks from monitoring namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    # Allow admin API from management namespace (restricted)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: management
+      ports:
+        - protocol: TCP
+          port: 2019
+  egress:
+    # Allow to ag-ai-backend
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ag-ai-backend
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow to ag-ai-dashboard
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ag-ai-dashboard
+      ports:
+        - protocol: TCP
+          port: 3443
+    # Allow to ag-platform
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ag-platform
+      ports:
+        - protocol: TCP
+          port: 3444
+    # Allow to intake-api
+    - to:
+        - podSelector:
+            matchLabels:
+              app: intake-api
+      ports:
+        - protocol: TCP
+          port: 3445
+    # Allow to coordinator
+    - to:
+        - podSelector:
+            matchLabels:
+              app: coordinator
+      ports:
+        - protocol: TCP
+          port: 3446
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow external API calls (Groq, Gemini, etc.)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# ag-ai-backend - FastAPI Backend Service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ag-ai-backend
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: ag-ai-backend
+    policy: backend
+spec:
+  podSelector:
+    matchLabels:
+      app: ag-ai-backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from Caddy
+    - from:
+        - podSelector:
+            matchLabels:
+              app: caddy
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow from n8n
+    - from:
+        - podSelector:
+            matchLabels:
+              app: n8n
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow from ag-platform (for API calls)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ag-platform
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow from intake-api
+    - from:
+        - podSelector:
+            matchLabels:
+              app: intake-api
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow from coordinator
+    - from:
+        - podSelector:
+            matchLabels:
+              app: coordinator
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow health checks from monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8001
+  egress:
+    # Allow to PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5433
+    # Allow to Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6380
+    # Allow to n8n (for webhooks)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: n8n
+      ports:
+        - protocol: TCP
+          port: 5679
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow external API calls (Groq, WhatsApp, etc.)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# ag-ai-dashboard - Next.js Frontend Dashboard
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ag-ai-dashboard
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: ag-ai-dashboard
+    policy: frontend
+spec:
+  podSelector:
+    matchLabels:
+      app: ag-ai-dashboard
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from Caddy only
+    - from:
+        - podSelector:
+            matchLabels:
+              app: caddy
+      ports:
+        - protocol: TCP
+          port: 3443
+    # Allow health checks from monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3443
+  egress:
+    # Allow to ag-ai-backend for API calls
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ag-ai-backend
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# ag-platform - LegalTech Collaboration Platform
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ag-platform
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: ag-platform
+    policy: platform
+spec:
+  podSelector:
+    matchLabels:
+      app: ag-platform
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from Caddy
+    - from:
+        - podSelector:
+            matchLabels:
+              app: caddy
+      ports:
+        - protocol: TCP
+          port: 3444
+    # Allow health checks from monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3444
+  egress:
+    # Allow to PostgreSQL (Supabase)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5433
+    # Allow to Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6380
+    # Allow to ag-ai-backend for AI processing
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ag-ai-backend
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow to intake-api
+    - to:
+        - podSelector:
+            matchLabels:
+              app: intake-api
+      ports:
+        - protocol: TCP
+          port: 3445
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow external API calls (Gemini, Supabase, Sentry)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# intake-api - Fastify Gateway for Bank Intake Webhooks
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: intake-api
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: intake-api
+    policy: gateway
+spec:
+  podSelector:
+    matchLabels:
+      app: intake-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from Caddy (for webhook endpoints)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: caddy
+      ports:
+        - protocol: TCP
+          port: 3445
+    # Allow from n8n (for webhook processing)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: n8n
+      ports:
+        - protocol: TCP
+          port: 3445
+    # Allow from ag-platform
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ag-platform
+      ports:
+        - protocol: TCP
+          port: 3445
+    # Allow health checks from monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3445
+  egress:
+    # Allow to PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5433
+    # Allow to Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6380
+    # Allow to ag-ai-backend
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ag-ai-backend
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow to coordinator
+    - to:
+        - podSelector:
+            matchLabels:
+              app: coordinator
+      ports:
+        - protocol: TCP
+          port: 3446
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow external API calls (Twilio, Bank APIs, etc.)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# coordinator - Telegram Bot for Agent Orchestration
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coordinator
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: coordinator
+    policy: bot
+spec:
+  podSelector:
+    matchLabels:
+      app: coordinator
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from Caddy (for webhook)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: caddy
+      ports:
+        - protocol: TCP
+          port: 3446
+    # Allow from ag-ai-backend (for agent communication)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ag-ai-backend
+      ports:
+        - protocol: TCP
+          port: 3446
+    # Allow from intake-api
+    - from:
+        - podSelector:
+            matchLabels:
+              app: intake-api
+      ports:
+        - protocol: TCP
+          port: 3446
+    # Allow health checks from monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3446
+  egress:
+    # Allow to PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5433
+    # Allow to Redis (for agent bus)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6380
+    # Allow to ag-ai-backend
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ag-ai-backend
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow external API calls (Telegram, Gemini)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# n8n - Workflow Automation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: n8n
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: n8n
+    policy: workflow
+spec:
+  podSelector:
+    matchLabels:
+      app: n8n
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from Caddy (for webhook endpoints)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: caddy
+      ports:
+        - protocol: TCP
+          port: 5679
+    # Allow from ag-ai-backend
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ag-ai-backend
+      ports:
+        - protocol: TCP
+          port: 5679
+    # Allow health checks from monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 5679
+  egress:
+    # Allow to ag-ai-backend (for webhook callbacks)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ag-ai-backend
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow to intake-api
+    - to:
+        - podSelector:
+            matchLabels:
+              app: intake-api
+      ports:
+        - protocol: TCP
+          port: 3445
+    # Allow to PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5433
+    # Allow to Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6380
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow external API calls (all webhooks, APIs)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+---
+# PostgreSQL Database
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: postgres
+    policy: database
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from ag-ai-backend
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ag-ai-backend
+      ports:
+        - protocol: TCP
+          port: 5433
+    # Allow from ag-platform
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ag-platform
+      ports:
+        - protocol: TCP
+          port: 5433
+    # Allow from intake-api
+    - from:
+        - podSelector:
+            matchLabels:
+              app: intake-api
+      ports:
+        - protocol: TCP
+          port: 5433
+    # Allow from coordinator
+    - from:
+        - podSelector:
+            matchLabels:
+              app: coordinator
+      ports:
+        - protocol: TCP
+          port: 5433
+    # Allow from n8n
+    - from:
+        - podSelector:
+            matchLabels:
+              app: n8n
+      ports:
+        - protocol: TCP
+          port: 5433
+    # Allow from monitoring (for metrics)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 5433
+    # Allow from management (for backups)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: management
+      ports:
+        - protocol: TCP
+          port: 5433
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow to backup storage (S3-compatible)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# Redis Cache/Message Broker
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: redis
+    policy: cache
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from all application services
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ag-ai-backend
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ag-platform
+    - from:
+        - podSelector:
+            matchLabels:
+              app: intake-api
+    - from:
+        - podSelector:
+            matchLabels:
+              app: coordinator
+    - from:
+        - podSelector:
+            matchLabels:
+              app: n8n
+      ports:
+        - protocol: TCP
+          port: 6380
+    # Allow from monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 6380
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Monitoring Stack (Prometheus, Grafana, Loki, etc.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring
+  namespace: monitoring
+  labels:
+    app: monitoring
+    policy: monitoring
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from Caddy (for Grafana access)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: agassociates
+        - podSelector:
+            matchLabels:
+              app: caddy
+      ports:
+        - protocol: TCP
+          port: 3000  # Grafana
+        - protocol: TCP
+          port: 9090  # Prometheus
+        - protocol: TCP
+          port: 3100  # Loki
+    # Allow from management
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: management
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 9090
+  egress:
+    # Allow to all agassociates services for scraping
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: agassociates
+      ports:
+        - protocol: TCP
+          port: 8001
+        - protocol: TCP
+          port: 3443
+        - protocol: TCP
+          port: 3444
+        - protocol: TCP
+          port: 3445
+        - protocol: TCP
+          port: 3446
+        - protocol: TCP
+          port: 5679
+        - protocol: TCP
+          port: 5433
+        - protocol: TCP
+          port: 6380
+        - protocol: TCP
+          port: 9090
+        - protocol: TCP
+          port: 9100  # node-exporter
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow to external (Alertmanager, webhook receivers)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# Management Namespace (Backups, Admin Tools)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: management
+  namespace: management
+  labels:
+    app: management
+    policy: management
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from Caddy admin
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: agassociates
+        - podSelector:
+            matchLabels:
+              app: caddy
+      ports:
+        - protocol: TCP
+          port: 2019
+  egress:
+    # Allow to all agassociates services for admin tasks
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: agassociates
+      ports:
+        - protocol: TCP
+          port: 8001
+        - protocol: TCP
+          port: 3443
+        - protocol: TCP
+          port: 3444
+        - protocol: TCP
+          port: 3445
+        - protocol: TCP
+          port: 3446
+        - protocol: TCP
+          port: 5679
+        - protocol: TCP
+          port: 5433
+        - protocol: TCP
+          port: 6380
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow to backup storage
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# Coolify-Specific Network Policies
+# These policies work with Coolify's service discovery and deployment model
+
+# Coolify Proxy - Handles incoming traffic from Coolify's ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coolify-proxy
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: coolify-proxy
+    policy: proxy
+spec:
+  podSelector:
+    matchLabels:
+      coolify.io/proxy: "true"
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from Coolify ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: coolify
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+  egress:
+    # Allow to all application services
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8001
+        - protocol: TCP
+          port: 3443
+        - protocol: TCP
+          port: 3444
+        - protocol: TCP
+          port: 3445
+        - protocol: TCP
+          port: 3446
+        - protocol: TCP
+          port: 5679
+---
+# Coolify Build/Deploy Namespace Access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coolify-build-access
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: coolify-build
+    policy: build-access
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow Coolify build pods to pull images and deploy
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: coolify
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 5000  # Registry
+---
+# Allow Coolify to manage resources
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coolify-management
+  namespace: agassociates
+  labels:
+    app: agassociates
+    component: coolify-management
+    policy: management
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Allow Coolify API server to reach Kubernetes API
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: coolify
+      ports:
+        - protocol: TCP
+          port: 6443  # Kubernetes API
+---
+# Emergency Break-glass Policy
+# Apply this to allow all traffic during incidents
+# apiVersion: networking.k8s.io/v1
+# kind: NetworkPolicy
+# metadata:
+#   name: emergency-allow-all
+#   namespace: agassociates
+#   labels:
+#     app: agassociates
+#     policy: emergency
+# spec:
+#   podSelector: {}
+#   policyTypes:
+#     - Ingress
+#     - Egress
+#   ingress:
+#     - from: []
+#       ports: []
+#   egress:
+#     - to: []
+#       ports: []
+
+# Coolify Deployment Annotations
+# Add these annotations to your Coolify application configurations:
+#
+# For each service in Coolify, add these labels to the deployment:
+# labels:
+#   app: <service-name>  # e.g., ag-ai-backend, ag-ai-dashboard, etc.
+#   coolify.io/managed: "true"
+#
+# For the Caddy service:
+# labels:
+#   app: caddy
+#   coolify.io/proxy: "true"
+#   coolify.io/managed: "true"
+#
+# Network policies will automatically apply based on these labels.

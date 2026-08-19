@@ -1,0 +1,425 @@
+groups:
+  - name: ag-services-alerts
+    interval: 30s
+    rules:
+      # Service Availability
+      - alert: ServiceDown
+        expr: |
+          up{job=~"ag-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute. Instance: {{ $labels.instance }}"
+          runbook_url: "https://runbooks.agassociates.internal/service-down"
+
+      - alert: ServiceHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job=~"ag-.*",code=~"5.."}[5m])) by (job)
+          /
+          sum(rate(http_requests_total{job=~"ag-.*"}[5m])) by (job)
+          > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} 5xx error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+          runbook_url: "https://runbooks.agassociates.internal/high-error-rate"
+
+      - alert: ServiceHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{job=~"ag-.*"}[5m])) by (le, job)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High latency on {{ $labels.job }}"
+          description: "{{ $labels.job }} p95 latency is {{ $value | humanizeDuration }} (threshold: 2s)"
+          runbook_url: "https://runbooks.agassociates.internal/high-latency"
+
+      # Database Alerts
+      - alert: DatabaseConnectionsHigh
+        expr: |
+          pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "Database connections above 80%"
+          description: "PostgreSQL connection usage is {{ $value | humanizePercentage }} of max_connections"
+          runbook_url: "https://runbooks.agassociates.internal/db-connections-high"
+
+      - alert: DatabaseReplicationLag
+        expr: |
+          pg_replication_lag_seconds > 30
+        for: 2m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "Database replication lag high"
+          description: "Replication lag is {{ $value | humanizeDuration }}"
+
+      - alert: DatabaseLongRunningQueries
+        expr: |
+          count(pg_stat_activity_state{state="active"} > 300) > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "Long running queries detected"
+          description: "{{ $value }} queries running longer than 5 minutes"
+
+      # Redis Alerts
+      - alert: RedisMemoryHigh
+        expr: |
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis memory usage above 85%"
+          description: "Redis memory usage is {{ $value | humanizePercentage }} of maxmemory"
+
+      - alert: RedisConnectionsHigh
+        expr: |
+          redis_connected_clients / redis_config_maxclients > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis connections above 80%"
+          description: "Redis connected clients: {{ $value | humanizePercentage }} of maxclients"
+
+      - alert: RedisDown
+        expr: |
+          up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Redis is down"
+          description: "Redis instance {{ $labels.instance }} has been down for more than 1 minute"
+
+      # Infrastructure Alerts
+      - alert: DiskSpaceHigh
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "Disk space above 85% on {{ $labels.instance }}"
+          description: "Root filesystem has {{ $value | humanizePercentage }} free (threshold: 15%)"
+          runbook_url: "https://runbooks.agassociates.internal/disk-space-high"
+
+      - alert: DiskSpaceCritical
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
+        for: 1m
+        labels:
+          severity: critical
+          team: infrastructure
+        annotations:
+          summary: "Disk space critically low on {{ $labels.instance }}"
+          description: "Root filesystem has only {{ $value | humanizePercentage }} free"
+
+      - alert: CPUHigh
+        expr: |
+          100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value | humanizePercentage }}"
+
+      - alert: MemoryHigh
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      - alert: NetworkReceiveErrors
+        expr: |
+          rate(node_network_receive_errs_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "High network receive errors on {{ $labels.instance }}"
+          description: "Network receive error rate: {{ $value }}/s"
+
+      - alert: NetworkTransmitErrors
+        expr: |
+          rate(node_network_transmit_errs_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "High network transmit errors on {{ $labels.instance }}"
+          description: "Network transmit error rate: {{ $value }}/s"
+
+  - name: noi-workflow-alerts
+    interval: 60s
+    rules:
+      - alert: NOIWorkflowStuck
+        expr: |
+          time() - noi_workflow_last_state_change_timestamp_seconds > 14400
+        for: 0m
+        labels:
+          severity: warning
+          team: noi
+        annotations:
+          summary: "NOI workflow {{ $labels.workflow_id }} stuck"
+          description: "Workflow {{ $labels.workflow_id }} (case: {{ $labels.case_id }}) has not changed state for over 4 hours. Current state: {{ $labels.current_state }}"
+          runbook_url: "https://runbooks.agassociates.internal/noi-workflow-stuck"
+
+      - alert: NOIWorkflowFailed
+        expr: |
+          noi_workflow_state{state="failed"} == 1
+        for: 0m
+        labels:
+          severity: critical
+          team: noi
+        annotations:
+          summary: "NOI workflow failed"
+          description: "Workflow {{ $labels.workflow_id }} (case: {{ $labels.case_id }}) entered failed state. Error: {{ $labels.error_message }}"
+
+      - alert: NOIWorkflowQueueBacklog
+        expr: |
+          sum(noi_workflow_pending_count) by (stage) > 100
+        for: 10m
+        labels:
+          severity: warning
+          team: noi
+        annotations:
+          summary: "NOI workflow queue backlog at stage {{ $labels.stage }}"
+          description: "{{ $value }} workflows pending at stage {{ $labels.stage }} for over 10 minutes"
+
+      - alert: NOIProcessingLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(noi_stage_duration_seconds_bucket[5m])) by (le, stage)
+          ) > 300
+        for: 5m
+        labels:
+          severity: warning
+          team: noi
+        annotations:
+          summary: "NOI stage {{ $labels.stage }} processing latency high"
+          description: "Stage {{ $labels.stage }} p95 latency is {{ $value | humanizeDuration }} (threshold: 5m)"
+
+      - alert: NOIValidationFailureRate
+        expr: |
+          sum(rate(noi_validation_failed_total[5m])) by (stage)
+          /
+          sum(rate(noi_validation_total[5m])) by (stage)
+          > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: noi
+        annotations:
+          summary: "NOI validation failure rate high at stage {{ $labels.stage }}"
+          description: "Validation failure rate is {{ $value | humanizePercentage }} (threshold: 10%)"
+
+  - name: business-metrics-alerts
+    interval: 300s
+    rules:
+      - alert: CaseVolumeDrop
+        expr: |
+          sum(rate(ag_cases_created_total[1h])) < 0.5 * sum(rate(ag_cases_created_total[1h] offset 24h))
+        for: 15m
+        labels:
+          severity: warning
+          team: business
+        annotations:
+          summary: "Case creation volume dropped significantly"
+          description: "Case creation rate dropped 50% compared to 24h ago. Current: {{ $value }}/hr"
+
+      - alert: ChallanVolumeDrop
+        expr: |
+          sum(rate(ag_challans_created_total[1h])) < 0.5 * sum(rate(ag_challans_created_total[1h] offset 24h))
+        for: 15m
+        labels:
+          severity: warning
+          team: business
+        annotations:
+          summary: "Challan creation volume dropped significantly"
+          description: "Challan creation rate dropped 50% compared to 24h ago. Current: {{ $value }}/hr"
+
+      - alert: RevenueDrop
+        expr: |
+          sum(rate(ag_revenue_total[1h])) < 0.7 * sum(rate(ag_revenue_total[1h] offset 24h))
+        for: 15m
+        labels:
+          severity: warning
+          team: business
+        annotations:
+          summary: "Revenue dropped significantly"
+          description: "Revenue rate dropped 30% compared to 24h ago. Current: ${{ $value }}/hr"
+
+      - alert: PaymentFailureRateHigh
+        expr: |
+          sum(rate(ag_payments_failed_total[5m])) / sum(rate(ag_payments_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: business
+        annotations:
+          summary: "Payment failure rate above 5%"
+          description: "Payment failure rate is {{ $value | humanizePercentage }}"
+
+      - alert: UserSignupsDrop
+        expr: |
+          sum(rate(ag_user_signups_total[1h])) < 0.3 * sum(rate(ag_user_signups_total[1h] offset 24h))
+        for: 30m
+        labels:
+          severity: warning
+          team: business
+        annotations:
+          summary: "User signups dropped significantly"
+          description: "Signup rate dropped 70% compared to 24h ago. Current: {{ $value }}/hr"
+
+  - name: kubernetes-alerts
+    interval: 30s
+    rules:
+      - alert: KubePodCrashLooping
+        expr: |
+          rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} crash looping"
+          description: "Container {{ $labels.container }} restart rate: {{ $value }}/min"
+
+      - alert: KubePodNotReady
+        expr: |
+          kube_pod_status_ready{condition="true"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} not ready"
+          description: "Pod has been not ready for more than 5 minutes"
+
+      - alert: KubeDeploymentReplicasMismatch
+        expr: |
+          kube_deployment_status_replicas_available != kube_deployment_spec_replicas
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replica mismatch"
+          description: "Available: {{ $value | humanize }}, Desired: {{ kube_deployment_spec_replicas }}"
+
+      - alert: KubeNodeNotReady
+        expr: |
+          kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: infrastructure
+        annotations:
+          summary: "Node {{ $labels.node }} not ready"
+          description: "Kubernetes node has been not ready for more than 5 minutes"
+
+      - alert: KubeNodeDiskPressure
+        expr: |
+          kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+        for: 2m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "Node {{ $labels.node }} under disk pressure"
+          description: "Kubernetes node reporting disk pressure"
+
+      - alert: KubeNodeMemoryPressure
+        expr: |
+          kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+        for: 2m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "Node {{ $labels.node }} under memory pressure"
+          description: "Kubernetes node reporting memory pressure"
+
+      - alert: KubeHPAReplicasMaxed
+        expr: |
+          kube_horizontalpodautoscaler_status_current_replicas == kube_horizontalpodautoscaler_spec_max_replicas
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} at max replicas"
+          description: "HPA has been at max replicas ({{ $value }}) for 10 minutes"
+
+  - name: sla-alerts
+    interval: 60s
+    rules:
+      - alert: SLAAvailabilityBreach
+        expr: |
+          sum(rate(http_requests_total{job=~"ag-.*",code!~"5.."}[5m])) / sum(rate(http_requests_total{job=~"ag-.*"}[5m])) < 0.999
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "SLA breach: Availability below 99.9%"
+          description: "Availability is {{ $value | humanizePercentage }} over 5m window"
+
+      - alert: SLALatencyBreach
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket{job=~"ag-.*"}[5m])) by (le, job)
+          ) > 5
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "SLA breach: P99 latency above 5s"
+          description: "P99 latency is {{ $value | humanizeDuration }} for {{ $labels.job }}"
+
+      - alert: ErrorBudgetBurnRateHigh
+        expr: |
+          (1 - (sum(rate(http_requests_total{job=~"ag-.*",code!~"5.."}[1h])) / sum(rate(http_requests_total{job=~"ag-.*"}[1h])))
+          /
+          (1 - 0.999)
+          > 2
+        for: 0m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Error budget burn rate high"
+          description: "Burn rate is {{ $value }}x normal (2x threshold)"

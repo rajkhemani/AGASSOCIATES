@@ -1,0 +1,137 @@
+{
+  "name": "ag-ai-backend",
+  "description": "AG Associates AI Backend - FastAPI with LangGraph multi-agent system",
+  "type": "docker",
+  "dockerCompose": {
+    "version": "3.8",
+    "services": {
+      "ag-ai-backend": {
+        "build": {
+          "context": "./ag-associates-ai/backend",
+          "dockerfile": "Dockerfile"
+        },
+        "image": "ghcr.io/luxoranova9/ag-ai-backend:latest",
+        "container_name": "ag_ai_backend",
+        "restart": "unless-stopped",
+        "environment": {
+          "DATABASE_HOST": "postgres",
+          "DATABASE_PORT": "5432",
+          "DATABASE_NAME": "${POSTGRES_DB}",
+          "DATABASE_USER": "${POSTGRES_USER}",
+          "DATABASE_PASSWORD": "${POSTGRES_PASSWORD}",
+          "LLM_BASE_URL": "${LLM_BASE_URL}",
+          "LLM_MODEL_NAME": "${LLM_MODEL_NAME}",
+          "LLM_API_KEY": "${LLM_API_KEY}",
+          "EMBEDDING_MODEL_NAME": "sentence-transformers/all-MiniLM-L6-v2",
+          "EMBEDDING_DIMENSION": "384",
+          "OUTPUT_DIR": "/app/output",
+          "PDF_ENABLED": "true",
+          "CORS_ALLOWED_ORIGINS": "https://app.${DOMAIN},https://dashboard.${DOMAIN}",
+          "SUPABASE_JWT_SECRET": "${SUPABASE_JWT_SECRET}",
+          "REDIS_URL": "redis://:${REDIS_PASSWORD}@redis:6379",
+          "SUPABASE_URL": "${SUPABASE_URL}",
+          "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}",
+          "N8N_WEBHOOK_KEY": "${N8N_WEBHOOK_KEY}",
+          "JWT_SECRET": "${JWT_SECRET}",
+          "ENVIRONMENT": "${ENVIRONMENT:-production}",
+          "LLM_MOCK_MODE": "${LLM_MOCK_MODE:-false}",
+          "SENTRY_DSN": "${SENTRY_DSN:-}",
+          "TELEGRAM_BOT_TOKEN": "${TELEGRAM_BOT_TOKEN}",
+          "TELEGRAM_CHAT_ID": "${TELEGRAM_CHAT_ID}",
+          "OPENAI_API_KEY": "${OPENAI_API_KEY:-fallback-dummy-key-for-init-only}",
+          "NESL_API_KEY": "${NESL_API_KEY:-}",
+          "NESL_API_BASE_URL": "${NESL_API_BASE_URL:-https://api.nesl.co.in/v1}",
+          "NESL_CLIENT_ID": "${NESL_CLIENT_ID:-}",
+          "NESL_CLIENT_SECRET": "${NESL_CLIENT_SECRET:-}",
+          "NESL_MOCK_DELAY_SEC": "${NESL_MOCK_DELAY_SEC:-3}",
+          "IGR_PORTAL_URL": "${IGR_PORTAL_URL:-}",
+          "IGR_PORTAL_USERNAME": "${IGR_PORTAL_USERNAME:-}",
+          "IGR_PORTAL_PASSWORD": "${IGR_PORTAL_PASSWORD:-}",
+          "GRAS_PORTAL_URL": "${GRAS_PORTAL_URL:-}"
+        },
+        "volumes": [
+          "ag_output:/app/output",
+          "ag_documents:/srv/ag/documents"
+        ],
+        "depends_on": [
+          "postgres",
+          "redis"
+        ],
+        "healthcheck": {
+          "test": ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"],
+          "interval": "30s",
+          "timeout": "5s",
+          "start_period": "20s",
+          "retries": 3
+        },
+        "networks": ["ag_net"],
+        "labels": {
+          "coolify.managed": "true",
+          "coolify.service": "ag-ai-backend"
+        }
+      }
+    },
+    "networks": {
+      "ag_net": {
+        "driver": "bridge"
+      }
+    },
+    "volumes": {
+      "ag_output": {},
+      "ag_documents": {}
+    }
+  },
+  "domains": [
+    {
+      "domain": "api.${DOMAIN}",
+      "port": 8000,
+      "redirectHttp": true,
+      "https": true
+    }
+  ],
+  "environmentVariables": [
+    { "key": "POSTGRES_USER", "value": "${POSTGRES_USER}", "isSecret": true },
+    { "key": "POSTGRES_PASSWORD", "value": "${POSTGRES_PASSWORD}", "isSecret": true },
+    { "key": "POSTGRES_DB", "value": "${POSTGRES_DB}", "isSecret": false },
+    { "key": "REDIS_PASSWORD", "value": "${REDIS_PASSWORD}", "isSecret": true },
+    { "key": "LLM_BASE_URL", "value": "${LLM_BASE_URL}", "isSecret": false },
+    { "key": "LLM_MODEL_NAME", "value": "${LLM_MODEL_NAME}", "isSecret": false },
+    { "key": "LLM_API_KEY", "value": "${LLM_API_KEY}", "isSecret": true },
+    { "key": "SUPABASE_JWT_SECRET", "value": "${SUPABASE_JWT_SECRET}", "isSecret": true },
+    { "key": "SUPABASE_URL", "value": "${SUPABASE_URL}", "isSecret": false },
+    { "key": "SUPABASE_SERVICE_ROLE_KEY", "value": "${SUPABASE_SERVICE_ROLE_KEY}", "isSecret": true },
+    { "key": "N8N_WEBHOOK_KEY", "value": "${N8N_WEBHOOK_KEY}", "isSecret": true },
+    { "key": "JWT_SECRET", "value": "${JWT_SECRET}", "isSecret": true },
+    { "key": "ENVIRONMENT", "value": "production", "isSecret": false },
+    { "key": "LLM_MOCK_MODE", "value": "false", "isSecret": false },
+    { "key": "SENTRY_DSN", "value": "${SENTRY_DSN:-}", "isSecret": true },
+    { "key": "TELEGRAM_BOT_TOKEN", "value": "${TELEGRAM_BOT_TOKEN}", "isSecret": true },
+    { "key": "TELEGRAM_CHAT_ID", "value": "${TELEGRAM_CHAT_ID}", "isSecret": false },
+    { "key": "OPENAI_API_KEY", "value": "${OPENAI_API_KEY:-fallback-dummy-key-for-init-only}", "isSecret": true },
+    { "key": "NESL_API_KEY", "value": "${NESL_API_KEY:-}", "isSecret": true },
+    { "key": "NESL_API_BASE_URL", "value": "${NESL_API_BASE_URL:-https://api.nesl.co.in/v1}", "isSecret": false },
+    { "key": "NESL_CLIENT_ID", "value": "${NESL_CLIENT_ID:-}", "isSecret": true },
+    { "key": "NESL_CLIENT_SECRET", "value": "${NESL_CLIENT_SECRET:-}", "isSecret": true },
+    { "key": "NESL_MOCK_DELAY_SEC", "value": "${NESL_MOCK_DELAY_SEC:-3}", "isSecret": false },
+    { "key": "IGR_PORTAL_URL", "value": "${IGR_PORTAL_URL:-}", "isSecret": false },
+    { "key": "IGR_PORTAL_USERNAME", "value": "${IGR_PORTAL_USERNAME:-}", "isSecret": true },
+    { "key": "IGR_PORTAL_PASSWORD", "value": "${IGR_PORTAL_PASSWORD:-}", "isSecret": true },
+    { "key": "GRAS_PORTAL_URL", "value": "${GRAS_PORTAL_URL:-}", "isSecret": false }
+  ],
+  "resourceLimits": {
+    "cpu": "2.0",
+    "memory": "4g",
+    "memorySwap": "4g"
+  },
+  "buildSettings": {
+    "buildPack": "dockerfile",
+    "dockerfilePath": "./ag-associates-ai/backend/Dockerfile",
+    "contextPath": "./ag-associates-ai/backend"
+  },
+  "port": 8000,
+  "healthCheckPath": "/health",
+  "healthCheckInterval": 30,
+  "healthCheckTimeout": 5,
+  "healthCheckRetries": 3,
+  "healthCheckStartPeriod": 20
+}

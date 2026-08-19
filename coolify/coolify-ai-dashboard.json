@@ -1,0 +1,72 @@
+{
+  "name": "ai-dashboard",
+  "description": "AG Associates AI Dashboard (Next.js frontend for AI backend)",
+  "type": "docker",
+  "dockerCompose": {
+    "version": "3.8",
+    "services": {
+      "ai-dashboard": {
+        "build": {
+          "context": "./ag-associates-ai/frontend",
+          "dockerfile": "Dockerfile",
+          "args": {
+            "NEXT_PUBLIC_API_URL": "https://api.${DOMAIN}"
+          }
+        },
+        "image": "ghcr.io/luxoranova9/ag-ai-dashboard:latest",
+        "container_name": "ag_ai_dashboard",
+        "restart": "unless-stopped",
+        "environment": {
+          "NEXT_PUBLIC_API_URL": "https://api.${DOMAIN}"
+        },
+        "depends_on": [
+          "ai-backend"
+        ],
+        "healthcheck": {
+          "test": ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/"],
+          "interval": "30s",
+          "timeout": "5s",
+          "start_period": "15s",
+          "retries": 3
+        },
+        "networks": ["ag_net"],
+        "labels": {
+          "coolify.managed": "true",
+          "coolify.service": "ai-dashboard"
+        }
+      }
+    },
+    "networks": {
+      "ag_net": {
+        "driver": "bridge"
+      }
+    }
+  },
+  "domains": [
+    {
+      "domain": "dashboard.${DOMAIN}",
+      "port": 3000,
+      "redirectHttp": true,
+      "https": true
+    }
+  ],
+  "environmentVariables": [
+    { "key": "NEXT_PUBLIC_API_URL", "value": "https://api.${DOMAIN}", "isSecret": false }
+  ],
+  "resourceLimits": {
+    "cpu": "1.0",
+    "memory": "1g",
+    "memorySwap": "1g"
+  },
+  "buildSettings": {
+    "buildPack": "dockerfile",
+    "dockerfilePath": "./ag-associates-ai/frontend/Dockerfile",
+    "contextPath": "./ag-associates-ai/frontend"
+  },
+  "port": 3000,
+  "healthCheckPath": "/",
+  "healthCheckInterval": 30,
+  "healthCheckTimeout": 5,
+  "healthCheckRetries": 3,
+  "healthCheckStartPeriod": 15
+}

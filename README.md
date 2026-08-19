@@ -12,7 +12,7 @@
   <a href="https://github.com/rajkhemani/AGASSOCIATES/actions"><img src="https://img.shields.io/github/actions/workflow/status/rajkhemani/AGASSOCIATES/main.yml?style=flat-square&label=CI" alt="CI Status"></a>
   <a href="https://github.com/rajkhemani/AGASSOCIATES/blob/main/LICENSE"><img src="https://img.shields.io/github/license/rajkhemani/AGASSOCIATES?style=flat-square" alt="License"></a>
   <a href="https://github.com/rajkhemani/AGASSOCIATES/pulls"><img src="https://img.shields.io/github/issues-pr/rajkhemani/AGASSOCIATES?style=flat-square&label=PRs" alt="PRs"></a>
-  <a href="https://github.com/rajkhemani/AGASSOCIATES/stargazers"><img src="https://img.shields.io/github/stars/rajkhemani/AGASSOCIATES?style=flat-square" alt="Stars"></a>
+  <a href="https://github.com/rajkhemani/AGASSOCIATES/stargazers"><img src="https://img.shields.io/github/stars/rajkhemani/AGASSOCIATES?style=flat-square&label=Stars" alt="Stars"></a>
 </p>
 
 <p align="center">
@@ -145,6 +145,7 @@ This repository contains the firm's **AI-orchestrated "Zero-Staff" platform** �
 | **Webhook** | Caddy reverse proxy + auto-TLS | Public-facing unified ingress |
 | **CI/CD** | GitHub Actions → GHCR → Docker Compose | Fully automated deploy to VPS |
 | **Monitoring** | Sentry (optional) | Error tracking with env-based sampling |
+| **Orchestration** | Coolify (Open-Source PaaS) | GitOps deploy, managed DBs, auto-HTTPS |
 
 ---
 
@@ -285,21 +286,220 @@ AGASSOCIATES/
 │   │   └── email-intake/          #   📧 IMAP-based email → case creation
 │   ├── tests/                     #   Vitest test suite
 │   ├── supabase/migrations/       #   Database migrations
-│   └── server.ts                  #   Express + Vite middleware entry
+│   ├── server.ts                  #   Express + Vite middleware entry
+│   └── docker-compose.yml         #   PostgreSQL + n8n services
 │
 ├── landing/
 │   └── index.html                # 🎨 Editorial-theme GSAP scroll landing page
 ├── docker-compose.prod.yml       # 🐳 10-service production stack
 ├── Caddyfile                     # 🌐 Caddy reverse proxy + auto-TLS
+├── Caddyfile.waf                 # 🛡️ ModSecurity WAF with OWASP CRS
 ├── Makefile                      # 🔧 Automation targets (ci, dev, lint, etc.)
 ├── scripts/                      # 📜 Provision, deploy, bootstrap helpers
-├── .github/workflows/            # ⚙️ CI + Deploy + Tagging workflows
+├── coolify/                      # 🌐 Coolify service configurations
+├── monitoring/                   # 📊 Prometheus alerts + Grafana dashboards
+├── scripts/                      # 📜 Provision, deploy, backup, rotate, migrate
+├── .github/workflows/            # ⚙️ CI + Deploy + Tagging + Security workflows
 ├── tasks/                        # 📋 Task tracking (todo.md) + lessons (lessons.md)
 ├── docs/                         # 📚 ADRs, NOI pipeline, strategic plan
 ├── content/                      # 📄 Static marketing content (GitHub Pages)
 ├── CLAUDE.md                     # 📖 AI agent playbook (architecture, gotchas)
+├── AGENTS.md                     # 📖 OpenCode session guide
+├── AUTOMATION_PLAN.md            # 📋 Full automation roadmap
 └── *_GUIDELINES.md               # 📐 Domain-specific engineering policies
 ```
+
+---
+
+## 🌐 Coolify Deployment (Open-Source PaaS)
+
+**Coolify** is the open-source Heroku/Netlify alternative that runs on your VPS. It provides GitOps deployments, managed databases, auto-HTTPS, and monitoring — all on your own infrastructure.
+
+### Deployment Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      COOLIFY ON HETZNER VPS                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Hetzner CPX31 (4 vCPU, 8GB RAM, 160GB NVMe)  €16.90/mo                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Coolify (Open-Source PaaS)                                                 │
+│  ├── GitOps: Push to main → Auto-deploy                                     │
+│  ├── Auto HTTPS (Let's Encrypt)                                             │
+│  ├── Managed PostgreSQL (pgvector enabled)                                  │
+│  ├── Managed Redis                                                          │
+│  ├── Managed MinIO (S3-compatible storage)                                  │
+│  ├── Prometheus + Grafana + Loki (Built-in)                                 │
+│  ├── Automated Backups (S3/MinIO)                                           │
+│  ├── Resource Monitoring & Alerting                                         │
+│  └── Zero-downtime Deployments                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  Services (Auto-deployed via Coolify)                                       │
+│  ├── ag-ai-backend (FastAPI)                                                │
+│  ├── ai-dashboard (Next.js)                                                 │
+│  ├── ag-platform (Vite + Express)                                           │
+│  ├── intake-api (Fastify)                                                   │
+│  ├── telegram-bot (Worker)                                                  │
+│  ├── email-intake (Worker)                                                  │
+│  ├── coordinator (Worker)                                                   │
+│  ├── n8n (Optional)                                                         │
+│  └── Caddy (Static sites via Coolify)                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Coolify Service Configurations
+
+All service definitions are in the `coolify/` directory:
+
+| Service | Config File | Type | Port | Domain |
+|---------|-------------|------|------|--------|
+| `ag-ai-backend` | `coolify-ag-ai-backend.json` | Docker Compose | 8000 | api.${DOMAIN} |
+| `ag-platform` | `coolify-ag-platform.json` | Docker Compose | 3001 | app.${DOMAIN} |
+| `ai-dashboard` | `coolify-ai-dashboard.json` | Docker Compose | 3000 | dashboard.${DOMAIN} |
+| `intake-api` | `coolify-intake-api.json` | Docker Compose | 3002 | intake.${DOMAIN} |
+| `telegram-bot` | `coolify-telegram-bot.json` | Worker | — | — |
+| `email-intake` | `coolify-email-intake.json` | Worker | — | — |
+| `coordinator` | `coolify-coordinator.json` | Worker | 3005 | coordinator.${DOMAIN} |
+| `n8n` | `coolify-n8n.json` | Docker Compose | 5678 | n8n.${DOMAIN} |
+
+### Quick Deploy to Coolify
+
+```bash
+# 1. Provision Hetzner VPS (CPX31, Ubuntu 24.04)
+# 2. Install Coolify
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+
+# 3. Access Coolify UI at https://<VPS_IP>:8000
+# 4. Connect GitHub repo: rajkhemani/AGASSOCIATES
+# 5. Add resources in Coolify UI:
+#    - PostgreSQL (enable pgvector extension)
+#    - Redis
+#    - MinIO (S3-compatible storage)
+# 6. Add services using coolify/*.json configs
+# 7. Configure domains → Auto-HTTPS via Let's Encrypt
+# 7. Push to main → Auto-deploy
+```
+
+---
+
+## 🔧 Automation Plan & Scripts
+
+### Complete Automation Roadmap
+
+The full automation roadmap is documented in [`AUTOMATION_PLAN.md`](./AUTOMATION_PLAN.md) with 7 phases:
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| **1** | Critical Fixes & Migration | ✅ Complete |
+| **2** | Coolify Deployment | 🔄 In Progress |
+| **3** | GitOps CI/CD | ✅ Workflow Ready |
+| **4** | Monitoring & Alerting | ✅ Configs Ready |
+| **5** | Backup & DR | ✅ Scripts Ready |
+| **6** | NOI Workflow Automation | ✅ Implemented |
+| **7** | Security Hardening | ✅ Configs Ready |
+
+### Key Automation Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/migrate.py` | Unified migration runner with tracking |
+| `scripts/rotate_secrets.py` | 90-day secret rotation via Coolify API |
+| `scripts/backup.sh` | Restic backup (PostgreSQL, Redis, volumes) |
+| `scripts/bootstrap-vps.sh` | Idempotent VPS provisioning |
+| `scripts/deploy-all.sh` | Master deployment automation |
+| `scripts/provision.sh` | Infrastructure provisioning |
+
+### GitOps CI/CD Pipeline
+
+The pipeline is defined in `.github/workflows/`:
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `main.yml` | Push/PR to main | CI: lint, type-check, test, build |
+| `deploy.yml` | Push to main | Build → GHCR → SSH deploy to VPS |
+| `coolify-deploy.yml` | Push/Dispatch | Trigger Coolify deploy via API |
+| `security-scan.yml` | Push/PR | Trivy vulnerability scan |
+
+---
+
+## 🔒 Security Hardening
+
+### mTLS Configuration
+
+Complete mTLS configuration in [`security/mtls-config.yaml`](./security/mtls-config.yaml):
+
+- **Root CA + Intermediate CA** for service mesh
+- **90-day certificate rotation** with auto-renewal
+- **STRICT mode** — all service-to-service communication encrypted
+- **Coolify integration** for certificate management
+
+### WAF Configuration
+
+ModSecurity WAF with OWASP CRS in [`Caddyfile.waf`](./Caddyfile.waf):
+
+- OWASP CRS 4.x rules
+- Custom rules for SQL injection, XSS, path traversal, command injection
+- Rate limiting (100 req/5min per IP)
+- Geo-blocking support
+- Bot detection
+- Audit logging in JSON format
+
+### Secret Management
+
+Automated 90-day rotation via [`scripts/rotate_secrets.py`](./scripts/rotate_secrets.py):
+
+- Coolify API integration for secret updates
+- Automatic service redeployment
+- Slack/Email/Teams notifications
+- Dry-run mode for testing
+- Rotation status dashboard
+
+---
+
+## 📊 Monitoring & Observability
+
+### Prometheus Alerting Rules
+
+Complete alerting in [`monitoring/alerts.yml`](./monitoring/alerts.yml):
+
+| Alert Group | Key Alerts |
+|-----------|------------|
+| **Service Health** | ServiceDown, HighErrorRate, HighLatency |
+| **Database** | ConnectionsHigh, ReplicationLag, LongRunningQueries |
+| **Redis** | MemoryHigh, ConnectionsHigh, Down |
+| **Infrastructure** | DiskSpace, CPU, Memory, NetworkErrors |
+| **NOI Workflow** | Stuck, Failed, QueueBacklog, Latency, ValidationFailures |
+| **Business** | CaseVolumeDrop, ChallanVolumeDrop, RevenueDrop, PaymentFailures |
+| **SLA** | AvailabilityBreach, LatencyBreach, ErrorBudgetBurnRate |
+
+### Grafana Dashboards
+
+Pre-built dashboards in `monitoring/dashboards/`:
+- Service health overview
+- NOI workflow pipeline
+- Business metrics (cases, challans, revenue)
+- Infrastructure resources
+
+---
+
+## 💾 Backup & Disaster Recovery
+
+### Automated Backups
+
+[`scripts/backup.sh`](./scripts/backup.sh) with Restic:
+
+- **PostgreSQL**: `pg_dump` → MinIO (encrypted)
+- **Redis**: RDB snapshot → MinIO
+- **Application volumes**: `/srv/ag/ag_output`, `/srv/ag/ag_documents`
+- **Encryption**: AES-256
+- **Retention**: 30 daily, 12 weekly, 12 monthly
+
+### Disaster Recovery
+
+- **RTO**: 30 minutes, **RPO**: 1 hour
+- Automated restore scripts: [`scripts/restore.sh`](./scripts/restore.sh)
+- DR test script: [`scripts/dr_test.sh`](./scripts/dr_test.sh)
+- Backup verification: [`scripts/verify_backups.sh`](./scripts/verify_backups.sh)
 
 ---
 
@@ -442,6 +642,44 @@ pre-commit run --all-files  # run all hooks manually
 
 ---
 
+## 🌐 Coolify Deployment (Production)
+
+### Prerequisites
+
+- Hetzner Cloud VPS (CPX31, 4 vCPU, 8GB RAM, 160GB NVMe) — €16.90/mo
+- Domain with DNS pointing to VPS (`advadiityagade.com`)
+
+### One-Command Deploy
+
+```bash
+# On VPS (as deploy user)
+cd /srv/ag/repo
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### Automated Deploy via Coolify (GitOps)
+
+1. **Provision VPS** (Hetzner CPX31, Ubuntu 24.04)
+2. **Install Coolify**: `curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash`
+3. **Configure Resources** in Coolify UI:
+   - PostgreSQL (enable pgvector)
+   - Redis
+   - MinIO (S3-compatible storage)
+4. **Deploy Services** via `coolify/*.json` configs
+5. **Configure Domains** → Auto-HTTPS via Let's Encrypt
+6. **Push to main** → Auto-deploy via GitHub Actions
+
+### CI/CD Pipeline
+
+```yaml
+# .github/workflows/coolify-deploy.yml triggers on push to main
+# Triggers Coolify deploy via API
+# Waits for deployment completion
+# Runs smoke tests against deployed endpoints
+```
+
+---
+
 ## ⚙️ Environment Variables
 
 ### Required Variables (copy `.env.example` to `.env` and fill in)
@@ -464,162 +702,25 @@ pre-commit run --all-files  # run all hooks manually
 
 ---
 
-## 🏗 Phase-by-Phase Feature Overview
-
-### Phase 1: Security Hardening ✅
-- **JWT bypass replaced** with real Supabase Auth (`@supabase/ssr`)
-- **RLS enabled** on all 10 tables with org isolation policies
-- **Zod validation** on all API routes (cases, timesheets, documents, invoices, banks)
-- **CORS** with strict allowlist + credentials
-- **Rate limiting**: global (1000/15min), auth (20/15min), webhooks (60/min), AI (100/15min)
-
-### Phase 2: Test Suites ✅
-- **ag-associates-ai (pytest)**: 55 tests (NOI agent, executor/RPA, multi-agent)
-- **ag-platform (Vitest)**: 9 tests (validation, auth, routes)
-- **CI**: GitHub Actions runs both suites with coverage thresholds
-
-### Phase 3: Observability ✅
-- **ag-associates-ai**: `structlog` + correlation IDs, Prometheus metrics (`/metrics`), OpenTelemetry tracing, `/health/deep`
-- **ag-platform**: `pino` structured logging, Prometheus metrics (`/metrics`), deep health checks
-
-### Phase 4: API Versioning & Architecture ✅
-- All routes under `/api/v1/` prefix
-- OpenAPI 3.0 spec + Scalar docs at `/api/v1/docs`
-- Turborepo fixed: Vite app moved to `apps/web/`
-
-### Phase 5: Data Integrity & Workflow Engine ✅
-
-| Sub-phase | Feature | Key Capabilities |
-|-----------|---------|------------------|
-| **5A** | Real NeSL/IGR | Idempotency keys, retry logic, Redis deduplication, circuit breaker + HITL |
-| **5B** | Billing Engine | `generateInvoiceFromTimesheets()`, bank advance reconciliation, cron for overdue |
-| **5C** | Job Queue | BullMQ (10 queues), workers, cron (overdue 9AM, reconciliation 10-6PM, bank sync 30min) |
-| **5D** | File Upload | Supabase Storage signed URLs, direct client-to-storage, complete flow |
-| **5E** | Audit Trail | `audit_trail` table + triggers, `AuditEvents` namespace (40+ event types) |
-| **5F** | SLA/Escalation | Per-case-type configs, business-hours deadlines, auto-escalation, dashboard |
-| **5G** | Bank Portals | White-label configs, per-bank workflows (Kotak/HDFC/ICICI defaults) |
-
----
-
-## 🔌 API Reference
-
-### Base URL
-```
-Development: http://localhost:3001/api/v1
-Production:  https://api.advadiityagade.com/api/v1
-```
-
-### Authentication
-```
-Authorization: Bearer <Supabase JWT>
-X-Request-ID: <auto-generated>
-```
-
-### Core Endpoints
-
-| Resource | Endpoints |
-|----------|-----------|
-| **Auth** | `POST /auth/login`, `POST /auth/register`, `GET /auth/me`, `POST /auth/logout`, `POST /auth/refresh` |
-| **Cases** | `GET /cases`, `POST /cases`, `GET /cases/:id`, `PATCH /cases/:id`, `PUT /cases/:id/status`, `GET /cases/:id/timeline`, `GET /cases/stats` |
-| **Documents** | `GET /cases/:caseId/documents`, `POST /cases/:caseId/documents/upload-url`, `POST /cases/:caseId/documents/complete`, `GET /cases/:caseId/documents/:documentId/download`, `DELETE /cases/:caseId/documents/:documentId`, `GET /cases/:caseId/documents/list` |
-| **Timesheets** | `GET /timesheets`, `POST /timesheets`, `GET /cases/:caseId/billable`, `GET /summary` |
-| **Invoices** | `POST /invoices`, `GET /invoices`, `GET /invoices/outstanding`, `GET /invoices/:id`, `POST /invoices/:id/send`, `POST /invoices/:id/paid`, `POST /invoices/auto-overdue` |
-| **Bank Portal** | `GET /bank-portal`, `POST /bank-portal`, `GET /bank-portal/:bankId`, `GET/POST /bank-portal/:bankId/workflows`, `POST /bank-portal/:bankId/initialize`, `GET /bank-portal/public/:domain` |
-| **Dashboard** | `GET /dashboard/status`, `GET /dashboard/sla`, `POST /dashboard/sla/check` |
-| **AI** | `POST /ai/generate-brief`, `POST /ai/suggest-tasks`, `POST /ai/draft-email`, `POST /ai/send-email`, `POST /ai/invoice-line-item`, `POST /ai/summarize-document`, `POST /ai/search-projects`, `POST /ai/ingest-project`, `POST /ai/vet-document` |
-| **System** | `GET /health`, `GET /health/deep`, `GET /metrics`, `GET /api/v1/queue/metrics` |
-| **Webhooks** | `POST /webhooks/virus-scan`, `POST /webhooks/whatsapp`, `POST /webhooks/n8n/intake` |
-
-### Example: Create Case
-
-```bash
-curl -X POST http://localhost:3001/api/v1/cases \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "borrower_name": "Rajesh Kumar",
-    "org_id": "7f45dc5f-6bef-4fae-b46a-a2306e69936d",
-    "bank_id": "7407ac8f-0cb7-434e-994c-4329a11939a7",
-    "case_type": "INTIMATION_MORTGAGE",
-    "loan_amount": 5000000,
-    "property_address": "Flat 101, Building A, Thane West",
-    "property_city": "Thane"
-  }'
-```
-
-### Example: Generate Invoice from Timesheets
-
-```bash
-curl -X POST http://localhost:3001/api/v1/invoices \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "case_ids": ["uuid-1", "uuid-2"],
-    "bank_id": "7407ac8f-0cb7-434e-994c-4329a11939a7",
-    "tax_rate": 0.18,
-    "payment_terms_days": 30
-  }'
-```
-
-### Example: Get Signed Document Upload URL
-
-```bash
-curl -X POST http://localhost:3001/api/v1/cases/<case-id>/documents/upload-url \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "fileName": "sanction_letter.pdf",
-    "contentType": "application/pdf",
-    "category": "sanction_letter"
-  }'
-```
-
----
-
 ## 🏭 Production Deployment
 
-### Prerequisites
-
-- Hetzner Cloud VPS (CCX23, 4 vCPU, 32 GB RAM) — Ubuntu 22.04 LTS
-- Docker 24+ & Docker Compose v2
-- Domain with DNS pointing to VPS (`advadiityagade.com`)
-- GitHub repository with Actions enabled
-
-### One-Command Deploy
+### Health Checks
 
 ```bash
-# On VPS (as deploy user)
-cd /srv/ag/repo
-docker compose -f docker-compose.prod.yml up -d
+# Basic
+curl https://api.advadiityagade.com/health
+
+# Deep (checks DB, Redis, vLLM, Supabase, NeSL)
+curl https://api.advadiityagade.com/health/deep
+
+# Metrics
+curl https://api.advadiityagade.com/metrics
+
+# Queue metrics
+curl https://api.advadiityagade.com/api/v1/queue/metrics
 ```
 
-### CI/CD Pipeline (Automatic on push to `main`)
-
-```yaml
-# .github/workflows/deploy.yml triggers on:
-# - ag-associates-ai/** changes
-# - ag-platform/** changes
-# - docker-compose.prod.yml changes
-
-# Builds 3 images → GHCR → SSH deploy to VPS
-# Smoke test: GET https://api.advadiityagade.com/health → 200 OK
-```
-
-### Required GitHub Secrets
-
-| Secret | Value |
-|--------|-------|
-| `VPS_HOST` | `46.225.185.91` |
-| `VPS_PORT` | `22` |
-| `VPS_USER` | `deploy` |
-| `VPS_SSH_KEY` | Ed25519 private key |
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key |
-| `SUPABASE_JWT_SECRET` | JWT secret |
-| `GITHUB_TOKEN` | Auto-provided |
-
-### Manual VPS Bootstrap
+### Production Bootstrap
 
 ```bash
 # On fresh VPS
@@ -641,41 +742,28 @@ cp .env.example .env
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-### Health Checks
-
-```bash
-# Basic
-curl https://api.advadiityagade.com/health
-
-# Deep (checks DB, Redis, vLLM, Supabase, NeSL)
-curl https://api.advadiityagade.com/health/deep
-
-# Metrics
-curl https://api.advadiityagade.com/metrics
-
-# Queue metrics
-curl https://api.advadiityagade.com/api/v1/queue/metrics
-```
-
 ---
 
 ## 🔒 Security
 
 - **Row-Level Security**: Supabase RLS isolates bank/client data at database level
 - **Agent RBAC**: Per-agent access control (`agent.<name>.access`)
-- **Data Sovereignty**: Deployed in `ap-south-1` (Mumbai) for Indian banking compliance
+- **Data Sovereignty**: Deployed in EU (Nuremberg/Falkenstein) for GDPR compliance
 - **Audit Logging**: Every case state transition logged to immutable `audit_trail`
 - **Document Vault**: Private buckets with 60-second signed URLs
 - **Magic Links**: Passwordless client access with time-limited tokens
 - **Webhook Auth**: `x-api-key` verification via `secrets.compare_digest`
 - **Secret Scanning**: Pre-commit hook (`detect-private-key`) prevents credential leaks
 - **Circuit Breaker**: External API resilience with HITL failover
+- **mTLS**: Service-to-service encryption via `security/mtls-config.yaml`
+- **WAF**: ModSecurity + OWASP CRS in `Caddyfile.waf`
 
 ---
 
 ## 🗺 Roadmap
 
 ### Phase 6: Multi-Agent Intelligence (In Progress)
+
 - [ ] Agent health monitoring (heartbeat, error rate, latency)
 - [ ] Agent-to-agent tracing (OpenTelemetry across Redis Streams)
 - [ ] RAG evaluation pipeline (precision@k, recall, hallucination rate)
@@ -684,6 +772,7 @@ curl https://api.advadiityagade.com/api/v1/queue/metrics
 - [ ] Semantic case search (pgvector on case_timeline + documents)
 
 ### Phase 7: luxor9 SaaS Platform
+
 - [ ] Multi-tenant architecture (org_id parameterized)
 - [ ] Stripe/Razorpay billing + webhook handling
 - [ ] Self-serve onboarding wizard (org → bank panel → team → go live)

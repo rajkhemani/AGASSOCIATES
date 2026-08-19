@@ -11,7 +11,7 @@ const redisPassword = process.env.REDIS_PASSWORD || '';
 
 export const redis = new Redis(redisUrl, {
   password: redisPassword || undefined,
-  maxRetriesPerRequest: 3,
+  maxRetriesPerRequest: null,
   retryStrategy: (times) => Math.min(times * 50, 2000),
   lazyConnect: true,
 });
@@ -74,8 +74,15 @@ export function createQueue(name: string): Queue {
   return queues[name];
 }
 
-// Initialize all queues
-Object.values(QUEUES).forEach(createQueue);
+// Initialize all queues lazily
+let queuesInitialized = false;
+
+export function initializeQueues() {
+  if (!queuesInitialized) {
+    Object.values(QUEUES).forEach(createQueue);
+    queuesInitialized = true;
+  }
+}
 
 // Job types
 export interface InvoiceGenerationJob {

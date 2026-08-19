@@ -1,0 +1,363 @@
+name: Coolify GitOps Deployment
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        type: choice
+        required: true
+        options:
+          - staging
+          - production
+      service:
+        description: 'Specific service to deploy (optional, deploys all if not specified)'
+        type: string
+        required: false
+
+env:
+  COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+  COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy Staging Services
+        id: deploy-staging
+        run: |
+          # Deploy all staging services or specific service
+          SERVICES=(
+            "COOLIFY_APP_UUID_STAGING_API"
+            "COOLIFY_APP_UUID_STAGING_WEB"
+            "COOLIFY_APP_UUID_STAGING_WORKER"
+          )
+          
+          if [ -n "${{ github.event.inputs.service }}" ]; then
+            SERVICE_VAR="COOLIFY_APP_UUID_STAGING_${{ github.event.inputs.service | upper }}"
+            if [ -n "${!SERVICE_VAR}" ]; then
+              SERVICES=("$SERVICE_VAR")
+            else
+              echo "Service ${{ github.event.inputs.service }} not found in staging secrets"
+              exit 1
+            fi
+          fi
+
+          for SERVICE_VAR in "${SERVICES[@]}"; do
+            UUID="${!SERVICE_VAR}"
+            if [ -z "$UUID" ]; then
+              echo "Warning: $SERVICE_VAR not set, skipping"
+              continue
+            fi
+            
+            echo "Deploying $SERVICE_VAR ($UUID)..."
+            DEPLOY_RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              "$COOLIFY_API_URL/api/v1/applications/$UUID/deploy")
+            
+            DEPLOYMENT_ID=$(echo "$DEPLOY_RESPONSE" | jq -r '.deployment_id // .id // empty')
+            if [ -z "$DEPLOYMENT_ID" ]; then
+              echo "Failed to trigger deployment for $SERVICE_VAR"
+              echo "$DEPLOY_RESPONSE"
+              exit 1
+            fi
+            
+            echo "Deployment triggered: $DEPLOYMENT_ID"
+            echo "deployment_id_${SERVICE_VAR}=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
+          done
+
+      - name: Wait for Staging Deployments
+        run: |
+          SERVICES=(
+            "COOLIFY_APP_UUID_STAGING_API"
+            "COOLIFY_APP_UUID_STAGING_WEB"
+            "COOLIFY_APP_UUID_STAGING_WORKER"
+          )
+          
+          if [ -n "${{ github.event.inputs.service }}" ]; then
+            SERVICE_VAR="COOLIFY_APP_UUID_STAGING_${{ github.event.inputs.service | upper }}"
+            if [ -n "${!SERVICE_VAR}" ]; then
+              SERVICES=("$SERVICE_VAR")
+            fi
+          fi
+
+          for SERVICE_VAR in "${SERVICES[@]}"; do
+            UUID="${!SERVICE_VAR}"
+            if [ -z "$UUID" ]; then
+              continue
+            fi
+            
+            DEPLOYMENT_ID="deployment_id_${SERVICE_VAR}"
+            DEPLOYMENT_ID="${!DEPLOYMENT_ID}"
+            
+            echo "Waiting for deployment $DEPLOYMENT_ID of $SERVICE_VAR..."
+            
+            MAX_ATTEMPTS=60
+            ATTEMPT=0
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+              STATUS_RESPONSE=$(curl -s -X GET \
+                -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+                "$COOLIFY_API_URL/api/v1/applications/$UUID/deployments/latest")
+              
+              STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status // empty')
+              CURRENT_DEPLOYMENT_ID=$(echo "$STATUS_RESPONSE" | jq -r '.id // empty')
+              
+              if [ "$CURRENT_DEPLOYMENT_ID" = "$DEPLOYMENT_ID" ] || [ -z "$DEPLOYMENT_ID" ]; then
+                case "$STATUS" in
+                  "success"|"completed")
+                    echo "Deployment $DEPLOYMENT_ID completed successfully"
+                    break
+                    ;;
+                  "failed"|"error")
+                    echo "Deployment $DEPLOYMENT_ID failed"
+                    echo "$STATUS_RESPONSE" | jq .
+                    exit 1
+                    ;;
+                  "building"|"deploying"|"pending"|"running")
+                    echo "Deployment in progress: $STATUS (attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
+                    ;;
+                  *)
+                    echo "Unknown status: $STATUS"
+                    ;;
+                esac
+              fi
+              
+              ATTEMPT=$((ATTEMPT+1))
+              sleep 10
+            done
+            
+            if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+              echo "Deployment timed out after $((MAX_ATTEMPTS * 10)) seconds"
+              exit 1
+            fi
+          done
+
+      - name: Run Staging Smoke Tests
+        run: |
+          # Wait a bit for services to fully stabilize
+          sleep 30
+          
+          # Test API health endpoint
+          API_URL="${{ secrets.STAGING_API_URL }}"
+          if [ -n "$API_URL" ]; then
+            echo "Testing API health at $API_URL/health"
+            for i in {1..10}; do
+              if curl -sf "$API_URL/health" > /dev/null; then
+                echo "API health check passed"
+                break
+              fi
+              echo "Attempt $i/10: API not ready, waiting..."
+              sleep 10
+            done
+            if ! curl -sf "$API_URL/health" > /dev/null; then
+              echo "API health check failed after 10 attempts"
+              exit 1
+            fi
+          fi
+          
+          # Test Web frontend
+          WEB_URL="${{ secrets.STAGING_WEB_URL }}"
+          if [ -n "$WEB_URL" ]; then
+            echo "Testing Web frontend at $WEB_URL"
+            for i in {1..10}; do
+              if curl -sf "$WEB_URL" > /dev/null; then
+                echo "Web frontend check passed"
+                break
+              fi
+              echo "Attempt $i/10: Web not ready, waiting..."
+              sleep 10
+            done
+            if ! curl -sf "$WEB_URL" > /dev/null; then
+              echo "Web frontend check failed after 10 attempts"
+              exit 1
+            fi
+          fi
+
+  deploy-production:
+    name: Deploy to Production
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy Production Services
+        id: deploy-production
+        run: |
+          # Deploy all production services or specific service
+          SERVICES=(
+            "COOLIFY_APP_UUID_PRODUCTION_API"
+            "COOLIFY_APP_UUID_PRODUCTION_WEB"
+            "COOLIFY_APP_UUID_PRODUCTION_WORKER"
+          )
+          
+          if [ -n "${{ github.event.inputs.service }}" ]; then
+            SERVICE_VAR="COOLIFY_APP_UUID_PRODUCTION_${{ github.event.inputs.service | upper }}"
+            if [ -n "${!SERVICE_VAR}" ]; then
+              SERVICES=("$SERVICE_VAR")
+            else
+              echo "Service ${{ github.event.inputs.service }} not found in production secrets"
+              exit 1
+            fi
+          fi
+
+          for SERVICE_VAR in "${SERVICES[@]}"; do
+            UUID="${!SERVICE_VAR}"
+            if [ -z "$UUID" ]; then
+              echo "Warning: $SERVICE_VAR not set, skipping"
+              continue
+            fi
+            
+            echo "Deploying $SERVICE_VAR ($UUID)..."
+            DEPLOY_RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              "$COOLIFY_API_URL/api/v1/applications/$UUID/deploy")
+            
+            DEPLOYMENT_ID=$(echo "$DEPLOY_RESPONSE" | jq -r '.deployment_id // .id // empty')
+            if [ -z "$DEPLOYMENT_ID" ]; then
+              echo "Failed to trigger deployment for $SERVICE_VAR"
+              echo "$DEPLOY_RESPONSE"
+              exit 1
+            fi
+            
+            echo "Deployment triggered: $DEPLOYMENT_ID"
+            echo "deployment_id_${SERVICE_VAR}=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
+          done
+
+      - name: Wait for Production Deployments
+        run: |
+          SERVICES=(
+            "COOLIFY_APP_UUID_PRODUCTION_API"
+            "COOLIFY_APP_UUID_PRODUCTION_WEB"
+            "COOLIFY_APP_UUID_PRODUCTION_WORKER"
+          )
+          
+          if [ -n "${{ github.event.inputs.service }}" ]; then
+            SERVICE_VAR="COOLIFY_APP_UUID_PRODUCTION_${{ github.event.inputs.service | upper }}"
+            if [ -n "${!SERVICE_VAR}" ]; then
+              SERVICES=("$SERVICE_VAR")
+            fi
+          fi
+
+          for SERVICE_VAR in "${SERVICES[@]}"; do
+            UUID="${!SERVICE_VAR}"
+            if [ -z "$UUID" ]; then
+              continue
+            fi
+            
+            DEPLOYMENT_ID="deployment_id_${SERVICE_VAR}"
+            DEPLOYMENT_ID="${!DEPLOYMENT_ID}"
+            
+            echo "Waiting for deployment $DEPLOYMENT_ID of $SERVICE_VAR..."
+            
+            MAX_ATTEMPTS=60
+            ATTEMPT=0
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+              STATUS_RESPONSE=$(curl -s -X GET \
+                -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+                "$COOLIFY_API_URL/api/v1/applications/$UUID/deployments/latest")
+              
+              STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status // empty')
+              CURRENT_DEPLOYMENT_ID=$(echo "$STATUS_RESPONSE" | jq -r '.id // empty')
+              
+              if [ "$CURRENT_DEPLOYMENT_ID" = "$DEPLOYMENT_ID" ] || [ -z "$DEPLOYMENT_ID" ]; then
+                case "$STATUS" in
+                  "success"|"completed")
+                    echo "Deployment $DEPLOYMENT_ID completed successfully"
+                    break
+                    ;;
+                  "failed"|"error")
+                    echo "Deployment $DEPLOYMENT_ID failed"
+                    echo "$STATUS_RESPONSE" | jq .
+                    exit 1
+                    ;;
+                  "building"|"deploying"|"pending"|"running")
+                    echo "Deployment in progress: $STATUS (attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
+                    ;;
+                  *)
+                    echo "Unknown status: $STATUS"
+                    ;;
+                esac
+              fi
+              
+              ATTEMPT=$((ATTEMPT+1))
+              sleep 10
+            done
+            
+            if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+              echo "Deployment timed out after $((MAX_ATTEMPTS * 10)) seconds"
+              exit 1
+            fi
+          done
+
+      - name: Run Production Smoke Tests
+        run: |
+          # Wait a bit for services to fully stabilize
+          sleep 30
+          
+          # Test API health endpoint
+          API_URL="${{ secrets.PRODUCTION_API_URL }}"
+          if [ -n "$API_URL" ]; then
+            echo "Testing API health at $API_URL/health"
+            for i in {1..10}; do
+              if curl -sf "$API_URL/health" > /dev/null; then
+                echo "API health check passed"
+                break
+              fi
+              echo "Attempt $i/10: API not ready, waiting..."
+              sleep 10
+            done
+            if ! curl -sf "$API_URL/health" > /dev/null; then
+              echo "API health check failed after 10 attempts"
+              exit 1
+            fi
+          fi
+          
+          # Test Web frontend
+          WEB_URL="${{ secrets.PRODUCTION_WEB_URL }}"
+          if [ -n "$WEB_URL" ]; then
+            echo "Testing Web frontend at $WEB_URL"
+            for i in {1..10}; do
+              if curl -sf "$WEB_URL" > /dev/null; then
+                echo "Web frontend check passed"
+                break
+              fi
+              echo "Attempt $i/10: Web not ready, waiting..."
+              sleep 10
+            done
+            if ! curl -sf "$WEB_URL" > /dev/null; then
+              echo "Web frontend check failed after 10 attempts"
+              exit 1
+            fi
+          fi
+
+  notify:
+    name: Notification
+    needs: [deploy-staging, deploy-production]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send deployment status
+        run: |
+          STATUS="${{ needs.deploy-staging.result }}/${{ needs.deploy-production.result }}"
+          echo "Deployment completed with status: $STATUS"
+          
+          # Add your notification logic here (Slack, Discord, Email, etc.)
+          # Example for Slack:
+          # if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+          #   curl -X POST -H 'Content-type: application/json' \
+          #     --data "{\"text\":\"Deployment ${STATUS}\"}" \
+          #     ${{ secrets.SLACK_WEBHOOK_URL }}
+          # fi
