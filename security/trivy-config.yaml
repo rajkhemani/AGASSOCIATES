@@ -1,0 +1,637 @@
+# Trivy Vulnerability Scanning Configuration for AGASSOCIATES Stack
+# Compatible with Coolify deployment and CI/CD pipelines
+
+# Global Trivy Configuration
+# Place this file at: .trivy.yaml or trivy-config.yaml
+
+# =============================================================================
+# SCAN TARGETS
+# =============================================================================
+target:
+  # Container images to scan (used in CI/CD)
+  image:
+    - "ghcr.io/rajkhemani/ag-ai-backend:latest"
+    - "ghcr.io/rajkhemani/ag-ai-dashboard:latest"
+    - "ghcr.io/rajkhemani/ag-platform:latest"
+    - "ghcr.io/rajkhemani/ag-intake-api:latest"
+    - "ghcr.io/rajkhemani/ag-coordinator:latest"
+
+  # Filesystem paths to scan (for local development)
+  filesystem:
+    - "ag-associates-ai/backend"
+    - "ag-associates-ai/frontend"
+    - "ag-platform"
+    - "ag-platform/services/intake-api"
+    - "ag-platform/services/coordinator"
+
+  # Git repositories to scan
+  git:
+    - "https://github.com/rajkhemani/AGASSOCIATES.git"
+
+  # Kubernetes resources (for cluster scanning)
+  kubernetes:
+    - "security/network-policies.yaml"
+    - "docker-compose.prod.yml"
+    - "Caddyfile"
+
+# =============================================================================
+# VULNERABILITY SCANNING SETTINGS
+# =============================================================================
+vulnerability:
+  # Severity levels to report
+  severity:
+    - "CRITICAL"
+    - "HIGH"
+    - "MEDIUM"
+    - "LOW"
+
+  # Ignore unfixed vulnerabilities
+  ignore_unfixed: false
+
+  # Ignore specific vulnerabilities (CVE IDs)
+  ignore:
+    # Example: Ignore known false positives or accepted risks
+    # - "CVE-2023-1234"
+    # - "CVE-2024-5678"
+
+  # Vulnerability databases to use
+  db:
+    # Primary vulnerability database
+    - "ghcr.io/aquasecurity/trivy-db:2"
+    # Java-specific database
+    - "ghcr.io/aquasecurity/trivy-java-db:1"
+
+  # Skip database update (for offline/air-gapped environments)
+  skip_db_update: false
+
+  # Database repository (for custom/air-gapped)
+  # db_repository: "your-registry.com/trivy-db"
+
+  # Timeout for database download
+  db_download_timeout: "5m"
+
+  # Scan only fixed vulnerabilities (available patches)
+  only_fixed: false
+
+  # Output format for vulnerabilities
+  format: "table"
+
+  # Output template (for custom formats)
+  # template: "@contrib/table.tpl"
+
+  # Exit code on vulnerability detection
+  exit_code: 1
+
+  # Ignore exit code for specific severities
+  ignore_exit_code: false
+
+# =============================================================================
+# MISCONFIGURATION SCANNING (IaC)
+# =============================================================================
+misconfiguration:
+  # Enable misconfiguration scanning
+  enabled: true
+
+  # Policy namespaces to scan
+  namespaces:
+    - "builtin"        # Built-in policies
+    - "kubernetes"     # Kubernetes policies
+    - "docker"         # Docker policies
+    - "terraform"      # Terraform policies
+    - "cloudformation" # CloudFormation policies
+
+  # Custom policy paths
+  policy_paths:
+    - "security/policies"
+
+  # Severity levels for misconfigurations
+  severity:
+    - "CRITICAL"
+    - "HIGH"
+    - "MEDIUM"
+    - "LOW"
+
+  # Ignore specific misconfigurations
+  ignore:
+    # Example: Ignore specific policy IDs
+    # - "KSV001"
+    # - "DSV002"
+
+  # Include only specific policy types
+  # include:
+  #   - "kubernetes"
+  #   - "docker"
+
+  # Exclude policy types
+  # exclude:
+  #   - "terraform"
+
+  # Trace output for debugging
+  trace: false
+
+# =============================================================================
+# SECRET SCANNING
+# =============================================================================
+secret:
+  # Enable secret scanning
+  enabled: true
+
+  # Secret scanning configuration
+  config:
+    # Path to secret config file
+    # path: "security/trivy-secret-config.yaml"
+
+  # Severity levels for secrets
+  severity:
+    - "CRITICAL"
+    - "HIGH"
+    - "MEDIUM"
+    - "LOW"
+
+  # Ignore specific secret patterns
+  ignore:
+    # Example: Ignore test keys
+    # - "test.*key"
+    # - "example.*secret"
+
+  # Allowlisted secret patterns (known safe)
+  allowlist:
+    # Example: Public keys, example configs
+    # - "public.*key"
+    # - "example.*config"
+
+# =============================================================================
+# LICENSE SCANNING
+# =============================================================================
+license:
+  # Enable license scanning
+  enabled: true
+
+  # License categories to flag
+  categories:
+    - "forbidden"
+    - "restricted"
+    - "reciprocal"
+
+  # Forbidden licenses (will fail the scan)
+  forbidden:
+    - "AGPL-3.0"
+    - "GPL-3.0"
+    - "LGPL-3.0"
+    - "SSPL-1.0"
+    - "Commons Clause"
+    - "Elastic-2.0"
+    - "MongoDB-2.0"
+
+  # Restricted licenses (warning only)
+  restricted:
+    - "GPL-2.0"
+    - "LGPL-2.0"
+    - "MPL-2.0"
+    - "CDDL-1.0"
+    - "EPL-2.0"
+
+  # Ignore specific licenses
+  ignore:
+    # - "MIT"
+    # - "Apache-2.0"
+
+  # Output full license text
+  full: false
+
+# =============================================================================
+# SBOM (Software Bill of Materials)
+# =============================================================================
+sbom:
+  # Enable SBOM generation
+  enabled: true
+
+  # Output format
+  format: "cyclonedx"
+
+  # Output file path (relative to scan root)
+  output: "sbom.json"
+
+  # Include vulnerability information in SBOM
+  include_vulnerabilities: true
+
+  # Include license information in SBOM
+  include_licenses: true
+
+# =============================================================================
+# REPORTING & OUTPUT
+# =============================================================================
+report:
+  # Output formats (can specify multiple)
+  format:
+    - "table"       # Human-readable table
+    - "json"        # JSON for CI/CD parsing
+    - "sarif"       # SARIF for GitHub Code Scanning
+
+  # Output directory
+  output_dir: "security/reports/trivy"
+
+  # Report templates
+  template:
+    table: "@contrib/table.tpl"
+    json: "@contrib/json.tpl"
+    sarif: "@contrib/sarif.tpl"
+
+  # Summary only (no detailed findings)
+  summary: false
+
+  # Light output (less verbose)
+  light: false
+
+  # Ignore file for suppressing findings
+  ignorefile: ".trivyignore"
+
+# =============================================================================
+# CACHE SETTINGS
+# =============================================================================
+cache:
+  # Cache directory
+  dir: "/tmp/trivy-cache"
+
+  # Cache TTL (time to live)
+  ttl: "24h"
+
+  # Clear cache before scan
+  clear: false
+
+  # Skip cache (force fresh scan)
+  skip: false
+
+# =============================================================================
+# PARALLELISM & PERFORMANCE
+# =============================================================================
+parallel:
+  # Number of parallel scans
+  jobs: 4
+
+  # Timeout per scan target
+  timeout: "10m"
+
+  # Memory limit (for large scans)
+  # memory_limit: "2g"
+
+# =============================================================================
+# REGISTRY AUTHENTICATION
+# =============================================================================
+registry:
+  # Registry credentials (for private registries)
+  # Can also be set via environment variables:
+  # TRIVY_USERNAME, TRIVY_PASSWORD, TRIVY_REGISTRY_TOKEN
+  username: ""
+  password: ""
+  token: ""
+
+  # Insecure registry (HTTP, self-signed certs)
+  insecure: false
+
+  # Non-SSL registry
+  non_ssl: false
+
+  # Registry mirror (for air-gapped)
+  # mirror: "mirror.registry.com"
+
+# =============================================================================
+# KUBERNETES CLUSTER SCANNING
+# =============================================================================
+kubernetes:
+  # Kubernetes context to use
+  context: ""
+
+  # Namespace to scan (empty = all namespaces)
+  namespace: "agassociates"
+
+  # Include Kubernetes resources in scan
+  include_resources:
+    - "deployments"
+    - "statefulsets"
+    - "daemonsets"
+    - "pods"
+    - "services"
+    - "ingresses"
+    - "networkpolicies"
+    - "configmaps"
+    - "secrets"
+    - "serviceaccounts"
+    - "roles"
+    - "rolebindings"
+
+  # Exclude resources
+  exclude_resources:
+    - "events"
+    - "replicasets"
+
+  # Label selector for resources
+  label_selector: "app=agassociates"
+
+  # Scan node configurations
+  scan_nodes: true
+
+  # Kubeconfig path
+  kubeconfig: ""
+
+  # Impersonate user/group
+  # impersonate_user: ""
+  # impersonate_group: ""
+
+# =============================================================================
+# CLOUD PROVIDER SCANNING
+# =============================================================================
+cloud:
+  # AWS configuration
+  aws:
+    enabled: false
+    region: "us-east-1"
+    profile: "default"
+    # Scan specific services
+    services:
+      - "ec2"
+      - "ecr"
+      - "lambda"
+      - "rds"
+      - "s3"
+
+  # Azure configuration
+  azure:
+    enabled: false
+    subscription_id: ""
+    tenant_id: ""
+    # Scan specific services
+    services:
+      - "vm"
+      - "acr"
+      - "aks"
+      - "storage"
+
+  # GCP configuration
+  gcp:
+    enabled: false
+    project_id: ""
+    # Scan specific services
+    services:
+      - "compute"
+      - "artifactregistry"
+      - "gke"
+      - "storage"
+
+# =============================================================================
+# CI/CD INTEGRATION
+# =============================================================================
+ci:
+  # GitHub Actions integration
+  github:
+    # Upload SARIF to GitHub Code Scanning
+    upload_sarif: true
+    # GitHub token (set via GITHUB_TOKEN env)
+    token: ""
+
+  # GitLab CI integration
+  gitlab:
+    enabled: false
+    # GitLab token (set via CI_JOB_TOKEN env)
+    token: ""
+
+  # Azure DevOps integration
+  azure_devops:
+    enabled: false
+    # PAT token (set via AZURE_DEVOPS_EXT_PAT env)
+    token: ""
+
+  # Jenkins integration
+  jenkins:
+    enabled: false
+    # Jenkins credentials (set via env)
+    url: ""
+    username: ""
+    token: ""
+
+# =============================================================================
+# COMPLIANCE SCANNING
+# =============================================================================
+compliance:
+  # Enable compliance scanning
+  enabled: true
+
+  # Compliance frameworks to check
+  frameworks:
+    - "cis"
+    - "nist"
+    - "pci-dss"
+    - "gdpr"
+    - "hipaa"
+    - "iso27001"
+
+  # Specific controls to check (empty = all)
+  controls: []
+
+  # Output format for compliance
+  format: "summary"
+
+# =============================================================================
+# PLUGIN CONFIGURATION
+# =============================================================================
+plugin:
+  # Plugin paths
+  paths:
+    - "/usr/local/lib/trivy/plugins"
+
+  # Enable specific plugins
+  # enabled:
+  #   - "trivy-plugin-example"
+
+# =============================================================================
+# ADVANCED SETTINGS
+# =============================================================================
+advanced:
+  # Debug mode
+  debug: false
+
+  # Quiet mode (suppress progress)
+  quiet: false
+
+  # Reset caches and databases
+  reset: false
+
+  # Version check
+  check_version: true
+
+  # Telemetry (opt-out)
+  telemetry: false
+
+  # HTTP proxy
+  # http_proxy: ""
+  # https_proxy: ""
+
+  # No proxy hosts
+  # no_proxy: ""
+
+  # TLS certificates for registry
+  # cert_dir: ""
+
+  # Insecure skip TLS verify
+  insecure_skip_tls_verify: false
+
+# =============================================================================
+# CUSTOM POLICIES (OPA/Rego)
+# =============================================================================
+# Custom policies can be placed in security/policies/
+# Example structure:
+# security/policies/
+#   ├── kubernetes/
+#   │   ├── deny-privileged.rego
+#   │   ├── require-resource-limits.rego
+#   │   └── require-network-policies.rego
+#   ├── docker/
+#   │   ├── deny-root-user.rego
+#   │   └── require-healthcheck.rego
+#   └── terraform/
+#       ├── require-encryption.rego
+#       └── deny-public-s3.rego
+
+# Example custom policy: deny-privileged.rego
+# package kubernetes
+#
+# deny[msg] {
+#   input.kind == "Pod"
+#   container := input.spec.containers[_]
+#   container.securityContext.privileged == true
+#   msg := sprintf("Container %s runs in privileged mode", [container.name])
+# }
+#
+# deny[msg] {
+#   input.kind == "Deployment"
+#   container := input.spec.template.spec.containers[_]
+#   container.securityContext.privileged == true
+#   msg := sprintf("Container %s runs in privileged mode", [container.name])
+# }
+
+# =============================================================================
+# IGNORE FILE (.trivyignore)
+# =============================================================================
+# Create a .trivyignore file in the repository root to suppress findings:
+#
+# # Ignore specific CVEs globally
+# CVE-2023-1234
+# CVE-2024-5678
+#
+# # Ignore CVEs for specific packages
+# CVE-2023-1234:openssl
+# CVE-2024-5678:nginx
+#
+# # Ignore by severity and package
+# MEDIUM:curl
+# LOW:alpine-baselayout
+#
+# # Ignore misconfiguration rules
+# KSV001
+# DSV002
+#
+# # Ignore secrets (use with caution)
+# # secret:test-key
+
+# =============================================================================
+# COOLIFY INTEGRATION
+# =============================================================================
+coolify:
+  # Enable Coolify-specific scanning
+  enabled: true
+
+  # Scan on deployment
+  scan_on_deploy: true
+
+  # Block deployment on critical/high vulnerabilities
+  block_on_severity:
+    - "CRITICAL"
+    - "HIGH"
+
+  # Coolify webhook for scan results
+  # webhook_url: "https://coolify.example.com/api/v1/trivy/webhook"
+
+  # Application-specific settings
+  applications:
+    ag-ai-backend:
+      # Override severity for this app
+      severity:
+        - "CRITICAL"
+        - "HIGH"
+      # Ignore specific CVEs for this app
+      ignore:
+        - "CVE-2023-XXXX"  # Example
+
+    ag-ai-dashboard:
+      severity:
+        - "CRITICAL"
+        - "HIGH"
+        - "MEDIUM"
+
+    ag-platform:
+      severity:
+        - "CRITICAL"
+        - "HIGH"
+
+    intake-api:
+      severity:
+        - "CRITICAL"
+        - "HIGH"
+
+    coordinator:
+      severity:
+        - "CRITICAL"
+        - "HIGH"
+
+# =============================================================================
+# SCHEDULED SCANNING (for standalone Trivy server)
+# =============================================================================
+schedule:
+  # Enable scheduled scans
+  enabled: false
+
+  # Cron expression for scheduled scans
+  # cron: "0 2 * * *"  # Daily at 2 AM
+
+  # Targets for scheduled scans
+  targets:
+    - "ghcr.io/rajkhemani/ag-ai-backend:latest"
+    - "ghcr.io/rajkhemani/ag-ai-dashboard:latest"
+    - "ghcr.io/rajkhemani/ag-platform:latest"
+
+  # Notification on findings
+  notify:
+    enabled: true
+    webhook: ""
+    email: ""
+
+# =============================================================================
+# EXAMPLE USAGE COMMANDS
+# =============================================================================
+# 
+# # Scan container image
+# trivy image --config trivy-config.yaml ghcr.io/rajkhemani/ag-ai-backend:latest
+#
+# # Scan filesystem
+# trivy fs --config trivy-config.yaml ag-associates-ai/backend
+#
+# # Scan Kubernetes cluster
+# trivy k8s --config trivy-config.yaml --namespace agassociates
+#
+# # Scan for secrets only
+# trivy fs --config trivy-config.yaml --scanners secret ag-associates-ai
+#
+# # Generate SBOM
+# trivy image --config trivy-config.yaml --format cyclonedx --output sbom.json ghcr.io/rajkhemani/ag-ai-backend:latest
+#
+# # Scan with custom policies
+# trivy k8s --config trivy-config.yaml --policy-namespaces kubernetes,security/policies/kubernetes
+#
+# # CI/CD mode (exit code on findings)
+# trivy image --config trivy-config.yaml --exit-code 1 --severity CRITICAL,HIGH ghcr.io/rajkhemani/ag-ai-backend:latest
+#
+# # Output SARIF for GitHub Code Scanning
+# trivy image --config trivy-config.yaml --format sarif --output trivy-results.sarif ghcr.io/rajkhemani/ag-ai-backend:latest
+#
+# # Scan with compliance
+# trivy k8s --config trivy-config.yaml --compliance cis --namespace agassociates

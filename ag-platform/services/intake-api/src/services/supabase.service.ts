@@ -1,5 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+import type { BankName } from '../schemas/intake.schema';
+
 let _supabase: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {
@@ -17,7 +19,8 @@ export function getSupabase(): SupabaseClient {
 
 export interface CreateCaseParams {
   org_id: string;
-  bank_name: 'ICICI' | 'Kotak' | 'Axis' | 'Muthoot' | 'HDFC';
+  /** Derived from the panel list in schemas/intake.schema.ts, not restated. */
+  bank_name: BankName;
   case_type: string;
   case_status: string;
   noi_status?: string;

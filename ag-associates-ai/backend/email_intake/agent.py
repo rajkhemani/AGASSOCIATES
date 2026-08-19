@@ -16,6 +16,7 @@ import asyncio
 import imaplib
 import email
 import re
+from collections import deque
 from email.header import decode_header
 from typing import Optional, Tuple
 
@@ -24,6 +25,8 @@ from pydantic import BaseModel, Field
 
 # Import NOI agent for workflow automation
 from noi_agent import noi_agent
+
+from email_intake.panel import Recognition, configured_domains, recognise
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
@@ -34,7 +37,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 IMAP_HOST = os.environ.get("EMAIL_IMAP_HOST", "imap.zoho.in")
 IMAP_PORT = int(os.environ.get("EMAIL_IMAP_PORT", "993"))
 IMAP_USER = os.environ.get("EMAIL_IMAP_USER", "admin@advadiityagade.com")
-IMAP_PASS = os.environ.get("EMAIL_IMAP_PASS", "Parii@1907")  # App Password from Zoho
+# No default. A hardcoded fallback here previously held a live Zoho app
+# password, which meant a missing secret looked like a working deployment
+# instead of failing loudly. An unset value now stops the poller at startup.
+IMAP_PASS = os.environ.get("EMAIL_IMAP_PASS", "")
 IMAP_INBOX = os.environ.get("EMAIL_IMAP_INBOX", "INBOX")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
@@ -50,21 +56,79 @@ REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", "")
 POLL_INTERVAL_SECONDS = int(os.environ.get("EMAIL_POLL_INTERVAL", "60"))
 INTAKE_PORT = int(os.environ.get("EMAIL_INTAKE_PORT", "3004"))
 
-KNOWN_BANK_DOMAINS = [
-    "hdfc.com",
-    "hdfcbank.com",
-    "icicibank.com",
-    "axisbank.com",
-    "kotak.com",
-    "kotakmahindra.com",
-    "muthoot.com",
-    "muthootfinance.com",
-    "sbicard.com",
-    "sbi.co.in",
-    "yesbank.in",
-    "idfcfirstbank.com",
-    "indusind.com",
-]
+# Recognised senders now live in email_intake/panel.py, keyed to the firm's
+# published panel and overridable via BANK_EMAIL_DOMAINS. The list that stood
+# here named institutions the firm does not act for and omitted three that it
+# does.
+
+#: A recent-activity window, NOT the system of record.
+#:
+#: The mailbox is the system of record. A passed-over message is fetched with
+#: BODY.PEEK[] and never flagged, so it stays UNSEEN: the next poll finds it
+#: again and a human sees it unread in the inbox. That is what actually keeps
+#: it. This deque only lets the health endpoint report a count without reading
+#: the log, so it is bounded — an unbounded queue in a long-lived poller is a
+#: memory leak — and process-local. Losing it on restart loses nothing, because
+#: the mail is still sitting unread where it arrived.
+_REVIEW_LIMIT = 50
+_awaiting_review: deque[dict] = deque(maxlen=_REVIEW_LIMIT)
+
+#: Message-IDs already noted this run. Because a passed-over message stays
+#: UNSEEN deliberately, every poll re-reads it; without this a single stranger's
+#: email would refill the whole window every minute and evict the others.
+#: Bounded for the same reason the deque is.
+_noted: deque[str] = deque(maxlen=_REVIEW_LIMIT * 10)
+
+
+def set_aside_for_review(
+    sender: str, subject: str, received: str, reason: str, message_id: str = ""
+) -> None:
+    """Hold an unrecognised message for a human instead of discarding it.
+
+    Recording this is the whole point: an incomplete domain list should show up
+    as something someone can act on, not as mail that never arrived. The
+    message is left unread in the mailbox; this only notes that it was passed
+    over and why.
+
+    Repeat sightings of the same message are ignored, keyed on ``Message-ID``.
+    A message with no ``Message-ID`` is noted every time rather than dropped —
+    a duplicate in the window is a much smaller problem than a silence.
+    """
+    if message_id and message_id in _noted:
+        return
+    if message_id:
+        _noted.append(message_id)
+
+    _awaiting_review.append(
+        {
+            "sender": sender,
+            "subject": subject,
+            "received": received,
+            "reason": reason,
+        }
+    )
+    logger.warning(
+        "Unrecognised sender passed over, message left unread in the mailbox "
+        "(%s): %s — %r",
+        reason,
+        sender,
+        subject,
+    )
+
+
+def review_backlog() -> list[dict]:
+    """Recently passed-over messages, oldest first.
+
+    Carries sender and subject, so it must not be served on an unauthenticated
+    endpoint — a sanction-letter subject line routinely names the borrower.
+    """
+    return list(_awaiting_review)
+
+
+def review_backlog_size() -> int:
+    """How many messages were recently passed over. Safe to expose."""
+    return len(_awaiting_review)
+
 
 # ── Schema ───────────────────────────────────────────────────────────────
 
@@ -72,7 +136,9 @@ KNOWN_BANK_DOMAINS = [
 class LoanSanctionExtract(BaseModel):
     borrower_name: str = Field(description="Full name of the borrower")
     loan_amount: str = Field(description="Loan amount in INR (e.g., ₹45,00,000)")
-    bank_name: str = Field(description="Name of the bank (e.g., HDFC, ICICI)")
+    bank_name: str = Field(
+        description="Name of the lender as written in the sanction letter"
+    )
     loan_ref_number: Optional[str] = Field(
         None, description="Loan reference or application number"
     )
@@ -112,15 +178,13 @@ def decode_str(s):
 
 
 def is_bank_email(sender_email: str) -> bool:
-    """Check if sender domain matches known bank domains."""
-    match = re.search(r"@([\w.-]+)", sender_email)
-    if not match:
-        return False
-    domain = match.group(1).lower()
-    for bank_domain in KNOWN_BANK_DOMAINS:
-        if domain == bank_domain or domain.endswith("." + bank_domain):
-            return True
-    return False
+    """True if the sender is a recognised panel client.
+
+    Retained as a thin wrapper over `panel.recognise` so the recognition rules
+    live in one place. Note that a False result no longer means "discard" —
+    see the caller in `fetch_new_emails`.
+    """
+    return recognise(sender_email) == Recognition.KNOWN
 
 
 async def fetch_new_emails() -> list[dict]:
@@ -131,18 +195,33 @@ async def fetch_new_emails() -> list[dict]:
 
     emails_raw = []
 
-    def _fetch():
-        mail = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
-        mail.login(IMAP_USER, IMAP_PASS)
+    def _drain(mail):
+        """Read UNSEEN mail and flag what was handed on.
+
+        The caller owns the connection, so that closing it does not depend on
+        this returning normally.
+        """
         mail.select(IMAP_INBOX)
 
-        _, data = mail.search(None, "UNSEEN")
-        seen_uids = set()
+        # UID commands throughout, never sequence numbers. A sequence number
+        # identifies a message only until the mailbox is renumbered, and an
+        # EXPUNGE — the advocate deleting a mail in webmail while this runs —
+        # renumbers it. The flagging pass below would then mark a different
+        # message read: an unprocessed client email, silently. A UID does not
+        # move.
+        _, data = mail.uid("SEARCH", None, "UNSEEN")
+        handled_uids = set()
 
         for num in data[0].split():
             if not num:
                 continue
-            _, msg_data = mail.fetch(num, "(RFC822)")
+            # BODY.PEEK[], never RFC822. Fetching RFC822 sets \Seen as a side
+            # effect (RFC 3501), which would mark a message read merely for
+            # having been looked at — including one this poller then passes
+            # over. The next UNSEEN search would not return it, so an
+            # unrecognised message would be read, unprocessed and invisible.
+            # \Seen is set explicitly below, and only for messages handled.
+            _, msg_data = mail.uid("FETCH", num, "(BODY.PEEK[])")
             for response_part in msg_data:
                 if isinstance(response_part, tuple):
                     msg = email.message_from_bytes(response_part[1])
@@ -156,7 +235,20 @@ async def fetch_new_emails() -> list[dict]:
                     )
                     sender_email = sender_match.group(1) if sender_match else sender
 
-                    if not is_bank_email(sender_email):
+                    # Recognition decides how a message is handled, never
+                    # whether. Anything unrecognised is set aside for a human
+                    # rather than discarded — the previous `continue` here
+                    # silently dropped mail from panel clients whose domain
+                    # was missing from the list.
+                    recognition = recognise(sender_email)
+                    if recognition != Recognition.KNOWN:
+                        set_aside_for_review(
+                            sender=sender_email,
+                            subject=subject,
+                            received=date_str,
+                            reason=recognition,
+                            message_id=decode_str(msg.get("Message-ID", "")),
+                        )
                         continue
 
                     # Extract body and attachments
@@ -209,7 +301,7 @@ async def fetch_new_emails() -> list[dict]:
                         except Exception:
                             body = str(msg.get_payload())
 
-                    seen_uids.add(num)
+                    handled_uids.add(num)
                     emails_raw.append(
                         {
                             "sender": sender_email,
@@ -220,7 +312,37 @@ async def fetch_new_emails() -> list[dict]:
                         }
                     )
 
-        return list(seen_uids)
+        # Mark read only what was actually handed on for processing. Anything
+        # passed over stays UNSEEN, so it comes back on the next poll and a
+        # human sees it as unread in the mailbox — the mailbox, not the
+        # in-process queue, is what keeps it.
+        for num in handled_uids:
+            try:
+                mail.uid("STORE", num, "+FLAGS", "\\Seen")
+            except Exception:
+                # Failing to flag risks the case being created twice; failing
+                # to say so risks nobody knowing why.
+                logger.exception("Could not mark message %r read", num)
+
+        return list(handled_uids)
+
+    def _fetch():
+        # The teardown is in a finally because the poller runs every sixty
+        # seconds forever: a fetch that raises must still give the connection
+        # back, or repeated failures walk the mailbox into its connection
+        # limit and the intake stops entirely.
+        mail = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+        mail.login(IMAP_USER, IMAP_PASS)
+        try:
+            return _drain(mail)
+        finally:
+            try:
+                # Only legal with a mailbox selected, so it fails when SELECT
+                # was what raised. logout() still has to happen.
+                mail.close()
+            except Exception:
+                logger.debug("IMAP close failed", exc_info=True)
+            mail.logout()
 
     try:
         seen = await asyncio.to_thread(_fetch)
@@ -673,9 +795,28 @@ async def health_server():
 
     class H(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
+            # Counts only. This endpoint backs the Docker HEALTHCHECK and is
+            # unauthenticated, so it must not carry message metadata: the
+            # subject line of a sanction-letter email routinely contains the
+            # borrower's name and the loan reference. The number is enough to
+            # notice a growing backlog; the detail stays in the container log,
+            # which is already access-controlled.
+            body = json.dumps(
+                {
+                    "status": "ok",
+                    "agent": "email_intake",
+                    "awaiting_review": review_backlog_size(),
+                    "recognised_domain_count": len(configured_domains()),
+                }
+            ).encode()
             self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(b'{"status":"ok","agent":"email_intake"}')
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            """Silence per-request logging; the healthcheck polls constantly."""
 
     with socketserver.TCPServer(("0.0.0.0", INTAKE_PORT), H) as httpd:
         httpd.serve_forever()

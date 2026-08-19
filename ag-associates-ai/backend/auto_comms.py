@@ -189,9 +189,68 @@ class NotificationDispatcher:
 
         return success
 
+    async def _get_recipient_emails(self, case_id: str) -> list[str]:
+        """Fetch recipient emails for a case from Supabase or config."""
+        # Try to get bank contact email from Supabase
+        supabase_url = os.environ.get("SUPABASE_URL", "")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+        
+        if supabase_url and supabase_key:
+            try:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    # Get case with bank info
+                    resp = await client.get(
+                        f"{supabase_url}/rest/v1/cases",
+                        params={
+                            "id": f"eq.{case_id}",
+                            "select": "bank_id,borrower_name",
+                        },
+                        headers={
+                            "apikey": supabase_key,
+                            "Authorization": f"Bearer {supabase_key}",
+                        },
+                    )
+                    resp.raise_for_status()
+                    cases = resp.json()
+                    
+                    if cases:
+                        bank_id = cases[0].get("bank_id")
+                        if bank_id:
+                            # Get bank contact email
+                            bank_resp = await client.get(
+                                f"{supabase_url}/rest/v1/banks",
+                                params={
+                                    "id": f"eq.{bank_id}",
+                                    "select": "billing_contact",
+                                },
+                                headers={
+                                    "apikey": supabase_key,
+                                    "Authorization": f"Bearer {supabase_key}",
+                                },
+                            )
+                            bank_resp.raise_for_status()
+                            banks = bank_resp.json()
+                            if banks and banks[0].get("billing_contact"):
+                                return [banks[0]["billing_contact"]]
+            except Exception as exc:
+                logger.warning("Failed to fetch recipient from Supabase: %s", exc)
+
+        # Fallback to configured default recipients
+        default_recipients = os.environ.get("NOI_EMAIL_RECIPIENTS", "")
+        if default_recipients:
+            return [e.strip() for e in default_recipients.split(",") if e.strip()]
+
+        return []
+
     async def _send_email(self, case_id: str, event: str, message: str) -> bool:
         """Send email notification via Resend API."""
         if not RESEND_API_KEY:
+            return False
+
+        # Get recipient emails
+        recipients = await self._get_recipient_emails(case_id)
+        if not recipients:
+            logger.warning("No email recipients configured for case %s", case_id)
             return False
 
         template = NOI_TEMPLATES.get(event, {"title": event, "emoji": "🔔"})
@@ -211,7 +270,7 @@ class NotificationDispatcher:
                     "https://api.resend.com/emails",
                     json={
                         "from": EMAIL_FROM,
-                        "to": [],  # populated from case data in production
+                        "to": recipients,
                         "subject": f"{template['emoji']} {template['title']} — Case {case_id}",
                         "html": html,
                     },
@@ -221,7 +280,7 @@ class NotificationDispatcher:
                     },
                 )
                 if resp.status_code == 200:
-                    logger.info("Email notification sent for %s: %s", case_id, event)
+                    logger.info("Email notification sent for %s: %s to %s", case_id, event, recipients)
                     return True
                 logger.warning(
                     "Email send returned %s: %s", resp.status_code, resp.text[:200]

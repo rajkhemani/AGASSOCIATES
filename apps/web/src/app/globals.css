@@ -1,0 +1,273 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens — see docs/research/DESIGN_DIRECTION.md
+   Structure borrowed from Terminal Industries (Awwwards SOTD 7.68); the depth
+   register is Montfort's, rebuilt in CSS 3D because we have no photography
+   budget. Palette is AG Associates' own gold/emerald identity.
+   --------------------------------------------------------------------------- */
+
+@theme {
+  --color-ink: #0a0f14;
+  --color-ink-raised: #111820;
+  --color-ink-sunken: #06090d;
+
+  --color-paper: #f7f7f5;
+  --color-paper-raised: #ffffff;
+
+  --color-gold: #c9a227;
+  --color-gold-bright: #e3bb3c;
+  --color-emerald: #0e7c5a;
+  --color-emerald-bright: #17a173;
+
+  --color-mist: #6b7785;
+  --color-mist-dim: #4a5462;
+
+  --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+:root {
+  --hairline-dark: rgb(255 255 255 / 0.1);
+  --hairline-light: rgb(10 15 20 / 0.1);
+
+  /* Depth rig. One perspective value for the whole site so planes across
+     different sections read as belonging to the same camera. The near value is
+     for small, self-contained rigs (cards) where a long throw flattens them. */
+  --persp: 1400px;
+  --persp-near: 900px;
+
+  /* Motion intensity, 0–1. Scaled down on small viewports and zeroed under
+     prefers-reduced-motion, so every 3D rotation in the site can be written
+     once and attenuated centrally rather than re-tuned per breakpoint. */
+  --depth: 1;
+}
+
+@media (max-width: 767px) {
+  :root {
+    --persp: 900px;
+    --persp-near: 700px;
+    --depth: 0.55;
+  }
+}
+
+* {
+  min-width: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  /* Every fixed 3D rig is a containing block for its own children only; this
+     keeps the page itself from becoming one giant stacking context. */
+  background: var(--color-ink);
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-synthesis-weight: none;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+/* Lenis drives scroll; it sets .lenis on <html>. Native smooth scrolling must
+   stay off or the two fight over the same gesture. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* --- Type -------------------------------------------------------------- */
+
+/* Instrument Serif ships one weight. At display sizes its high stroke contrast
+   is the point, so optical sizing is done with tracking rather than weight. */
+.type-display {
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 7vw, 5.25rem);
+  line-height: 0.94;
+  letter-spacing: -0.028em;
+  font-weight: 400;
+  text-wrap: balance;
+}
+
+.type-heading {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4.2vw, 3.25rem);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  font-weight: 400;
+  text-wrap: balance;
+}
+
+.type-subheading {
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+  line-height: 1.15;
+  letter-spacing: -0.014em;
+  font-weight: 400;
+}
+
+/* The accent italic is the one flourish the display face gets. Reserved for a
+   single clause per section so it stays an emphasis and not a texture. */
+.type-accent {
+  font-style: italic;
+  color: var(--color-gold);
+}
+
+.type-mono-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.type-body {
+  line-height: 1.6;
+  letter-spacing: -0.006em;
+  text-wrap: pretty;
+}
+
+/* --- Depth ------------------------------------------------------------- */
+
+/* A rig is a camera. Children with .plate keep their own 3D space so nested
+   transforms compose instead of flattening at the first descendant. */
+.rig {
+  perspective: var(--persp);
+  perspective-origin: 50% 45%;
+}
+
+.rig-near {
+  perspective: var(--persp-near);
+  perspective-origin: 50% 50%;
+}
+
+.plate {
+  transform-style: preserve-3d;
+}
+
+/* Engraved measure — the ground texture under dark sections. Two hairline
+   grids at different pitches, so parallaxing one against the other reads as
+   real depth rather than a moving pattern. Pure gradients: no image request. */
+.engrave {
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      rgb(255 255 255 / 0.028) 0 1px,
+      transparent 1px 88px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      rgb(255 255 255 / 0.028) 0 1px,
+      transparent 1px 88px
+    );
+}
+
+.engrave-fine {
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      rgb(201 162 39 / 0.05) 0 1px,
+      transparent 1px 22px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      rgb(201 162 39 / 0.05) 0 1px,
+      transparent 1px 22px
+    );
+}
+
+/* Film grain. An inline feTurbulence at low alpha — ~1KB, no network request,
+   and it stops the large flat ink fields from banding on cheap panels. */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+
+/* Gold rim-light on a raised edge. Used on plates that should read as catching
+   the same light source the hero wash comes from. */
+.rimlight {
+  box-shadow:
+    inset 0 1px 0 rgb(227 187 60 / 0.14),
+    0 24px 60px -20px rgb(0 0 0 / 0.7);
+}
+
+/* --- Motion ------------------------------------------------------------ */
+
+/* Reveal-on-scroll. Content is visible by default so the page still reads if
+   JS never runs; the hook sets data-reveal="hidden" only once it has mounted.
+   This stays CSS rather than Motion deliberately — it is the one effect on
+   every section, so it has to cost nothing and survive a failed JS load, and a
+   `whileInView` variant would render opacity:0 into the static HTML.
+
+   The perspective() is load-bearing: without it rotateX projects
+   orthographically and the tilt is invisible. Both states declare the same
+   function list so the transform interpolates term by term. */
+[data-reveal="hidden"] {
+  opacity: 0;
+  transform: perspective(900px) translateY(14px)
+    rotateX(calc(7deg * var(--depth)));
+}
+
+[data-reveal="shown"] {
+  opacity: 1;
+  transform: perspective(900px) translateY(0) rotateX(0deg);
+  transition:
+    opacity 420ms var(--ease-out-strong),
+    transform 620ms var(--ease-out-strong);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --depth: 0;
+  }
+
+  [data-reveal="hidden"] {
+    transform: none;
+  }
+
+  [data-reveal="shown"] {
+    transition: opacity 200ms ease;
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --- Focus ------------------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+::selection {
+  background: var(--color-gold);
+  color: var(--color-ink);
+}

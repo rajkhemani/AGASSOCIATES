@@ -1,0 +1,91 @@
+{
+  "name": "ag-platform",
+  "description": "AG Associates LegalTech Platform - Vite + Express + Supabase",
+  "type": "docker",
+  "dockerCompose": {
+    "version": "3.8",
+    "services": {
+      "ag-platform": {
+        "build": {
+          "context": "./ag-platform",
+          "dockerfile": "Dockerfile"
+        },
+        "image": "ghcr.io/luxoranova9/ag-platform:latest",
+        "container_name": "ag_platform",
+        "restart": "unless-stopped",
+        "environment": {
+          "DATABASE_URL": "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable",
+          "AI_BACKEND_URL": "http://ag-ai-backend:8000",
+          "VITE_SUPABASE_URL": "${SUPABASE_URL}",
+          "VITE_SUPABASE_ANON_KEY": "${VITE_SUPABASE_ANON_KEY}",
+          "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}",
+          "GOOGLE_GENERATIVE_AI_API_KEY": "${GOOGLE_GENERATIVE_AI_API_KEY}",
+          "RESEND_API_KEY": "${RESEND_API_KEY}"
+        },
+        "depends_on": [
+          "postgres"
+        ],
+        "healthcheck": {
+          "test": ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3001/api/health"],
+          "interval": "30s",
+          "timeout": "5s",
+          "start_period": "15s",
+          "retries": 3
+        },
+        "networks": ["ag_net"],
+        "labels": {
+          "coolify.managed": "true",
+          "coolify.service": "ag-platform"
+        }
+      }
+    },
+    "networks": {
+      "ag_net": {
+        "driver": "bridge"
+      }
+    }
+  },
+  "domains": [
+    {
+      "domain": "app.${DOMAIN}",
+      "port": 3001,
+      "redirectHttp": true,
+      "https": true
+    },
+    {
+      "domain": "dashboard.${DOMAIN}",
+      "port": 3001,
+      "redirectHttp": true,
+      "https": true
+    }
+  ],
+  "environmentVariables": [
+    { "key": "POSTGRES_USER", "value": "${POSTGRES_USER}", "isSecret": true },
+    { "key": "POSTGRES_PASSWORD", "value": "${POSTGRES_PASSWORD}", "isSecret": true },
+    { "key": "POSTGRES_DB", "value": "${POSTGRES_DB}", "isSecret": false },
+    { "key": "REDIS_PASSWORD", "value": "${REDIS_PASSWORD}", "isSecret": true },
+    { "key": "VITE_SUPABASE_URL", "value": "${SUPABASE_URL}", "isSecret": false },
+    { "key": "VITE_SUPABASE_ANON_KEY", "value": "${VITE_SUPABASE_ANON_KEY}", "isSecret": true },
+    { "key": "SUPABASE_SERVICE_ROLE_KEY", "value": "${SUPABASE_SERVICE_ROLE_KEY}", "isSecret": true },
+    { "key": "GOOGLE_GENERATIVE_AI_API_KEY", "value": "${GOOGLE_GENERATIVE_AI_API_KEY}", "isSecret": true },
+    { "key": "RESEND_API_KEY", "value": "${RESEND_API_KEY}", "isSecret": true },
+    { "key": "AI_BACKEND_URL", "value": "http://ag-ai-backend:8000", "isSecret": false },
+    { "key": "VITE_API_BASE_URL", "value": "/api", "isSecret": false }
+  ],
+  "resourceLimits": {
+    "cpu": "1.0",
+    "memory": "2g",
+    "memorySwap": "2g"
+  },
+  "buildSettings": {
+    "buildPack": "dockerfile",
+    "dockerfilePath": "./ag-platform/Dockerfile",
+    "contextPath": "./ag-platform"
+  },
+  "port": 3001,
+  "healthCheckPath": "/api/health",
+  "healthCheckInterval": 30,
+  "healthCheckTimeout": 5,
+  "healthCheckRetries": 3,
+  "healthCheckStartPeriod": 15
+}

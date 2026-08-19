@@ -1,0 +1,93 @@
+{
+  "name": "n8n",
+  "description": "n8n Workflow Automation for WhatsApp/SMS/Email integrations",
+  "type": "docker",
+  "dockerCompose": {
+    "version": "3.8",
+    "services": {
+      "n8n": {
+        "image": "n8nio/n8n:latest",
+        "container_name": "ag_n8n",
+        "restart": "unless-stopped",
+        "environment": {
+          "N8N_HOST": "n8n.${DOMAIN}",
+          "N8N_PORT": "5678",
+          "N8N_PROTOCOL": "https",
+          "WEBHOOK_URL": "https://n8n.${DOMAIN}/",
+          "N8N_TRUSTED_PROXIES": "*",
+          "DB_TYPE": "postgresdb",
+          "DB_POSTGRESDB_HOST": "postgres",
+          "DB_POSTGRESDB_PORT": "5432",
+          "DB_POSTGRESDB_DATABASE": "${POSTGRES_DB}",
+          "DB_POSTGRESDB_USER": "${POSTGRES_USER}",
+          "DB_POSTGRESDB_PASSWORD": "${POSTGRES_PASSWORD}",
+          "GENERIC_TIMEZONE": "Asia/Kolkata",
+          "N8N_BASIC_AUTH_ACTIVE": "true",
+          "N8N_BASIC_AUTH_USER": "${N8N_BASIC_AUTH_USER}",
+          "N8N_BASIC_AUTH_PASSWORD": "${N8N_BASIC_AUTH_PASSWORD}"
+        },
+        "volumes": [
+          "n8n_data:/home/node/.n8n"
+        ],
+        "depends_on": [
+          "postgres"
+        ],
+        "healthcheck": {
+          "test": ["CMD", "wget", "--spider", "http://localhost:5678/healthz"],
+          "interval": "30s",
+          "timeout": "5s",
+          "start_period": "20s",
+          "retries": 3
+        },
+        "networks": ["ag_net"],
+        "labels": {
+          "coolify.managed": "true",
+          "coolify.service": "n8n"
+        }
+      }
+    },
+    "networks": {
+      "ag_net": {
+        "driver": "bridge"
+      }
+    },
+    "volumes": {
+      "n8n_data": {}
+    }
+  },
+  "domains": [
+    {
+      "domain": "n8n.${DOMAIN}",
+      "port": 5678,
+      "redirectHttp": true,
+      "https": true
+    }
+  ],
+  "environmentVariables": [
+    { "key": "POSTGRES_USER", "value": "${POSTGRES_USER}", "isSecret": true },
+    { "key": "POSTGRES_PASSWORD", "value": "${POSTGRES_PASSWORD}", "isSecret": true },
+    { "key": "POSTGRES_DB", "value": "${POSTGRES_DB}", "isSecret": false },
+    { "key": "N8N_BASIC_AUTH_USER", "value": "${N8N_BASIC_AUTH_USER}", "isSecret": false },
+    { "key": "N8N_BASIC_AUTH_PASSWORD", "value": "${N8N_BASIC_AUTH_PASSWORD}", "isSecret": true },
+    { "key": "N8N_WEBHOOK_KEY", "value": "${N8N_WEBHOOK_KEY}", "isSecret": true },
+    { "key": "WHATSAPP_ACCESS_TOKEN", "value": "${WHATSAPP_ACCESS_TOKEN}", "isSecret": true },
+    { "key": "WHATSAPP_PHONE_NUMBER_ID", "value": "${WHATSAPP_PHONE_NUMBER_ID}", "isSecret": true },
+    { "key": "WHATSAPP_BUSINESS_ACCOUNT_ID", "value": "${WHATSAPP_BUSINESS_ACCOUNT_ID}", "isSecret": true },
+    { "key": "WHATSAPP_VERIFY_TOKEN", "value": "${WHATSAPP_VERIFY_TOKEN}", "isSecret": true }
+  ],
+  "resourceLimits": {
+    "cpu": "1.0",
+    "memory": "2g",
+    "memorySwap": "2g"
+  },
+  "buildSettings": {
+    "buildPack": "image",
+    "image": "n8nio/n8n:latest"
+  },
+  "port": 5678,
+  "healthCheckPath": "/healthz",
+  "healthCheckInterval": 30,
+  "healthCheckTimeout": 5,
+  "healthCheckRetries": 3,
+  "healthCheckStartPeriod": 20
+}

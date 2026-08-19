@@ -1,5 +1,4 @@
 import os
-import os
 import re
 import json
 import base64
@@ -12,11 +11,13 @@ import redis.asyncio as aioredis
 sentry_sdk = None
 if importlib.util.find_spec("sentry_sdk"):
     import sentry_sdk
+
 from fastapi import FastAPI, Header, HTTPException, status, Response, Request, Depends, Cookie
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
+
 from voice.voice_api import router as voice_router
 from workforce import workforce_router
 from auth import oauth_router, require_auth, require_permission, AuthContext
@@ -30,51 +31,104 @@ from nesl_client import NeslClient
 from noi_agent import noi_agent
 from hitl_queue import hitl_queue
 from circuit_breaker import breakers
+from config import (
+    ENVIRONMENT,
+    IS_PRODUCTION,
+    API_HOST,
+    API_PORT,
+    CORS_ALLOWED_ORIGINS,
+    LOG_LEVEL,
+    SENTRY_DSN,
+    SENTRY_TRACES_SAMPLE_RATE,
+    SENTRY_PROFILES_SAMPLE_RATE,
+    N8N_WEBHOOK_KEY,
+    LLM_MOCK_MODE,
+    get_mock_llm_response,
+)
 
+# 1. Structured Logging Configuration (Must happen before FastAPI is initialized)
+from logging_config import setup_logging, get_logger, RequestLoggingMiddleware
 
+setup_logging(log_level=LOG_LEVEL, json_output=IS_PRODUCTION)
+logger = get_logger(__name__)
 
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "development")
-IS_PRODUCTION = ENVIRONMENT == "production"
-
-# 1. Sentry Initialization (Must happen before FastAPI is initialized)
-SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+# 2. Sentry Initialization (Must happen before FastAPI is initialized)
 if SENTRY_DSN:
     _default_traces = 0.1 if IS_PRODUCTION else 1.0
     _default_profiles = 0.01 if IS_PRODUCTION else 1.0
     sentry_sdk.init(
         dsn=SENTRY_DSN,
-        traces_sample_rate=float(
-            os.environ.get("SENTRY_TRACES_SAMPLE_RATE", _default_traces)
-        ),
-        profiles_sample_rate=float(
-            os.environ.get("SENTRY_PROFILES_SAMPLE_RATE", _default_profiles)
-        ),
+        traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", _default_traces)),
+        profiles_sample_rate=float(os.environ.get("SENTRY_PROFILES_SAMPLE_RATE", _default_profiles)),
         environment=ENVIRONMENT,
     )
 
-# 2. FastAPI Application Instance
-app = FastAPI(
-    title="AG Associates - Luxor9 LegalOS API",
-    version="2.0.0",
-    description="Deterministic Multi-Agent Legal Infrastructure",
-)
+# 3. Scheduler (APScheduler) for periodic tasks
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
-# 3. CORS Configuration (Strictly for Next.js Frontend)
-origins = [
-    "http://localhost:3000",
-    "https://luxor9-legalos.vercel.app",
-]
-_extra = os.environ.get("CORS_EXTRA_ORIGINS", "")
-if _extra:
-    origins.extend([o.strip() for o in _extra.split(",") if o.strip()])
+scheduler = AsyncIOScheduler()
 
+def start_scheduler():
+    """Start the background scheduler for periodic tasks."""
+    if not scheduler.running:
+        # Daily SLA checks at 9 AM IST
+        scheduler.add_job(
+            run_daily_sla_checks,
+            CronTrigger(hour=9, minute=0, timezone="Asia/Kolkata"),
+            id="daily_sla_checks",
+            replace_existing=True,
+        )
+        
+        # Hourly document status sync
+        scheduler.add_job(
+            sync_document_statuses,
+            IntervalTrigger(hours=1),
+            id="sync_document_statuses",
+            replace_existing=True,
+        )
+        
+        # Daily OTP cleanup (2 AM)
+        scheduler.add_job(
+            cleanup_expired_otps,
+            CronTrigger(hour=2, minute=0, timezone="Asia/Kolkata"),
+            id="cleanup_expired_otps",
+            replace_existing=True,
+        )
+        
+        # Weekly report generation (Monday 8 AM)
+        scheduler.add_job(
+            generate_weekly_reports,
+            CronTrigger(day_of_week="mon", hour=8, minute=0, timezone="Asia/Kolkata"),
+            id="weekly_reports",
+            replace_existing=True,
+        )
+        
+        scheduler.start()
+        logger.info("Background scheduler started")
+
+async def stop_scheduler():
+    """Stop the background scheduler."""
+    if scheduler.running:
+        scheduler.shutdown(wait=True)
+        logger.info("Background scheduler stopped")
+
+# 3. CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=CORS_ALLOWED_ORIGINS or ["http://localhost:3000", "https://luxor9-legalos.vercel.app"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# 4. Request Logging Middleware (must be after CORS to capture all requests)
+app.add_middleware(RequestLoggingMiddleware)
+
+# 5. Metrics Middleware
+from metrics import MetricsMiddleware
+app.add_middleware(MetricsMiddleware)
 
 app.include_router(voice_router)
 app.include_router(workforce_router)
@@ -95,30 +149,111 @@ async def _shutdown_nesl():
 # 4. Health Check Endpoint (For Vercel/Docker probing)
 @app.on_event("startup")
 async def _startup_store():
+    # Initialize OpenTelemetry tracing
+    try:
+        from tracing import setup_tracing, setup_metrics, instrument_app
+        tracer_provider = setup_tracing()
+        setup_metrics()
+        instrument_app(app, tracer_provider)
+        logger.info("OpenTelemetry tracing initialized")
+    except Exception as e:
+        logger.warning("Failed to initialize OpenTelemetry tracing", error=str(e))
+
+    # Start background scheduler
+    start_scheduler()
+    
     ensure_tables()
     await init_agents()
 
 
-# NeSL client singleton
-_nesl_client = None
+@app.on_event("shutdown")
+async def _shutdown_scheduler():
+    await stop_scheduler()
 
 
-def _get_nesl_client() -> NeslClient:
-    global _nesl_client
-    if _nesl_client is None:
-        _nesl_client = NeslClient()
-    return _nesl_client
+@app.on_event("shutdown")
+async def _shutdown_playground():
+    await _playground_sm.shutdown()
 
 
-async def shutdown_nesl_client():
-    global _nesl_client
-    if _nesl_client:
-        await _nesl_client.close()
-        _nesl_client = None
+@app.on_event("shutdown")
+async def _shutdown_nesl():
+    await shutdown_nesl_client()
+
+
+# Scheduler task functions
+async def run_daily_sla_checks():
+    """Run daily SLA checks for all active cases."""
+    logger.info("Running daily SLA checks...")
+    try:
+        # Import here to avoid circular imports
+        from sla import runSLACheck
+        from database import get_organizations
+        
+        orgs = await get_organizations()
+        for org in orgs:
+            await runSLACheck(org.id)
+        logger.info("Daily SLA checks completed")
+    except Exception as e:
+        logger.error(f"Daily SLA checks failed: {e}")
+
+async def sync_document_statuses():
+    """Sync document statuses from Supabase."""
+    logger.info("Syncing document statuses...")
+    try:
+        # Import here to avoid circular imports
+        from document_sync import sync_all_documents
+        await sync_all_documents()
+        logger.info("Document status sync completed")
+    except Exception as e:
+        logger.error(f"Document status sync failed: {e}")
+
+async def cleanup_expired_otps():
+    """Clean up expired OTPs from Redis."""
+    logger.info("Cleaning up expired OTPs...")
+    try:
+        import redis.asyncio as redis
+        import os
+        
+        REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+        r = redis.from_url(REDIS_URL)
+        
+        # Scan for OTP keys and delete expired ones
+        async for key in r.scan_iter(match="otp:*"):
+            ttl = await r.ttl(key)
+            if ttl == -2:  # Key doesn't exist
+                await r.delete(key)
+            elif ttl == -1:  # Key exists but no expiry set
+                await r.delete(key)
+        
+        # Clean up otp_waiting keys
+        async for key in r.scan_iter(match="otp_waiting:*"):
+            ttl = await r.ttl(key)
+            if ttl <= 0:
+                await r.delete(key)
+        
+        await r.close()
+        logger.info("OTP cleanup completed")
+    except Exception as e:
+        logger.error(f"OTP cleanup failed: {e}")
+
+async def generate_weekly_reports():
+    """Generate weekly reports for all organizations."""
+    logger.info("Generating weekly reports...")
+    try:
+        # Import here to avoid circular imports
+        from reports import generate_weekly_report
+        from database import get_organizations
+        
+        orgs = await get_organizations()
+        for org in orgs:
+            await generate_weekly_report(org.id)
+        logger.info("Weekly reports generated")
+    except Exception as e:
+        logger.error(f"Weekly report generation failed: {e}")
 
 
 # 5. Core Webhook Entrypoint for n8n (Asynchronous)
-N8N_WEBHOOK_KEY = os.environ.get("N8N_WEBHOOK_KEY", "")
 
 
 def _verify_n8n_key(
@@ -138,7 +273,97 @@ def _verify_n8n_key(
 @app.get("/health", tags=["System"])
 async def health_check():
     """Returns 200 OK if the system is fully operational."""
-    return {"status": "ok", "agent_pool": "ready", "version": "2.0.0"}
+    return {"status": "ok", "agent_pool": "ready", "version": "2.0.0", "mock_mode": LLM_MOCK_MODE}
+
+
+@app.get("/health/deep", tags=["System"])
+async def deep_health_check():
+    """Deep health check - verifies all dependencies."""
+    import httpx
+    import redis.asyncio as aioredis
+    from config import get_database_url
+
+    checks = {
+        "database": "unknown",
+        "redis": "unknown",
+        "vllm": "unknown",
+        "supabase": "unknown",
+        "nesl": "unknown",
+    }
+
+    # Check database
+    try:
+        import psycopg2
+        conn = psycopg2.connect(get_database_url(), connect_timeout=5)
+        conn.close()
+        checks["database"] = "healthy"
+    except Exception as e:
+        checks["database"] = f"unhealthy: {str(e)[:100]}"
+
+    # Check Redis
+    try:
+        r = aioredis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379"))
+        await r.ping()
+        await r.close()
+        checks["redis"] = "healthy"
+    except Exception as e:
+        checks["redis"] = f"unhealthy: {str(e)[:100]}"
+
+    # Check vLLM
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{LLM_BASE_URL}/models")
+            if resp.status_code == 200:
+                checks["vllm"] = "healthy"
+            else:
+                checks["vllm"] = f"unhealthy: HTTP {resp.status_code}"
+    except Exception as e:
+        checks["vllm"] = f"unhealthy: {str(e)[:100]}"
+
+    # Check Supabase
+    try:
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        if supabase_url and supabase_key:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    f"{supabase_url}/rest/v1/",
+                    headers={"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"}
+                )
+                if resp.status_code in (200, 401):  # 401 means auth works but unauthorized
+                    checks["supabase"] = "healthy"
+                else:
+                    checks["supabase"] = f"unhealthy: HTTP {resp.status_code}"
+        else:
+            checks["supabase"] = "not_configured"
+    except Exception as e:
+        checks["supabase"] = f"unhealthy: {str(e)[:100]}"
+
+    # Check NeSL (mock)
+    try:
+        if NESL_USE_MOCK:
+            checks["nesl"] = "mock_mode"
+        else:
+            # Could add real NeSL check here
+            checks["nesl"] = "not_verified"
+    except Exception as e:
+        checks["nesl"] = f"unhealthy: {str(e)[:100]}"
+
+    all_healthy = all(v == "healthy" or v == "mock_mode" or v == "not_verified" for v in checks.values())
+
+    return {
+        "status": "healthy" if all_healthy else "degraded",
+        "checks": checks,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/metrics", tags=["System"])
+async def metrics_endpoint():
+    """Prometheus metrics endpoint."""
+    from fastapi.responses import Response
+    from metrics import get_metrics
+    return Response(content=get_metrics(), media_type="text/plain")
 
 
 @app.post("/webhooks/whatsapp", tags=["Ingestion"])
@@ -161,10 +386,13 @@ async def whatsapp_webhook(
         raise HTTPException(status_code=400, detail="Missing 'message' in payload")
 
     import asyncio
-    import logging
-    logger = logging.getLogger("uvicorn.error")
 
     try:
+        if LLM_MOCK_MODE:
+            # Return mock response for testing
+            mock_response = get_mock_llm_response("aisha_intake")
+            return {"success": True, "data": mock_response, "mock": True}
+
         result = await asyncio.to_thread(
             aisha_handle_message,
             raw_input,
@@ -204,10 +432,13 @@ async def generate_agreement(
     _verify_n8n_key(x_api_key)
 
     import asyncio
-    import logging
-    logger = logging.getLogger("uvicorn.error")
 
     try:
+        if LLM_MOCK_MODE:
+            # Return mock response for testing
+            mock_response = get_mock_llm_response("aisha_intake")
+            return {"success": True, "data": mock_response, "mock": True}
+
         result = await asyncio.to_thread(
             aisha_handle_message,
             request.message,
@@ -317,85 +548,6 @@ class NeslExecuteResponse(BaseModel):
     mode: str = "mock"
 
 
-# ── Mock Implementation (Default) ──────────────────────────────────────────
-import asyncio
-import time
-import uuid
-
-
-class MockNeslClient:
-    async def file(self, req: NeslFilingRequest) -> NeslFilingResult:
-        delay = float(os.environ.get("NESL_MOCK_DELAY_SEC", "3"))
-        await asyncio.sleep(delay)
-        return NeslFilingResult(
-            transaction_id=f"NESL-MOCK-{uuid.uuid4().hex[:12].upper()}",
-            status="FILED",
-            provider="mock",
-            filed_at=datetime.now(timezone.utc).isoformat(),
-            message=f"Mock filing successful after {delay}s delay",
-            source="mock",
-        )
-
-    async def close(self):
-        pass
-
-
-# ── Production Client (Stubs — replace with real IGR/NeSL integration) ───────
-class ProductionNeslClient(MockNeslClient):
-    def __init__(self):
-        self.api_base = os.environ.get("NESL_API_BASE_URL", "")
-        self.api_key = os.environ.get("NESL_API_KEY", "")
-        self.client_id = os.environ.get("NESL_CLIENT_ID", "")
-        self.client_secret = os.environ.get("NESL_CLIENT_SECRET", "")
-        self.timeout = float(os.environ.get("NESL_REQUEST_TIMEOUT_SEC", "30"))
-
-    async def file(self, req: NeslFilingRequest) -> NeslFilingResult:
-        raise NotImplementedError(
-            "Production NeSL client not implemented — configure NESL_API_BASE_URL, "
-            "NESL_API_KEY, NESL_CLIENT_ID, NESL_CLIENT_SECRET from NeSL sandbox"
-        )
-
-
-class NeslClient:
-    """Unified NeSL client — picks mock or production based on env."""
-
-    def __init__(self):
-        self._mock = MockNeslClient()
-        self._prod = None
-        self._use_mock = os.environ.get("NESL_USE_MOCK", "true").lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-
-    async def file(self, req: NeslFilingRequest) -> NeslFilingResult:
-        if self._use_mock:
-            return await self._mock.file(req)
-        if self._prod is None:
-            self._prod = ProductionNeslClient()
-        return await self._prod.file(req)
-
-    async def execute(self, case_id: str, document_type: str) -> NeslExecuteResponse:
-        req = NeslFilingRequest(
-            case_id=case_id, document_type=document_type, metadata={}
-        )
-        result = await self.file(req)
-        return NeslExecuteResponse(
-            success=result.status == "FILED",
-            transaction_id=result.transaction_id,
-            filing_reference=result.transaction_id,
-            message=result.message,
-            mode="mock" if self._use_mock else "production",
-        )
-
-    async def close(self):
-        if self._mock:
-            await self._mock.close()
-        if self._prod:
-            await self._prod.close()
-
-
 # ── NeSL API Routes ─────────────────────────────────────────────────────────
 @app.post("/api/nesl/file", response_model=NeslFilingResult, tags=["NeSL"])
 async def nesl_file(
@@ -500,9 +652,7 @@ async def noi_workflow(
         )
         return NOIWorkflowResponse(success=result.get("success", False), data=result)
     except Exception as e:
-        import logging
-
-        logging.getLogger(__name__).error(f"NOI workflow error: {e}")
+        logger.error(f"NOI workflow error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
 
 
@@ -528,9 +678,7 @@ async def noi_status(
             },
         )
     except Exception as e:
-        import logging
-
-        logging.getLogger(__name__).error(f"NOI status error: {e}")
+        logger.error(f"NOI status error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
 
 
@@ -564,9 +712,7 @@ async def noi_webhook(payload: NOIWebhookPayload):
             success=True, data={"case_id": payload.case_id, "status": payload.status}
         )
     except Exception as e:
-        import logging
-
-        logging.getLogger(__name__).error(f"NOI webhook error: {e}")
+        logger.error(f"NOI webhook error: {e}")
         return NOIWorkflowResponse(success=False, error=str(e))
 
 
@@ -628,4 +774,4 @@ async def circuit_breaker_status(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host=API_HOST, port=API_PORT, reload=not IS_PRODUCTION)

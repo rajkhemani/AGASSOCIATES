@@ -8,6 +8,54 @@ Optimized for: lowest cost, fastest path to "live", full orchestration (CI deplo
 
 ---
 
+## 0. The marketing site is a separate target
+
+`advadiityagade.com` is **not** served from the VPS. It is the static export of
+`apps/web`, published to GitHub Pages by
+[`.github/workflows/nextjs.yml`](.github/workflows/nextjs.yml) on every push to
+`main`. Nothing in the rest of this playbook applies to it.
+
+### GitHub Pages must stay on the "GitHub Actions" source
+
+In **Settings → Pages → Build and deployment**, `Source` must be
+**`GitHub Actions`**. If it is ever set back to `Deploy from a branch`, GitHub
+enables its built-in Jekyll builder, which builds the **repository root** and
+publishes that to the same custom domain. Two publishers then compete and the
+last writer wins.
+
+This has happened twice in production. Both times the live site was replaced by
+`README.md` rendered as a Jekyll page, titled `AGASSOCIATES` because there is no
+`_config.yml` to override the default. On the first occurrence the two deploys
+finished one second apart:
+
+```text
+Next.js deploy finished : 13:11:40Z
+Jekyll  deploy finished : 13:11:41Z   ← won
+```
+
+The second occurrence was worse, because the branch source had been pointed at a
+feature branch rather than `main` — so every push to that working branch took
+the production site down until the Actions workflow was re-run by hand.
+
+Notes for whoever hits this next:
+
+- **A healthy HTTP 200 is not proof the site is up.** The Jekyll page serves
+  perfectly well; it is simply the wrong site. Check the `<title>` — the real
+  site is `AG Associates — Banking Panel Advocates, Thane`.
+- **`.nojekyll` does not fix it.** That disables Jekyll *processing*, not the
+  branch-based deployment. The root would still be published, just unrendered.
+- **To recover, fix the source first.** Check *Settings → Pages → Source*. If it
+  still reads `Deploy from a branch`, change it to `GitHub Actions` before doing
+  anything else — otherwise the branch publisher stays armed and the next push
+  overwrites the site again. Then re-run the workflow manually: Actions →
+  *Deploy Next.js site to Pages* → *Run workflow* on `main`. A
+  `workflow_dispatch` does not itself trigger the Jekyll builder, so that
+  redeploy is uncontested — but it only buys time until the source is corrected.
+- **Enforce HTTPS** should stay ticked. It was off for a period, and
+  `http://advadiityagade.com/` answered `200` with no redirect to TLS.
+
+---
+
 ## 1. One-time provisioning
 
 ### 1.1 Pick a VPS
@@ -28,7 +76,29 @@ Register a domain (Cloudflare Registrar, Porkbun, etc.). Create five **A records
 
 If you front Cloudflare, set proxy to **DNS-only (gray cloud)** for the initial Let's Encrypt handshake — switch to proxied after the first cert issues.
 
-### 1.3 Supabase Cloud project
+### 1.3 Container architecture
+
+Eleven containers behind Caddy on `<domain>` subdomains:
+
+| Container | Image | Port | Subdomain | Purpose |
+|---|---|---|---|---|
+| `ag_caddy` | caddy:2-alpine | 80, 443 | — | Reverse proxy + auto-TLS |
+| `ag_postgres` | pgvector/pgvector:pg16 | 5432 | — | On-VPS database (embeddings + n8n) |
+| `ag_redis` | redis:7-alpine | 6379 | — | Cache + agent bus + job queue |
+| `ag_ai_backend` | ag-ai-backend | 8000 | `api.<domain>` | FastAPI agents + RAG |
+| `ag_ai_dashboard` | ag-ai-dashboard | 3000 | `dashboard.<domain>` | Next.js workflow viewer |
+| `ag_platform` | ag-platform | 3001 | `app.<domain>` | Vite + Express LegalTech UI |
+| `ag_n8n` | n8nio/n8n:latest | 5678 | `n8n.<domain>` | Workflow orchestration |
+| `ag_intake_api` | intake-api | 3002 | `intake.<domain>` | SMS webhook + OTP bridge |
+| `ag_telegram_bot` | telegram-bot | 3003 | — | Telegram bot + file handler |
+| `ag_email_intake` | email-intake | 3004 | — | IMAP poller for bank emails |
+| `ag_coordinator` | coordinator | 3005 | — | Hierarchical agent orchestration |
+
+Additional static services (no container):
+- `landing/` — older marketing page served by Caddy at `http://<domain>`
+- `clerk-docs/dist/` — documentation site served at `docs.<domain>`
+
+### 1.4 Supabase Cloud project
 
 1. Create a free-tier project at [supabase.com](https://supabase.com). Region: `ap-south-1` (Mumbai) for Indian banking compliance, or your nearest region otherwise.
 2. **SQL Editor** → run `ag-platform/src/server/migrations.sql` (cases, profiles, timesheets, organizations tables).
@@ -36,11 +106,11 @@ If you front Cloudflare, set proxy to **DNS-only (gray cloud)** for the initial 
 4. **Authentication → Providers** → enable Email (magic links). Add `https://app.<domain>` to the allowed redirect URLs.
 5. Copy **Project URL**, **anon key**, **service_role key**, and **JWT Secret** (Settings → API). These go into `/srv/ag/.env` on the VPS.
 
-### 1.4 LLM provider
+### 1.5 LLM provider
 
 Default: **Groq free tier** (`llama-3.1-70b-versatile`, OpenAI-compatible). Sign up at [console.groq.com](https://console.groq.com), create an API key. Or use Gemini via the OpenAI-compatible endpoint — set `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai` and provide your Gemini key.
 
-### 1.5 Bootstrap the VPS
+### 1.6 Bootstrap the VPS
 
 SSH in as root, then:
 
@@ -50,7 +120,7 @@ curl -fsSL https://raw.githubusercontent.com/LUXORANOVA9/AGASSOCIATES/main/scrip
 
 This installs Docker, hardens the firewall (ufw + fail2ban), creates a `deploy` user, clones the repo to `/srv/ag/repo`, and seeds `/srv/ag/.env` from the template. Read the on-screen "Next steps" the script prints when it finishes.
 
-### 1.6 Fill in secrets
+### 1.7 Fill in secrets
 
 Edit `/srv/ag/.env` (mode 0600, owner `deploy`) and replace every `REPLACE_WITH_*` value. Generate strong secrets with `openssl rand -hex 32`. Generate the n8n basic-auth password hash with:
 
@@ -58,7 +128,7 @@ Edit `/srv/ag/.env` (mode 0600, owner `deploy`) and replace every `REPLACE_WITH_
 docker run --rm caddy:2 caddy hash-password --plaintext 'your-n8n-password'
 ```
 
-### 1.7 First boot
+### 1.8 First boot
 
 As the `deploy` user:
 
@@ -76,7 +146,7 @@ docker compose --env-file /srv/ag/.env logs -f
 
 Caddy will request Let's Encrypt certs for all five hostnames. First boot takes ~3 minutes (Sentence-Transformer model download is baked into the image so /api/generate-agreement is fast on first hit).
 
-### 1.8 Seed RAG templates
+### 1.9 Seed RAG templates
 
 ```bash
 docker compose --env-file /srv/ag/.env exec ai-backend python generate_embeddings.py
@@ -123,9 +193,9 @@ In the browser, open `https://app.$DOMAIN`, sign in via magic link, create a cas
 
 `.github/workflows/deploy.yml` runs on every push to `main` that touches code:
 
-1. Builds three images: `ag-ai-backend`, `ag-ai-dashboard`, `ag-platform`. Pushes to `ghcr.io/luxoranova9/<name>:latest` and `:<sha>`.
-2. SSHes into the VPS as `deploy`, pulls the new images, `docker compose up -d --remove-orphans`.
-3. Smoke-tests `https://api.<domain>/health` — fails the workflow if non-200.
+1. Builds seven images: `ag-ai-backend`, `ag-ai-dashboard`, `ag-platform`, `telegram-bot`, `intake-api`, `email-intake`, `coordinator`. Pushes to `ghcr.io/luxoranova9/<name>:latest` and `:<sha>`.
+2. SSHes into the VPS as `deploy`, clones repo to `deploy-<sha>`, pulls new images, `docker compose up -d`, prunes old images and deploy dirs (>3 days).
+3. Runs delayed diagnostics (120s post-deploy) and smoke-tests all endpoints — **fails the workflow** if any return non-200.
 
 Required **repo secrets** (Settings → Secrets and variables → Actions):
 

@@ -1,24 +1,39 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 import crypto from "crypto";
-import jwt from "jsonwebtoken";
 import caseRoutes from "./src/server/routes/cases.ts";
 import timesheetRoutes from "./src/server/routes/timesheets.ts";
 import documentRoutes from "./src/server/routes/documents.ts";
 import dashboardRoutes from "./src/server/routes/dashboard.ts";
 import neslRoutes from "./src/server/routes/nesl.ts";
+import authRoutes from "./src/server/routes/auth.ts";
+import invoiceRoutes from "./src/server/routes/invoices.ts";
+import bankPortalRoutes from "./src/server/routes/bankPortal.ts";
 
 // Sentry error tracking (optional, requires SENTRY_DSN env)
 import { initSentry, Sentry } from "./src/server/sentry.ts";
 
+// Structured logging
+import { logger, requestLoggingMiddleware, errorLoggingMiddleware } from "./src/server/logger.ts";
+
+// Metrics
+import { metricsMiddleware, metricsHandler, setDbPoolConnections } from "./src/server/metrics.ts";
+
+// OpenAPI
+import { setupOpenAPI, openAPISpec } from "./src/server/openapi.ts";
+
+// Job Queue
+import { startCronJobs, shutdownJobQueue, getQueueMetrics, initializeQueues } from "./src/server/jobQueue.ts";
+
 // Load environment variables
 dotenv.config();
-initSentry();
+const sentry = initSentry();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,54 +41,37 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import aiRoutes from "./src/server/aiRouter.ts";
 import { pool } from "./src/server/db.ts";
 
-const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || '';
+// API Version
+const API_VERSION = "v1";
+const API_PREFIX = `/api/${API_VERSION}`;
 
-interface AuthUser {
-  sub: string;
-  role: string;
-  email?: string;
-}
+// CORS Configuration - Strict allowlist for production
+const corsOrigins = process.env.CORS_ORIGINS?.split(',').map(o => o.trim()) || [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://luxor9-legalos.vercel.app',
+];
 
-function authMiddleware(allowedRoles?: string[]) {
-  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (!SUPABASE_JWT_SECRET) {
-      console.error('SUPABASE_JWT_SECRET not configured. Authentication required.');
-      res.status(500).json({ error: { code: 'CONFIG_ERROR', message: 'Server authentication not configured' } });
-      return;
-    }
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Missing or invalid token' } });
-      return;
-    }
-    const token = authHeader.slice(7);
-    try {
-      const decoded = jwt.verify(token, SUPABASE_JWT_SECRET, { algorithms: ['HS256'] }) as any;
-      const user: AuthUser = {
-        sub: decoded.sub || 'unknown',
-        role: decoded.role || decoded.app_metadata?.role || 'applicant',
-        email: decoded.email,
-      };
-      (req as any).user = user;
-      if (allowedRoles && !allowedRoles.includes(user.role)) {
-        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
-        return;
-      }
-      next();
-    } catch (err) {
-      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Invalid token' } });
-    }
-  };
-}
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin) return callback(null, true); // Allow non-browser requests
+    if (corsOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Org-ID'],
+  maxAge: 86400, // 24 hours
+};
 
 async function runMigrations() {
   try {
     const migrationPath = path.join(process.cwd(), "src/server/migrations.sql");
     const sql = fs.readFileSync(migrationPath, "utf8");
     await pool.query(sql);
-    console.log("Database migrations completed successfully.");
+    logger.info("Database migrations completed successfully");
   } catch (error) {
-    console.error("Migration failed:", error);
+    logger.error({ err: error }, "Migration failed");
   }
 }
 
@@ -86,27 +84,68 @@ async function startServer() {
   // Add trust proxy for rate limiting behind a reverse proxy
   app.set("trust proxy", 1);
 
-  app.use(cors());
-  app.use(express.json());
+  app.use(cors(corsOptions));
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  app.use(cookieParser());
 
-  // Sentry request handler (must be before other middleware/routes)
-  app.use(Sentry.Handlers.requestHandler());
+  // Sentry request handler (must be before other middleware/routes) - only if SENTRY_DSN is set
+  if (process.env.SENTRY_DSN) {
+    app.use(sentry.Handlers.requestHandler());
+  }
 
-  // Step 5: Add Request ID
+  // Structured request logging
+  app.use(requestLoggingMiddleware());
+
+  // Metrics middleware
+  app.use(metricsMiddleware());
+
+  // Add Request ID
   app.use((req, res, next) => {
     req.headers['x-request-id'] = req.headers['x-request-id'] || crypto.randomUUID();
     res.setHeader('X-Request-ID', req.headers['x-request-id']);
     next();
   });
 
+  // Global rate limiter
+  const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000,
+    message: { error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' } },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use(globalLimiter);
+
+  // Stricter rate limiter for auth endpoints
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { error: { code: 'RATE_LIMITED', message: 'Too many authentication attempts, please try again later.' } },
+  });
+
+  // Stricter rate limiter for webhook endpoints
+  const webhookLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    message: { error: { code: 'RATE_LIMITED', message: 'Webhook rate limit exceeded.' } },
+  });
+
   // Rate Limiting for AI Routes
   const aiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
-    message: "Too many requests to AI services, please try again later.",
+    message: { error: { code: 'RATE_LIMITED', message: "Too many requests to AI services, please try again later." } },
   });
 
-  // Mount API paths
+  // Monitor DB pool
+  pool.on('acquire', () => setDbPoolConnections(pool.totalCount - pool.idleCount, pool.idleCount));
+  pool.on('release', () => setDbPoolConnections(pool.totalCount - pool.idleCount, pool.idleCount));
+
+  // Setup OpenAPI
+  setupOpenAPI(app, API_PREFIX);
+
+  // Health check (no version prefix)
   app.get("/api/health", async (req, res) => {
     let dbStatus = "unknown";
     try {
@@ -115,29 +154,92 @@ async function startServer() {
         dbStatus = "connected";
       }
     } catch (e) {
-      console.error("Database connection failed", e);
+      logger.error({ err: e }, "Database connection failed");
       dbStatus = "disconnected";
     }
-    res.json({ status: "ok", database: dbStatus });
+    res.json({ status: "ok", database: dbStatus, version: API_VERSION });
   });
 
-  app.post("/api/webhooks/virus-scan", async (req, res) => {
+  // Deep health check
+  app.get("/api/health/deep", async (req, res) => {
+    const checks = {
+      database: "unknown",
+      supabase: "unknown",
+    };
+
+    try {
+      await pool.query('SELECT 1 as result');
+      checks.database = "healthy";
+    } catch (e) {
+      checks.database = `unhealthy: ${String(e).substring(0, 100)}`;
+    }
+
+    try {
+      const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+      if (supabaseUrl && supabaseKey) {
+        const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+          headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }
+        });
+        if (response.ok || response.status === 401) {
+          checks.supabase = "healthy";
+        } else {
+          checks.supabase = `unhealthy: HTTP ${response.status}`;
+        }
+      } else {
+        checks.supabase = "not_configured";
+      }
+    } catch (e) {
+      checks.supabase = `unhealthy: ${String(e).substring(0, 100)}`;
+    }
+
+    const allHealthy = Object.values(checks).every(v => v === "healthy" || v === "not_configured");
+
+    res.json({
+      status: allHealthy ? "healthy" : "degraded",
+      checks,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // Prometheus metrics endpoint
+  app.get("/metrics", metricsHandler);
+
+  // Job queue metrics endpoint
+  app.get(`${API_PREFIX}/queue/metrics`, async (req, res) => {
+    try {
+      const metrics = await getQueueMetrics();
+      res.json({ success: true, metrics });
+    } catch (error) {
+      logger.error({ err: error }, 'Queue metrics error');
+      res.status(500).json({ error: 'Failed to fetch queue metrics' });
+    }
+  });
+
+  // Webhook endpoints with stricter rate limiting
+  app.post("/api/webhooks/virus-scan", webhookLimiter, async (req, res) => {
     try {
       const { bucketId, filePath } = req.body;
-      console.log(`[virus-scan] received: bucket=${bucketId}, path=${filePath}`);
+      logger.info({ bucketId, filePath }, "Virus scan webhook received");
       res.json({ status: "ok", safe: true });
     } catch (e) {
       res.status(500).json({ error: "Virus scan failed" });
     }
   });
 
-  app.use("/api", caseRoutes);
-  app.use("/api", timesheetRoutes);
-  app.use("/api", documentRoutes);
-  app.use("/api", dashboardRoutes);
-  app.use("/api", neslRoutes);
+  // Auth routes (login, register, logout, me) - with auth rate limiting
+  app.use(`${API_PREFIX}/auth`, authLimiter, authRoutes);
 
-  app.use("/api/ai", aiLimiter, aiRoutes);
+  // Protected routes - require authentication
+  app.use(API_PREFIX, caseRoutes);
+  app.use(API_PREFIX, timesheetRoutes);
+  app.use(API_PREFIX, documentRoutes);
+  app.use(API_PREFIX, dashboardRoutes);
+  app.use(API_PREFIX, neslRoutes);
+  app.use(API_PREFIX, invoiceRoutes);
+  app.use(API_PREFIX, bankPortalRoutes);
+
+  app.use(`${API_PREFIX}/ai`, aiLimiter, aiRoutes);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
@@ -145,24 +247,30 @@ async function startServer() {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
+      root: path.join(process.cwd(), "apps/web"),
     });
     app.use(vite.middlewares);
   } else {
     // Production serving
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = path.join(process.cwd(), "apps/web/dist");
     app.use(express.static(distPath));
-    // Since it's Express v5, we must use '*all'
     app.get("*all", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
-  // Sentry error handler (must be after all routes, before other error handlers)
-  app.use(Sentry.Handlers.errorHandler());
+  // Sentry error handler (must be after all routes, before other error handlers) - only if SENTRY_DSN is set
+  if (process.env.SENTRY_DSN) {
+    app.use(sentry.Handlers.errorHandler());
+  }
 
-  // Step 5: Global Structured Error Handler
+  // Structured error logging
+  app.use(errorLoggingMiddleware());
+
+  // Global Structured Error Handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error(`System Error: ${err.message} | Request ID: ${req.headers['x-request-id']}`);
+    const requestId = req.headers['x-request-id'];
+    logger.error({ err: err, requestId }, `System Error: ${err.message}`);
 
     const statusCode = err.status || 500;
     const isClientError = statusCode >= 400 && statusCode < 500;
@@ -171,14 +279,30 @@ async function startServer() {
       error: {
         code: isClientError ? err.code || 'BAD_REQUEST' : 'SYSTEM_ERROR',
         message: isClientError ? err.message : 'An internal system error occurred. Please try again later.',
-        requestId: req.headers['x-request-id']
+        requestId
       }
     });
   });
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    logger.info({ port: PORT, apiVersion: API_VERSION }, `Server running on http://localhost:${PORT}`);
+
+    // Initialize job queues after server is listening
+    initializeQueues();
+    
+    // Start cron jobs for job queue
+    startCronJobs();
   });
+
+  // Graceful shutdown
+  const shutdown = async () => {
+    logger.info('Shutting down server...');
+    await shutdownJobQueue();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 startServer();

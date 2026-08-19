@@ -12,42 +12,23 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from agents.stamp_duty import validate_stamp_duty
+from workflows.definitions import NOI
 from workforce.ledger import record_activity
 
 logger = logging.getLogger(__name__)
 
-NOI_STATES = [
-    "DOCUMENTS_RECEIVED",
-    "CHALLAN_GENERATED",
-    "CHALLAN_PAID",
-    "VERIFIED",
-    "NOI_DROP_RECEIVED",
-    "RECTIFY",
-    "NOI_FILED",
-    "ACKNOWLEDGED",
-    "COMPLETED",
-]
-
-NOI_EXCEPTION_STATES = ["MISMATCH", "REJECTED"]
-
+# The NOI state machine lives in workflows/definitions.py alongside the other
+# workflows, so that adding a state is one edit rather than three (ADR 0002).
+# These names are kept as module-level aliases because they are part of this
+# module's surface.
+NOI_STATES = list(NOI.states)
+NOI_EXCEPTION_STATES = list(NOI.exception_states)
 NOI_TRANSITIONS = {
-    "DOCUMENTS_RECEIVED": ["CHALLAN_GENERATED"],
-    "CHALLAN_GENERATED": ["CHALLAN_PAID"],
-    "CHALLAN_PAID": ["VERIFIED"],
-    "VERIFIED": ["NOI_DROP_RECEIVED", "RECTIFY"],
-    "NOI_DROP_RECEIVED": ["NOI_FILED", "RECTIFY"],
-    "RECTIFY": ["NOI_FILED", "VERIFIED"],
-    "NOI_FILED": ["ACKNOWLEDGED"],
-    "ACKNOWLEDGED": ["COMPLETED"],
-    "COMPLETED": [],
+    state: list(NOI.allowed_from(state))
+    for state in (*NOI.states, *NOI.exception_states)
 }
-
-for s in NOI_EXCEPTION_STATES:
-    NOI_TRANSITIONS.setdefault(s, [])
-
-NOI_TERMINAL_STATES = ["COMPLETED", "REJECTED"]
-
-NOI_REDIS_PREFIX = "noi:case:"
+NOI_TERMINAL_STATES = list(NOI.terminal_states)
+NOI_REDIS_PREFIX = NOI.redis_prefix
 
 
 class NOIAgent:
@@ -135,19 +116,14 @@ class NOIAgent:
         if not force and new_status not in NOI_EXCEPTION_STATES:
             case = await self.get_case(case_id)
             if case:
-                current = case.get("noi_status")
+                current = case.get(NOI.status_field)
                 if current:
-                    allowed = NOI_TRANSITIONS.get(current, [])
-                    if new_status not in allowed:
-                        raise ValueError(
-                            f"Invalid NOI transition: {current} → {new_status}. "
-                            f"Allowed from {current}: {allowed or '(terminal state)'}"
-                        )
+                    NOI.validate_transition(current, new_status)
 
         if self._use_local_store():
             case = await self._local_get_case(case_id)
             if case:
-                case["noi_status"] = new_status
+                case[NOI.status_field] = new_status
                 case["updated_at"] = datetime.utcnow().isoformat()
                 await self._local_set_case(case_id, case)
                 logger.info(
@@ -169,7 +145,7 @@ class NOIAgent:
                 resp = await client.patch(
                     f"{supabase_url}/rest/v1/cases?id=eq.{case_id}",
                     json={
-                        "noi_status": new_status,
+                        NOI.status_field: new_status,
                         "updated_at": datetime.utcnow().isoformat(),
                     },
                     headers={
@@ -181,7 +157,7 @@ class NOIAgent:
                 )
                 resp.raise_for_status()
 
-            await self._log_timeline(case_id, "noi_status", new_status, notes)
+            await self._log_timeline(case_id, NOI.status_field, new_status, notes)
 
             record_activity(
                 source="noi_agent",
@@ -207,7 +183,7 @@ class NOIAgent:
         case = {
             "id": case_id,
             "case_id": case_id,
-            "noi_status": "DOCUMENTS_RECEIVED",
+            NOI.status_field: "DOCUMENTS_RECEIVED",
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
             "borrower_name": case_data.get("borrower_name", "Test Borrower"),
@@ -388,7 +364,7 @@ class NOIAgent:
         if not case:
             return {"success": False, "error": f"Case {case_id} not found"}
 
-        noi_status = case.get("noi_status", "")
+        noi_status = case.get(NOI.status_field, "")
         if noi_status not in ("NOI_DROP_RECEIVED", "RECTIFY"):
             return {
                 "success": False,

@@ -1,0 +1,79 @@
+{
+  "name": "coordinator",
+  "description": "AG Associates Hierarchical Agent Coordinator (Telegraf + Gemini)",
+  "type": "docker",
+  "dockerCompose": {
+    "version": "3.8",
+    "services": {
+      "coordinator": {
+        "build": {
+          "context": "./ag-platform/services/coordinator",
+          "dockerfile": "Dockerfile"
+        },
+        "image": "ghcr.io/luxoranova9/coordinator:latest",
+        "container_name": "ag_coordinator",
+        "restart": "unless-stopped",
+        "environment": {
+          "NODE_ENV": "production",
+          "PORT": "3005",
+          "TELEGRAM_BOT_TOKEN": "${TELEGRAM_BOT_TOKEN}",
+          "TELEGRAM_WEBHOOK_SECRET": "${TELEGRAM_WEBHOOK_SECRET:-}",
+          "GEMINI_API_KEY": "${GOOGLE_GENERATIVE_AI_API_KEY:-}",
+          "REDIS_URL": "redis://:${REDIS_PASSWORD}@redis:6379"
+        },
+        "depends_on": [
+          "redis"
+        ],
+        "healthcheck": {
+          "test": ["CMD", "node", "-e", "fetch('http://127.0.0.1:3005/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"],
+          "interval": "30s",
+          "timeout": "5s",
+          "start_period": "10s",
+          "retries": 3
+        },
+        "networks": ["ag_net"],
+        "labels": {
+          "coolify.managed": "true",
+          "coolify.service": "coordinator"
+        }
+      }
+    },
+    "networks": {
+      "ag_net": {
+        "driver": "bridge"
+      }
+    }
+  },
+  "domains": [
+    {
+      "domain": "coordinator.${DOMAIN}",
+      "port": 3005,
+      "redirectHttp": true,
+      "https": true
+    }
+  ],
+  "environmentVariables": [
+    { "key": "TELEGRAM_BOT_TOKEN", "value": "${TELEGRAM_BOT_TOKEN}", "isSecret": true },
+    { "key": "TELEGRAM_WEBHOOK_SECRET", "value": "${TELEGRAM_WEBHOOK_SECRET:-}", "isSecret": true },
+    { "key": "GEMINI_API_KEY", "value": "${GOOGLE_GENERATIVE_AI_API_KEY:-}", "isSecret": true },
+    { "key": "REDIS_PASSWORD", "value": "${REDIS_PASSWORD}", "isSecret": true },
+    { "key": "NODE_ENV", "value": "production", "isSecret": false },
+    { "key": "PORT", "value": "3005", "isSecret": false }
+  ],
+  "resourceLimits": {
+    "cpu": "0.5",
+    "memory": "512m",
+    "memorySwap": "512m"
+  },
+  "buildSettings": {
+    "buildPack": "dockerfile",
+    "dockerfilePath": "./ag-platform/services/coordinator/Dockerfile",
+    "contextPath": "./ag-platform/services/coordinator"
+  },
+  "port": 3005,
+  "healthCheckPath": "/health",
+  "healthCheckInterval": 30,
+  "healthCheckTimeout": 5,
+  "healthCheckRetries": 3,
+  "healthCheckStartPeriod": 10
+}

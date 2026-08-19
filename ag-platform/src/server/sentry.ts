@@ -10,6 +10,7 @@ export function initSentry() {
     });
     console.log('Sentry initialized');
   }
+  return Sentry;
 }
 
 export { Sentry };

@@ -1,0 +1,141 @@
+# Trivy Ignore File for AGASSOCIATES Stack
+# Place at: .trivyignore (repository root)
+# This file suppresses known false positives and accepted risks
+
+# =============================================================================
+# GENERAL RULES
+# =============================================================================
+
+# Ignore low severity findings globally
+# LOW:*
+
+# Ignore specific packages with known issues that are acceptable
+# MEDIUM:alpine-baselayout
+# MEDIUM:busybox
+
+# =============================================================================
+# CONTAINER IMAGE SPECIFIC IGNORES
+# =============================================================================
+
+# Python base images - known CVEs in base OS packages that we can't control
+# These are in the base python:3.11-slim image
+# CVE-2023-XXXX:python3.11
+# CVE-2024-XXXX:python3.11
+
+# Node.js base images
+# CVE-2023-XXXX:nodejs
+# CVE-2024-XXXX:nodejs
+
+# =============================================================================
+# AG-AI-BACKEND SPECIFIC
+# =============================================================================
+
+# Known CVEs in Python dependencies that are either:
+# 1. Not exploitable in our context
+# 2. No fix available yet
+# 3. False positives
+
+# Example: urllib3 CVE (if not using vulnerable code paths)
+# CVE-2023-45803:urllib3
+
+# Example: cryptography CVE (if not using affected algorithms)
+# CVE-2023-49083:cryptography
+
+# =============================================================================
+# AG-AI-DASHBOARD SPECIFIC
+# =============================================================================
+
+# Next.js / React ecosystem - development dependencies only
+# These are only used at build time, not in production
+# MEDIUM:webpack-dev-server
+# MEDIUM:esbuild
+
+# =============================================================================
+# AG-PLATFORM SPECIFIC
+# =============================================================================
+
+# Vite / Express ecosystem
+# MEDIUM:vite
+# MEDIUM:esbuild
+
+# =============================================================================
+# INTAKE-API SPECIFIC
+# =============================================================================
+
+# Fastify ecosystem
+# MEDIUM:fastify
+
+# =============================================================================
+# COORDINATOR SPECIFIC
+# =============================================================================
+
+# Hono / Telegraf ecosystem
+# MEDIUM:hono
+
+# =============================================================================
+# MISCONFIGURATION IGNORES
+# =============================================================================
+
+# Kubernetes misconfigurations that are intentional
+# KSV001: "Privileged container" - needed for certain init containers
+# KSV002: "Host network" - needed for specific networking
+
+# Docker misconfigurations
+# DS001: "Root user" - some base images require root for installation
+# DS002: "No healthcheck" - handled by orchestration layer
+
+# =============================================================================
+# SECRET SCANNING IGNORES
+# =============================================================================
+
+# Example test keys and placeholders that are not real secrets
+# secret:test.*
+# secret:example.*
+# secret:placeholder.*
+# secret:dummy.*
+# secret:fake.*
+
+# Public keys and certificates (not secrets)
+# secret:public.*key
+# secret:.*\.pub
+# secret:.*\.crt
+# secret:.*\.pem
+
+# =============================================================================
+# LICENSE IGNORES
+# =============================================================================
+
+# Licenses that are acceptable for our use case
+# MIT
+# Apache-2.0
+# BSD-2-Clause
+# BSD-3-Clause
+# ISC
+
+# =============================================================================
+# SPECIFIC CVE IGNORES (USE SPARINGLY)
+# =============================================================================
+
+# Format: CVE-ID:package-name
+# Only add entries here with proper justification documented
+
+# Example entries (replace with actual CVEs if needed):
+# CVE-2023-12345:package-name  # Justification: Not exploitable in our context
+# CVE-2024-67890:another-package  # Justification: Fixed in next major version, blocking upgrade
+
+# =============================================================================
+# HOW TO ADD NEW IGNORES
+# =============================================================================
+#
+# 1. Run trivy scan to find the exact CVE ID and package name:
+#    trivy image --format json ghcr.io/rajkhemani/ag-ai-backend:latest | jq '.Results[].Vulnerabilities[] | select(.Severity=="HIGH") | {CVE: .VulnerabilityID, Package: .PkgName, Severity: .Severity}'
+#
+# 2. Add entry to this file with justification comment
+#
+# 3. Test that the ignore works:
+#    trivy image --ignorefile .trivyignore ghcr.io/rajkhemani/ag-ai-backend:latest
+#
+# 4. Document the justification in security/trivy-justifications.md
+#
+# IMPORTANT: Every ignore entry MUST have a justification comment!
+# Unexplained ignores will be flagged in security reviews.

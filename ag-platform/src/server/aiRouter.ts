@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { streamText, generateText, generateObject, embed } from "ai";
 import { google } from "@ai-sdk/google";
 import { createClient } from "@supabase/supabase-js";
@@ -6,6 +6,7 @@ import WebSocket from "ws";
 import { Resend } from "resend";
 import { z } from "zod";
 import dotenv from "dotenv";
+import { createSupabaseMiddleware, requireOrgAccess } from "./auth.ts";
 
 dotenv.config();
 
@@ -29,9 +30,11 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
   realtime: { transport: WebSocket as any },
 });
 
+// All AI routes require authentication + org access
+router.use(createSupabaseMiddleware(), requireOrgAccess());
+
 // Middleware to track AI credits (Tokens)
 async function checkAndTrackTokens(orgId: string, tokensToConsume: number = 0) {
-  // Simplistic token tracking
   if (!orgId) return;
 
   const { data: org, error } = await supabase
@@ -54,12 +57,18 @@ async function checkAndTrackTokens(orgId: string, tokensToConsume: number = 0) {
   }
 }
 
-// 1. PROJECT BRIEF GENERATOR (Stream)
-router.post("/generate-brief", async (req, res) => {
-  try {
-    const { project_name, client_name, scope_description, deliverables, orgId } = req.body;
+// Helper to get orgId from authenticated user
+function getOrgId(req: Request): string {
+  return req.user!.orgId!;
+}
 
-    await checkAndTrackTokens(orgId); // Basic quota check
+// 1. PROJECT BRIEF GENERATOR (Stream)
+router.post("/generate-brief", async (req: Request, res: Response) => {
+  try {
+    const { project_name, client_name, scope_description, deliverables } = req.body;
+    const orgId = getOrgId(req);
+
+    await checkAndTrackTokens(orgId);
 
     const systemPrompt = `You are a senior consultant writing professional project briefs.
 Structure the output using Markdown with the following sections exactly:
@@ -93,9 +102,10 @@ Deliverables: ${deliverables ? deliverables.join(', ') : 'Not specified'}`;
 });
 
 // 2. SMART TASK SUGGESTIONS
-router.post("/suggest-tasks", async (req, res) => {
+router.post("/suggest-tasks", async (req: Request, res: Response) => {
   try {
-    const { brief, existingTasks, orgId } = req.body;
+    const { brief, existingTasks } = req.body;
+    const orgId = getOrgId(req);
     await checkAndTrackTokens(orgId);
 
     const result = await generateObject({
@@ -120,9 +130,10 @@ router.post("/suggest-tasks", async (req, res) => {
 });
 
 // 3. CLIENT COMMUNICATION DRAFTING
-router.post("/draft-email", async (req, res) => {
+router.post("/draft-email", async (req: Request, res: Response) => {
   try {
-    const { email_type, context_data, orgId } = req.body;
+    const { email_type, context_data } = req.body;
+    const orgId = getOrgId(req);
     await checkAndTrackTokens(orgId);
 
     const result = await generateText({
@@ -138,7 +149,7 @@ router.post("/draft-email", async (req, res) => {
 });
 
 // Resend dispatch logic
-router.post("/send-email", async (req, res) => {
+router.post("/send-email", async (req: Request, res: Response) => {
   try {
     const { to, subject, body } = req.body;
     const resend = getResendClient();
@@ -159,9 +170,10 @@ router.post("/send-email", async (req, res) => {
 });
 
 // 4. INVOICE DESCRIPTION GENERATOR
-router.post("/invoice-line-item", async (req, res) => {
+router.post("/invoice-line-item", async (req: Request, res: Response) => {
   try {
-    const { time_entries, project_name, orgId } = req.body;
+    const { time_entries, project_name } = req.body;
+    const orgId = getOrgId(req);
     await checkAndTrackTokens(orgId);
 
     const result = await generateObject({
@@ -184,9 +196,10 @@ router.post("/invoice-line-item", async (req, res) => {
 });
 
 // 5. DOCUMENT SUMMARIZER
-router.post("/summarize-document", async (req, res) => {
+router.post("/summarize-document", async (req: Request, res: Response) => {
   try {
-    const { extracted_text, orgId } = req.body;
+    const { extracted_text } = req.body;
+    const orgId = getOrgId(req);
     await checkAndTrackTokens(orgId);
 
     const result = await generateObject({
@@ -207,11 +220,10 @@ router.post("/summarize-document", async (req, res) => {
 });
 
 // 6. SEMANTIC PROJECT SEARCH
-// Note: To ingest a project, we would compute its embedding when it is created.
-// Here we provide the search route and an ingest route.
-router.post("/search-projects", async (req, res) => {
+router.post("/search-projects", async (req: Request, res: Response) => {
   try {
-    const { query, orgId } = req.body;
+    const { query } = req.body;
+    const orgId = getOrgId(req);
 
     // Create query embedding
     const { embedding } = await embed({
@@ -235,9 +247,10 @@ router.post("/search-projects", async (req, res) => {
   }
 });
 
-router.post("/ingest-project", async (req, res) => {
+router.post("/ingest-project", async (req: Request, res: Response) => {
   try {
-    const { projectId, content, orgId } = req.body;
+    const { projectId, content } = req.body;
+    const orgId = getOrgId(req);
     await checkAndTrackTokens(orgId); // Account for ingestion
 
     const { embedding } = await embed({
@@ -260,9 +273,10 @@ router.post("/ingest-project", async (req, res) => {
 });
 
 // 7. LEGAL DOCUMENT VETTING
-router.post("/vet-document", async (req, res) => {
+router.post("/vet-document", async (req: Request, res: Response) => {
   try {
-    const { documentText, documentType, orgId } = req.body;
+    const { documentText, documentType } = req.body;
+    const orgId = getOrgId(req);
 
     await checkAndTrackTokens(orgId); // Account for tokens
 

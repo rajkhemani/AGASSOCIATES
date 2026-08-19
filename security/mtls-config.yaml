@@ -1,0 +1,396 @@
+# mTLS Configuration for AGASSOCIATES Service-to-Service Communication
+# Compatible with Coolify deployment
+
+---
+# Certificate Authority Configuration
+ca:
+  # Root CA for the organization
+  root_ca:
+    common_name: "AGASSOCIATES Root CA"
+    organization: "AG Associates"
+    organizational_unit: "Security"
+    country: "IN"
+    state: "Maharashtra"
+    locality: "Thane"
+    validity_days: 3650  # 10 years
+    key_algorithm: "RSA"
+    key_size: 4096
+    signature_algorithm: "SHA256"
+
+  # Intermediate CA for service mesh
+  intermediate_ca:
+    common_name: "AGASSOCIATES Service Mesh CA"
+    organization: "AG Associates"
+    organizational_unit: "Service Mesh"
+    country: "IN"
+    state: "Maharashtra"
+    locality: "Thane"
+    validity_days: 1825  # 5 years
+    key_algorithm: "RSA"
+    key_size: 4096
+    signature_algorithm: "SHA256"
+
+# Service Certificate Configuration
+services:
+  # Common certificate settings for all services
+  defaults:
+    validity_days: 90  # 90-day rotation
+    key_algorithm: "RSA"
+    key_size: 2048
+    signature_algorithm: "SHA256"
+    extended_key_usage:
+      - "clientAuth"
+      - "serverAuth"
+    subject_alternative_names:
+      - "dns:*.agassociates.internal"
+      - "dns:*.agassociates.local"
+      - "ip:10.0.0.0/8"
+      - "ip:172.16.0.0/12"
+      - "ip:192.168.0.0/16"
+
+  # Individual service configurations
+  ag-ai-backend:
+    common_name: "ag-ai-backend.agassociates.internal"
+    dns_names:
+      - "ag-ai-backend"
+      - "ag-ai-backend.agassociates.internal"
+      - "ag-ai-backend.agassociates.local"
+    ip_addresses:
+      - "127.0.0.1"
+    ports:
+      - 8000  # HTTP
+      - 8001  # HTTPS/mTLS
+
+  ag-ai-dashboard:
+    common_name: "ag-ai-dashboard.agassociates.internal"
+    dns_names:
+      - "ag-ai-dashboard"
+      - "ag-ai-dashboard.agassociates.internal"
+      - "ag-ai-dashboard.agassociates.local"
+    ip_addresses:
+      - "127.0.0.1"
+    ports:
+      - 3000  # HTTP
+      - 3443  # HTTPS/mTLS
+
+  ag-platform:
+    common_name: "ag-platform.agassociates.internal"
+    dns_names:
+      - "ag-platform"
+      - "ag-platform.agassociates.internal"
+      - "ag-platform.agassociates.local"
+    ip_addresses:
+      - "127.0.0.1"
+    ports:
+      - 3001  # HTTP
+      - 3444  # HTTPS/mTLS
+
+  intake-api:
+    common_name: "intake-api.agassociates.internal"
+    dns_names:
+      - "intake-api"
+      - "intake-api.agassociates.internal"
+      - "intake-api.agassociates.local"
+    ip_addresses:
+      - "127.0.0.1"
+    ports:
+      - 3000  # HTTP
+      - 3445  # HTTPS/mTLS
+
+  coordinator:
+    common_name: "coordinator.agassociates.internal"
+    dns_names:
+      - "coordinator"
+      - "coordinator.agassociates.internal"
+      - "coordinator.agassociates.local"
+    ip_addresses:
+      - "127.0.0.1"
+    ports:
+      - 3005  # HTTP
+      - 3446  # HTTPS/mTLS
+
+  postgres:
+    common_name: "postgres.agassociates.internal"
+    dns_names:
+      - "postgres"
+      - "postgres.agassociates.internal"
+      - "postgres.agassociates.local"
+    ip_addresses:
+      - "127.0.0.1"
+    ports:
+      - 5432  # PostgreSQL
+      - 5433  # PostgreSQL with mTLS
+
+  redis:
+    common_name: "redis.agassociates.internal"
+    dns_names:
+      - "redis"
+      - "redis.agassociates.internal"
+      - "redis.agassociates.local"
+    ip_addresses:
+      - "127.0.0.1"
+    ports:
+      - 6379  # Redis
+      - 6380  # Redis with mTLS
+
+  n8n:
+    common_name: "n8n.agassociates.internal"
+    dns_names:
+      - "n8n"
+      - "n8n.agassociates.internal"
+      - "n8n.agassociates.local"
+    ip_addresses:
+      - "127.0.0.1"
+    ports:
+      - 5678  # HTTP
+      - 5679  # HTTPS/mTLS
+
+  caddy:
+    common_name: "caddy.agassociates.internal"
+    dns_names:
+      - "caddy"
+      - "caddy.agassociates.internal"
+      - "caddy.agassociates.local"
+      - "agassociates.com"
+      - "www.agassociates.com"
+      - "api.agassociates.com"
+      - "dashboard.agassociates.com"
+      - "intake.agassociates.com"
+      - "coordinator.agassociates.com"
+    ip_addresses:
+      - "127.0.0.1"
+    ports:
+      - 80    # HTTP
+      - 443   # HTTPS
+      - 2019  # Admin API
+      - 8443  # HTTPS/mTLS internal
+
+# mTLS Policy Configuration
+mtls_policy:
+  # Strict mTLS mode: all service-to-service communication must use mTLS
+  mode: "STRICT"
+
+  # Permissive mode for migration (allows both mTLS and plaintext)
+  # mode: "PERMISSIVE"
+
+  # Disable mTLS (for development only)
+  # mode: "DISABLED"
+
+  # Minimum TLS version
+  min_tls_version: "1.3"
+
+  # Cipher suites (in order of preference)
+  cipher_suites:
+    - "TLS_AES_256_GCM_SHA384"
+    - "TLS_CHACHA20_POLY1305_SHA256"
+    - "TLS_AES_128_GCM_SHA256"
+    - "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+    - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+    - "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256"
+    - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+    - "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+    - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+
+  # Elliptic curves (in order of preference)
+  curves:
+    - "X25519"
+    - "P-256"
+    - "P-384"
+
+  # Certificate verification
+  verify_client_cert: true
+  verify_server_cert: true
+  require_client_cert: true
+
+  # Trust anchors
+  trust_anchors:
+    - "ca/root-ca.pem"
+    - "ca/intermediate-ca.pem"
+
+  # Certificate revocation checking
+  revocation_check: "OCSP_STAPLING"
+  ocsp_stapling: true
+
+  # Certificate rotation
+  rotation:
+    enabled: true
+    interval_days: 90
+    renewal_threshold_days: 14
+    auto_renew: true
+
+# Service Mesh Configuration (for Coolify)
+service_mesh:
+  # Enable service mesh
+  enabled: true
+
+  # Sidecar proxy configuration (Envoy)
+  sidecar:
+    image: "envoyproxy/envoy:v1.29-latest"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  # Control plane configuration
+  control_plane:
+    # Using Coolify's built-in service discovery
+    type: "coolify"
+    coolify:
+      api_url: "${COOLIFY_API_URL}"
+      api_token: "${COOLIFY_API_TOKEN}"
+      project_uuid: "${COOLIFY_PROJECT_UUID}"
+
+  # Traffic policies
+  traffic_policies:
+    - name: "default-deny"
+      action: "DENY"
+      source: "*"
+      destination: "*"
+      ports: ["*"]
+
+    - name: "allow-frontend-to-backend"
+      action: "ALLOW"
+      source:
+        - "ag-ai-dashboard"
+        - "ag-platform"
+      destination:
+        - "ag-ai-backend"
+        - "intake-api"
+        - "coordinator"
+      ports: ["8001", "3445", "3446"]
+
+    - name: "allow-backend-to-db"
+      action: "ALLOW"
+      source:
+        - "ag-ai-backend"
+        - "ag-platform"
+        - "intake-api"
+        - "coordinator"
+      destination:
+        - "postgres"
+        - "redis"
+      ports: ["5433", "6380"]
+
+    - name: "allow-n8n-to-backend"
+      action: "ALLOW"
+      source:
+        - "n8n"
+      destination:
+        - "ag-ai-backend"
+        - "intake-api"
+      ports: ["8001", "3445"]
+
+    - name: "allow-caddy-to-all"
+      action: "ALLOW"
+      source:
+        - "caddy"
+      destination:
+        - "ag-ai-backend"
+        - "ag-ai-dashboard"
+        - "ag-platform"
+        - "intake-api"
+        - "coordinator"
+      ports: ["8001", "3443", "3444", "3445", "3446"]
+
+    - name: "allow-monitoring"
+      action: "ALLOW"
+      source:
+        - "prometheus"
+        - "grafana"
+        - "loki"
+        - "promtail"
+      destination: "*"
+      ports: ["*"]
+
+# Certificate Management
+certificate_management:
+  # Storage backend for certificates
+  storage:
+    type: "filesystem"
+    path: "/etc/agassociates/certs"
+
+  # Alternative: HashiCorp Vault
+  # storage:
+  #   type: "vault"
+  #   address: "https://vault.agassociates.internal:8200"
+  #   token: "${VAULT_TOKEN}"
+  #   path: "pki/issue/agassociates-services"
+
+  # Alternative: cert-manager (Kubernetes)
+  # storage:
+  #   type: "cert-manager"
+  #   namespace: "cert-manager"
+  #   issuer: "agassociates-ca"
+
+  # Certificate signing request (CSR) generation
+  csr:
+    algorithm: "RSA"
+    key_size: 2048
+    signature_algorithm: "SHA256"
+
+  # Private key protection
+  private_key:
+    encryption: "AES256"
+    passphrase_env: "CERT_PASSPHRASE"
+
+# Monitoring and Alerting
+monitoring:
+  # Certificate expiration alerts
+  expiration_alerts:
+    enabled: true
+    thresholds_days: [90, 60, 30, 14, 7, 3, 1]
+    channels:
+      - "slack"
+      - "email"
+      - "pagerduty"
+
+  # mTLS connection metrics
+  metrics:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+
+  # Audit logging
+  audit_log:
+    enabled: true
+    path: "/var/log/agassociates/mtls-audit.log"
+    format: "json"
+    rotation:
+      max_size: "100MB"
+      max_files: 30
+
+# Coolify Integration
+coolify:
+  # Coolify API configuration
+  api:
+    url: "${COOLIFY_API_URL}"
+    token: "${COOLIFY_API_TOKEN}"
+
+  # Resource labels for Coolify
+  labels:
+    - "agassociates.mtls.enabled=true"
+    - "agassociates.mtls.mode=STRICT"
+    - "agassociates.security.level=high"
+
+  # Deployment hooks
+  hooks:
+    pre_deploy:
+      - "scripts/mtls-pre-deploy.sh"
+    post_deploy:
+      - "scripts/mtls-post-deploy.sh"
+    pre_rollback:
+      - "scripts/mtls-pre-rollback.sh"
+
+# Development Overrides
+development:
+  # Override settings for local development
+  enabled: false
+  mode: "PERMISSIVE"
+  min_tls_version: "1.2"
+  verify_client_cert: false
+  require_client_cert: false
+  rotation:
+    enabled: false

@@ -58,12 +58,47 @@ check_docker() {
       log "FAIL  Container $name — $status"
       echo "[$(date)] FAIL container $name — $status" >> "$LOG_FILE"
       alert "🔴 Container $name DOWN: $status"
+      # Auto-restart unhealthy containers
+      log "Attempting restart of $name..."
+      docker restart "$name" >/dev/null 2>&1 && log "Restarted $name" || log "Failed to restart $name"
       failed=1
     else
       log "OK    Container $name — $status"
     fi
   done
   return $failed
+}
+
+# Check internal-only containers via Docker exec (no public endpoint)
+check_container_health() {
+  local name="$1"
+  local port="$2"
+  local path="/health"
+
+  # Only check if container is running
+  local status
+  status=$(docker inspect --format='{{.State.Status}}' "$name" 2>/dev/null || echo "missing")
+  if [[ "$status" != "running" ]]; then
+    log "SKIP  $name — container not running ($status)"
+    return 1
+  fi
+
+  local http_code
+  http_code=$(docker exec "$name" wget -qO- --timeout=5 "http://127.0.0.1:${port}${path}" -S /dev/null 2>&1 | grep -oP 'HTTP/[\d.]+ \K\d+' || echo "000")
+  # Fallback: try node fetch for Node containers
+  if [[ "$http_code" == "000" ]]; then
+    http_code=$(docker exec "$name" node -e "fetch('http://127.0.0.1:${port}${path}').then(r=>{console.log(r.status)}).catch(()=>{console.log('000')})" 2>/dev/null | tail -1 || echo "000")
+  fi
+
+  if [[ "$http_code" == "200" ]]; then
+    log "OK    $name (internal :${port}${path}) — HTTP $http_code"
+    return 0
+  else
+    log "FAIL  $name (internal :${port}${path}) — HTTP $http_code"
+    echo "[$(date)] FAIL $name internal health — HTTP $http_code" >> "$LOG_FILE"
+    alert "🔴 $name INTERNAL HEALTH FAIL: port ${port} returned $http_code"
+    return 1
+  fi
 }
 
 # Main check loop
@@ -76,6 +111,11 @@ for entry in "${SERVICES[@]}"; do
 done
 
 check_docker || FAILED=1
+
+# Internal-only container health checks (no Caddy/public endpoint)
+check_container_health ag_coordinator 3005 || FAILED=1
+check_container_health ag_email_intake 3004 || FAILED=1
+check_container_health ag_telegram_bot 3004 || FAILED=1
 
 if [[ $FAILED -eq 0 ]]; then
   log "=== All checks passed ==="
