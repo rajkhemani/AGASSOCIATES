@@ -13,7 +13,7 @@
 
 **Plus workspace services** under `ag-platform/services/` — separate apps not covered by root turbo pipeline:
 - **`services/intake-api/`** — Fastify gateway for bank intake webhooks + OTP SMS bridge (Redis, Zod). Dev: `npm run dev` from its own dir, `PORT=3000` default.
-- **`services/coordinator/`** — Telegraf Telegram bot for hierarchical agent orchestration (separate process, not in main monorepo build).
+- **`services/coordinator/`** — Hono + Telegraf Telegram bot for hierarchical agent orchestration. Deployed as `ag_coordinator` container in production.
 
 No code coupling between subsystems. Never reuse config patterns across stacks.
 
@@ -126,7 +126,7 @@ Root `Caddyfile` + `docker-compose.prod.yml` handle reverse proxy + TLS. Root `.
 - **Webhook auth** requires `x-api-key` header matched against `N8N_WEBHOOK_KEY` via `secrets.compare_digest`.
 - **Sentry optional.** Set `SENTRY_DSN` to enable; `ENVIRONMENT` controls sample rates.
 - **Intake-api OTP bridge** (`services/intake-api/src/routes/webhook.ts`): SMS webhook at `POST /api/v1/webhook/sms-incoming` accepts `{text, from}`. Parses OTP digits with `/\b(\d{4,8})\b/`, detects portal via regex keywords (gras, igr, cersai, sbi, noc). Publishes to Redis `otp:incoming` channel + stores in `otp_incoming:*` lists with 600s TTL.
-- **Coordinator Telegram bot** (`services/coordinator/src/telegram-bot.ts`): Telegraf-based, requires `TELEGRAM_BOT_TOKEN` + `GEMINI_API_KEY`. Separate process.
+- **Coordinator Telegram bot** (`services/coordinator/src/telegram-bot.ts`): Telegraf-based, requires `TELEGRAM_BOT_TOKEN` + `GEMINI_API_KEY`. Deployed as `ag_coordinator` container (port 3005) in production via `docker-compose.prod.yml`.
 
 ### Workflow conventions
 - **Pre-commit** runs `ruff` (lint+fix + format) on Python, `eslint` on JS/TS. Install: `pre-commit install`. Not enforced in CI, but commits fail locally if the hooks run.

@@ -163,10 +163,10 @@ service in `docker-compose.prod.yml`.** Several docs still claim vLLM; they are 
 **Government portal credentials are blank in production** and `NESL_USE_MOCK`
 defaults true. The IGR Playwright automation is real and complete but unconfigured.
 
-Ten containers behind Caddy on `advadiityagade.com` subdomains, deployed by
+Eleven containers behind Caddy on `advadiityagade.com` subdomains, deployed by
 `.github/workflows/deploy.yml` — `ubuntu-latest` + GHCR build + SSH, **not** a
 self-hosted runner, into `/srv/ag/deploy-<sha>` (docs saying `/srv/ag/repo` are stale).
-The smoke test warns but never fails, so a broken deploy still shows green.
+The smoke test now fails the workflow on unhealthy endpoints.
 
 **Migrations do not auto-apply.** Root `supabase/migrations/` holds exactly one
 file and is separate from `ag-platform/supabase/migrations/`. No workflow or script

@@ -51,9 +51,11 @@ jobs:
             context: ag-platform/services/intake-api
             build_args: ""
           - name: email-intake
-            context: ag-associates-ai/backend
+            context: ag-associates-ai/backend/email_intake
             build_args: ""
-            dockerfile: email_intake/Dockerfile
+          - name: coordinator
+            context: ag-platform/services/coordinator
+            build_args: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -94,6 +96,8 @@ jobs:
           envs: GITHUB_TOKEN
           script: |
             set -euo pipefail
+            # Clean up deploy dirs older than 3 days to prevent disk fill
+            find /srv/ag -maxdepth 1 -name 'deploy-*' -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
             DEPLOY_DIR="/srv/ag/deploy-${{ github.sha }}"
             rm -rf "$DEPLOY_DIR"
             git clone https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git "$DEPLOY_DIR"
@@ -120,6 +124,8 @@ jobs:
             docker ps -a --filter name=ag_ --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>&1 || true
             echo "=== compose ps ==="
             docker compose -p ag -f docker-compose.prod.yml ps 2>&1 || true
+            # Clean up old deploy dirs
+            find /srv/ag -maxdepth 1 -name 'deploy-*' -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -155,4 +161,5 @@ jobs:
             fi
             echo "retrying ($i/6)…"; sleep 15
           done
-          echo "WARNING: Not all endpoints healthy (intake=$intake api=$api app=$app dashboard=$dashboard)"
+          echo "FAIL: Not all endpoints healthy (intake=$intake api=$api app=$app dashboard=$dashboard)"
+          exit 1
