@@ -1,5 +1,4 @@
-import Telegraf from 'telegraf';
-import { Markup } from 'telegraf';
+import { Telegraf, Markup } from 'telegraf';
 import { HierarchicalCoordinator } from './hierarchy.js';
 import dotenv from 'dotenv';
 import { Pool } from 'pg';
@@ -230,7 +229,7 @@ bot.command('agent', async (ctx) => {
       undefined,
       `❌ <b>Mission Failed</b>\n\n` +
       `The hierarchical coordinator encountered an error:\n` +
-      `<pre>${error.message}</pre>`,
+      `<pre>${error instanceof Error ? error.message : String(error)}</pre>`,
       { parse_mode: 'HTML' }
     );
   }

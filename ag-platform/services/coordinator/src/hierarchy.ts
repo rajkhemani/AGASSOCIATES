@@ -25,6 +25,8 @@ export interface AgentResult {
   output?: string;
   error?: string;
   duration?: number;
+  startedAt?: number;
+  completedAt?: number;
 }
 
 export interface OrchestrationPlan {
@@ -46,7 +48,7 @@ export class CoordinatorAgent {
   private model: string;
 
   constructor(apiKey: string) {
-    this.genAI = new GoogleGenAI(apiKey);
+    this.genAI = new GoogleGenAI({ apiKey });
     this.model = 'gemini-2.0-flash-exp';  // Use flash for speed
   }
 
@@ -154,7 +156,7 @@ export class SpecialistAgentPool {
   private genAI: GoogleGenAI;
 
   constructor(apiKey: string) {
-    this.genAI = new GoogleGenAI(apiKey);
+    this.genAI = new GoogleGenAI({ apiKey });
   }
 
   /**
@@ -172,6 +174,8 @@ export class SpecialistAgentPool {
         status: 'completed',
         output,
         duration: Date.now() - startTime,
+        startedAt: startTime,
+        completedAt: Date.now(),
       };
     } catch (error) {
       return {
@@ -180,6 +184,8 @@ export class SpecialistAgentPool {
         status: 'failed',
         error: String(error),
         duration: Date.now() - startTime,
+        startedAt: startTime,
+        completedAt: Date.now(),
       };
     }
   }

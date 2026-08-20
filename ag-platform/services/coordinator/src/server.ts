@@ -2,9 +2,20 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import { Router } from './router';
 import { Telegraf } from 'telegraf';
-import { CoordinatorAgent, SpecialistAgentPool, ResultAggregator } from './hierarchy';
+import { HierarchicalCoordinator } from './hierarchy';
+
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+if (!TELEGRAM_BOT_TOKEN) {
+  console.error('TELEGRAM_BOT_TOKEN is required but not set. Exiting.');
+  process.exit(1);
+}
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+if (!GEMINI_API_KEY) {
+  console.error('GEMINI_API_KEY is required but not set. Exiting.');
+  process.exit(1);
+}
 
 const app = new Hono();
 
@@ -15,18 +26,14 @@ app.get('/', (c) => c.json({ status: 'ok', service: 'coordinator' }));
 app.get('/health', (c) => c.json({ status: 'healthy' }));
 
 app.post('/agent', async (c) => {
-  const { query, userId, context } = await c.req.json();
+  const { query } = await c.req.json();
 
-  const pool = new SpecialistAgentPool(3);
-  const aggregator = new ResultAggregator();
-
-  const results = pool.execute(query, context || {});
-  const aggregated = aggregator.aggregate(results);
+  const coordinator = new HierarchicalCoordinator(GEMINI_API_KEY);
+  const { finalAnswer, results } = await coordinator.execute(query);
 
   return c.json({
-    response: aggregated.finalResponse,
-    confidence: aggregated.confidence,
-    specialists: results.length
+    response: finalAnswer,
+    specialists: results.length,
   });
 });
 
@@ -39,19 +46,17 @@ app.post('/telegram/webhook', async (c) => {
       return c.json({ error: 'invalid secret token' }, 401);
     }
   }
-  const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN || '');
+  const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
   bot.on('text', async (ctx) => {
     const text = ctx.message.text;
 
     if (text.startsWith('/agent')) {
       const query = text.replace('/agent', '').trim();
-      const pool = new SpecialistAgentPool(3);
-      const aggregator = new ResultAggregator();
-      const results = pool.execute(query, {});
-      const aggregated = aggregator.aggregate(results);
+      const coordinator = new HierarchicalCoordinator(GEMINI_API_KEY);
+      const { finalAnswer } = await coordinator.execute(query);
 
-      await ctx.reply(aggregated.finalResponse);
+      await ctx.reply(finalAnswer);
     } else if (text.startsWith('/status')) {
       await ctx.reply('Coordinator service is running. Use /agent <query> to process.');
     } else if (text.startsWith('/help')) {
@@ -63,12 +68,6 @@ app.post('/telegram/webhook', async (c) => {
 
   return c.json({ ok: true });
 });
-
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-if (!TELEGRAM_BOT_TOKEN) {
-  console.error('TELEGRAM_BOT_TOKEN is required but not set. Exiting.');
-  process.exit(1);
-}
 
 const port = parseInt(process.env.COORDINATOR_PORT || '3002');
 
