@@ -23,6 +23,10 @@ SERVICES=(
   "n8n|https://n8n.$DOMAIN/healthz|200"
   "Clerk Docs|https://docs.$DOMAIN/|200"
 )
+EXPECTED_CONTAINERS=(
+  ag_caddy ag_postgres ag_redis ag_ai_backend ag_ai_dashboard ag_platform
+  ag_n8n ag_intake_api ag_telegram_bot ag_email_intake ag_coordinator
+)
 
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 alert() {
@@ -53,9 +57,10 @@ check_http() {
 check_docker() {
   local failed=0
   log "Checking Docker containers..."
-  while read -r name status; do
-    [[ -n "$name" ]] || continue
-    if [[ ! "$status" =~ ^Up ]]; then
+  for name in "${EXPECTED_CONTAINERS[@]}"; do
+    local status
+    status=$(docker inspect --format='{{.State.Status}}' "$name" 2>/dev/null || echo "missing")
+    if [[ "$status" != "running" ]]; then
       log "FAIL  Container $name — $status"
       echo "[$(date)] FAIL container $name — $status" >> "$LOG_FILE"
       alert "Container $name DOWN: $status"
@@ -71,9 +76,9 @@ check_docker() {
       alert "Container $name health check is unhealthy"
       failed=1
     else
-      log "OK    Container $name — $status (health: $health)"
+      log "OK    Container $name — running (health: $health)"
     fi
-  done < <(docker ps -a --filter name=ag_ --format '{{.Names}} {{.Status}}')
+  done
   return $failed
 }
 
