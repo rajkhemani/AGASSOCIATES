@@ -152,7 +152,7 @@ function LoginForm() {
           </CardContent>
         </Card>
       </main>
-    </main>
+    </div>
   );
 }
 
