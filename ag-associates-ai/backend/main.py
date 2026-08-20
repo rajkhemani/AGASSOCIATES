@@ -63,6 +63,13 @@ if SENTRY_DSN:
         environment=ENVIRONMENT,
     )
 
+# 2. FastAPI Application Instance
+app = FastAPI(
+    title="AG Associates - Luxor9 LegalOS API",
+    version="2.0.0",
+    description="Deterministic Multi-Agent Legal Infrastructure",
+)
+
 # 3. Scheduler (APScheduler) for periodic tasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -136,15 +143,6 @@ app.include_router(oauth_router)
 app.include_router(playground_router)
 app.include_router(payment_router)
 
-
-@app.on_event("shutdown")
-async def _shutdown_playground():
-    await _playground_sm.shutdown()
-
-
-@app.on_event("shutdown")
-async def _shutdown_nesl():
-    await shutdown_nesl_client()
 
 # 4. Health Check Endpoint (For Vercel/Docker probing)
 @app.on_event("startup")
@@ -548,6 +546,43 @@ class NeslExecuteResponse(BaseModel):
     mode: str = "mock"
 
 
+# ── NeSL Client Singleton ───────────────────────────────────────────────────
+# The real client lives in nesl_client.py. It exposes execute()/check_status()
+# but no file()/close(), so _to_filing_result() adapts its dict return onto the
+# NeslFilingResult response model.
+_nesl_client: Optional[NeslClient] = None
+
+
+def _get_nesl_client() -> NeslClient:
+    global _nesl_client
+    if _nesl_client is None:
+        _nesl_client = NeslClient()
+    return _nesl_client
+
+
+async def shutdown_nesl_client():
+    """Release the NeSL client singleton on app shutdown."""
+    global _nesl_client
+    if _nesl_client is not None:
+        close = getattr(_nesl_client, "close", None)
+        if close is not None:
+            await close()
+        _nesl_client = None
+
+
+def _to_filing_result(result: Dict[str, Any]) -> NeslFilingResult:
+    """Map nesl_client.execute()'s dict onto the NeslFilingResult model."""
+    mode = result.get("mode", "unknown")
+    return NeslFilingResult(
+        transaction_id=result.get("transaction_id"),
+        status="FILED" if result.get("success") else "FAILED",
+        provider=mode,
+        filed_at=datetime.now(timezone.utc).isoformat(),
+        message=result.get("message"),
+        source=mode,
+    )
+
+
 # ── NeSL API Routes ─────────────────────────────────────────────────────────
 @app.post("/api/nesl/file", response_model=NeslFilingResult, tags=["NeSL"])
 async def nesl_file(
@@ -555,7 +590,11 @@ async def nesl_file(
     auth: AuthContext = Depends(require_permission("nesl.file")),
 ):
     client = _get_nesl_client()
-    return await client.file(request)
+    result = await client.execute(
+        case_id=request.case_id,
+        document_data=request.metadata,
+    )
+    return _to_filing_result(result)
 
 
 @app.post("/api/nesl/execute", response_model=NeslExecuteResponse, tags=["NeSL"])
