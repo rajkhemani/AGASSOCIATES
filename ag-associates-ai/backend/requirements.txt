@@ -35,6 +35,8 @@ gspread>=6.1.0
 crewai>=0.80.0
 sentry-sdk>=2.15.0
 python-multipart
+qrcode>=7.4.2
+Pillow>=10.0.0
 
 # Testing dependencies
 pytest>=8.0.0
