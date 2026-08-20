@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/rajkhemani/AGASSOCIATES/actions"><img src="https://img.shields.io/github/actions/workflow/status/rajkhemani/AGASSOCIATES/main.yml?style=flat-square&label=CI" alt="CI Status"></a>
-  <a href="https://github.com/rajkhemani/AGASSOCIATES/blob/main/LICENSE"><img src="https://img.shields.io/github/license/rajkhemani/AGASSOCIATES?style=flat-square" alt="License"></a>
+  <a href="https://github.com/rajkhemani/AGASSOCIATES/blob/main/LICENSE"><img src="https://img.shields.io/github/license/rajkhemani/AGASSOCIATES?style=flat-square&alt=License"></a>
   <a href="https://github.com/rajkhemani/AGASSOCIATES/pulls"><img src="https://img.shields.io/github/issues-pr/rajkhemani/AGASSOCIATES?style=flat-square&label=PRs" alt="PRs"></a>
   <a href="https://github.com/rajkhemani/AGASSOCIATES/stargazers"><img src="https://img.shields.io/github/stars/rajkhemani/AGASSOCIATES?style=flat-square&label=Stars" alt="Stars"></a>
 </p>
@@ -24,7 +24,8 @@
   <a href="#-detailed-setup-guide">Detailed Setup</a> ·
   <a href="#-deployment">Deployment</a> ·
   <a href="#-api-reference">API Reference</a> ·
-  <a href="#-contributing">Contributing</a>
+  <a href="#-contributing">Contributing</a> ·
+  <a href="#-whatsapp-connect">WhatsApp Connect</a>
 </p>
 
 ---
@@ -118,13 +119,14 @@ This repository contains the firm's **AI-orchestrated "Zero-Staff" platform** �
 │  │  Telegram Bot (OTP · Notifications · Voice Mode)             │   │
 │  │  Intake API (SMS Webhook · OTP Bridge · Fastify)            │   │
 │  │  Email Intake (IMAP → Case) · n8n Workflow Automation         │   │
+│  │  WhatsApp Business API (Cloud)                                │   │
 │  └───────────────────────────────────────────────────────────────┘   │
 │                                                                      │
 │  ┌───────────────────────────────────────────────────────────────┐   │
 │  │  Infrastructure Layer (Docker Compose · Caddy · GHCR)        │   │
-│  │  Supabase (PostgreSQL + RLS + Auth) · pgvector · Gemini Pro  │   │
-│  │  FastAPI (Python) · Express (Node.js) · LangGraph · Vercel AI │   │
-│  │  Redis (OTP/Jobs) · Postgres (Platform DB) · NeSL e-Filing   │   │
+│  │  Supabase (PostgreSQL + RLS + Auth) · pgvector · Groq        │   │
+│  │  FastAPI (Python) · Express (Node.js) · Redis                │   │
+│  │  Coolify (GitOps · Monitoring · Auto-HTTPS)                  │   │
 │  └───────────────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -133,18 +135,18 @@ This repository contains the firm's **AI-orchestrated "Zero-Staff" platform** �
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **AI Reasoning** | Google Gemini Pro (via Vercel AI SDK) | Complex legal document analysis, contract vetting |
+| **AI Reasoning** | Groq `llama-3.3-70b-versatile` | Complex legal document analysis, contract vetting |
 | **Frontend** | Next.js 15, TypeScript, Tailwind CSS, shadcn/ui | Dashboard app with glassmorphism design |
 | **Backend (AI)** | FastAPI + LangGraph + Uvicorn | Multi-agent pipeline, document generation |
 | **Backend (Platform)** | Express 5 + Vite | Case management, collaboration, billing |
 | **Database** | Supabase PostgreSQL + pgvector | Multi-tenant data, RLS, embeddings |
-| **Cache / Jobs** | Redis | OTP storage, job queue, session cache |
+| **Cache / Jobs** | Redis | Agent bus, OTP storage, job queue, session cache |
 | **Microservices** | Telegram Bot (pgram), Intake API (Fastify), Email Intake | Decoupled communication channels |
-| **LLM** | Qwen2.5-7B-Instruct (local vLLM) | Aisha/Auditor chat, document drafting |
+| **LLM (fallback)** | Qwen2.5-7B-Instruct (local vLLM) | Aisha/Auditor chat, document drafting |
 | **Embeddings** | SentenceTransformer (`all-MiniLM-L6-v2`) | RAG template retrieval (384-dim) |
 | **Webhook** | Caddy reverse proxy + auto-TLS | Public-facing unified ingress |
 | **CI/CD** | GitHub Actions → GHCR → Docker Compose | Fully automated deploy to VPS |
-| **Monitoring** | Sentry (optional) | Error tracking with env-based sampling |
+| **Monitoring** | Prometheus + Grafana + Loki | Metrics, logs, dashboards |
 | **Orchestration** | Coolify (Open-Source PaaS) | GitOps deploy, managed DBs, auto-HTTPS |
 
 ---
@@ -159,7 +161,7 @@ A `StateGraph` pipeline processing raw intake → structured data → drafted do
 
 | Agent | Role | What It Does |
 |-------|------|-------------|
-| **Aisha** | Intake | Parses incoming case requests, extracts structured JSON (tenant, landlord, rent, dates, deposit) via vLLM, classifies case type |
+| **Aisha** | Intake | Parses incoming case requests, extracts structured JSON (tenant, landlord, rent, dates, deposit) via Groq, classifies case type |
 | **Drafter** | Legal Architect | Retrieves best template from pgvector RAG, injects extracted fields, generates Markdown + PDF via ReportLab |
 | **Auditor** | Compliance | Scores draft 0–100 against extracted fields; loops back to Drafter up to 3 revisions if score < 85 |
 
@@ -225,11 +227,11 @@ Orchestrates the conversational agents, handles webhook hardening with toggle pe
 
 ### 📬 Intake & Communications
 
-- **Intake API** (Fastify) — high-performance gateway for bank-panel intake, SMS webhook, Redis-backed OTP bridge at `services/intake-api/`
-- **Coordinator Bot** (Telegraf) — hierarchical agent orchestration via Telegram at `services/coordinator/`
+- **Intake API** (Fastify) — high-performance gateway for bank-panel intake, SMS webhook, Redis-backed OTP bridge at `ag-platform/services/intake-api/`
+- **Coordinator Bot** (Telegraf) — hierarchical agent orchestration via Telegram at `ag-platform/services/coordinator/`
 - **Telegram Bot** — `/agents`, `/agent <name> <message>`, `/otp`, `/autootp`, `/claim`, `/voicemode`, `/hindi`, `/audit` commands
-- **Email Intake** — IMAP-based case creation from forwarded emails at `services/email-intake/`
-- **WhatsApp Webhook** — `/webhooks/whatsapp` endpoint for Meta API integration
+- **Email Intake** — IMAP-based case creation from forwarded emails at `ag-associates-ai/backend/email_intake/`
+- **WhatsApp Business API** — Direct Cloud API connection with QR/barcode provisioning (see [WhatsApp Connect](#-whatsapp-connect))
 
 ---
 
@@ -239,25 +241,26 @@ Orchestrates the conversational agents, handles webhook hardening with toggle pe
 AGASSOCIATES/
 │
 ├── ag-associates-ai/              # 🤖 AI Document Pipeline
-│   ├── backend/
-│   │   ├── agents/                #   7 conversational agents (Auditor, Vyasa, Bouncer, etc.)
+│   ├── backend/                   #   FastAPI + LangGraph + multi-agent
+│   │   ├── agents/                #   7 conversational agents
 │   │   │   ├── agent_bus.py       #   Redis Streams communication bus
 │   │   │   ├── base_agent.py      #   BaseAgent class for all agents
 │   │   │   ├── agent_registry.py  #   Agent discovery + RBAC mapping
 │   │   │   ├── agent_memory.py    #   PostgreSQL conversation memory
 │   │   │   ├── agent_init.py      #   init_agents() at startup
-│   │   │   ├── auditor/           #   Hinglish financial auditor
-│   │   │   ├── vyasa/             #   Hinglish legal researcher
-│   │   │   ├── bouncer/           #   Hinglish math validator
-│   │   │   ├── accountant/        #   Hinglish accounting agent
-│   │   │   ├── noi/               #   Hinglish NOI specialist
-│   │   │   ├── executor/          #   Hinglish RPA executor
-│   │   │   └── drafter/           #   Hinglish document drafter
-│   │   ├── telegram_bot/          #   Standalone Telegram microservice
+│   │   │   ├── auditor/           #   Financial auditor
+│   │   │   ├── vyasa/             #   Legal researcher
+│   │   │   ├── bouncer/           #   Math validator
+│   │   │   ├── accountant/        #   Accounting agent
+│   │   │   ├── noi/               #   NOI workflow specialist
+│   │   │   ├── executor/          #   RPA executor
+│   │   │   └── drafter/           #   Document drafter
+│   │   ├── telegram_bot/          #   Telegram microservice
 │   │   │   └── private_messenger.py # Agent-initiated proactive DMs
 │   │   ├── media/                 #   Multi-modal file processors
 │   │   │   ├── processors.py      #   Audio/Image/PDF/Excel/DOCX
 │   │   │   └── router.py          #   File type → processor routing
+│   │   ├── email_intake/          #   IMAP-based email → case creation
 │   │   ├── main.py                #   FastAPI entry (NOI, NeSL, voice, agents...)
 │   │   ├── agents.py              #   LangGraph pipeline (Aisha → Drafter → Auditor)
 │   │   ├── noi_agent.py           #   NOI workflow state machine
@@ -271,373 +274,41 @@ AGASSOCIATES/
 │   └── docker-compose.yml         #   PostgreSQL + n8n services
 │
 ├── ag-platform/                   # 📋 Legal Operations Platform
-│   ├── src/
+│   ├── apps/web/                  #   Marketing site + dashboard scaffold
+│   ├── src/                       #   Vite + React frontend + Express backend
+│   │   ├── app/                   #   App routes (login, dashboard, cases)
 │   │   ├── components/            #   React UI (admin, AI, bank, collaboration)
 │   │   ├── server/                #   Express routes, AI router, migrations
 │   │   └── lib/                   #   Shared utilities, billing, storage
-│   ├── packages/
+│   ├── packages/                  #   Shared workspaces
 │   │   ├── ai/                    #   Gemini AI utilities (Vercel AI SDK)
 │   │   ├── db/                    #   Drizzle ORM schemas
 │   │   ├── types/                 #   Shared TypeScript interfaces
 │   │   └── ui/                    #   Shared shadcn/ui components
-│   ├── services/
+│   ├── services/                  #   Microservices
 │   │   ├── intake-api/            #   🚀 Fastify gateway for bank intake + OTP
-│   │   ├── coordinator/           #   🤖 Telegraf Telegram bot orchestration
-│   │   └── email-intake/          #   📧 IMAP-based email → case creation
+│   │   └── coordinator/           #   🤖 Telegraf Telegram bot orchestration
 │   ├── tests/                     #   Vitest test suite
 │   ├── supabase/migrations/       #   Database migrations
 │   ├── server.ts                  #   Express + Vite middleware entry
 │   └── docker-compose.yml         #   PostgreSQL + n8n services
 │
 ├── landing/
-│   └── index.html                # 🎨 Editorial-theme GSAP scroll landing page
-├── docker-compose.prod.yml       # 🐳 10-service production stack
-├── Caddyfile                     # 🌐 Caddy reverse proxy + auto-TLS
-├── Caddyfile.waf                 # 🛡️ ModSecurity WAF with OWASP CRS
-├── Makefile                      # 🔧 Automation targets (ci, dev, lint, etc.)
-├── scripts/                      # 📜 Provision, deploy, bootstrap helpers
-├── coolify/                      # 🌐 Coolify service configurations
-├── monitoring/                   # 📊 Prometheus alerts + Grafana dashboards
-├── scripts/                      # 📜 Provision, deploy, backup, rotate, migrate
-├── .github/workflows/            # ⚙️ CI + Deploy + Tagging + Security workflows
-├── tasks/                        # 📋 Task tracking (todo.md) + lessons (lessons.md)
-├── docs/                         # 📚 ADRs, NOI pipeline, strategic plan
-├── content/                      # 📄 Static marketing content (GitHub Pages)
-├── CLAUDE.md                     # 📖 AI agent playbook (architecture, gotchas)
-├── AGENTS.md                     # 📖 OpenCode session guide
-├── AUTOMATION_PLAN.md            # 📋 Full automation roadmap
-└── *_GUIDELINES.md               # 📐 Domain-specific engineering policies
-```
-
----
-
-## 🌐 Coolify Deployment (Open-Source PaaS)
-
-**Coolify** is the open-source Heroku/Netlify alternative that runs on your VPS. It provides GitOps deployments, managed databases, auto-HTTPS, and monitoring — all on your own infrastructure.
-
-### Deployment Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      COOLIFY ON HETZNER VPS                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  Hetzner CPX31 (4 vCPU, 8GB RAM, 160GB NVMe)  €16.90/mo                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  Coolify (Open-Source PaaS)                                                 │
-│  ├── GitOps: Push to main → Auto-deploy                                     │
-│  ├── Auto HTTPS (Let's Encrypt)                                             │
-│  ├── Managed PostgreSQL (pgvector enabled)                                  │
-│  ├── Managed Redis                                                          │
-│  ├── Managed MinIO (S3-compatible storage)                                  │
-│  ├── Prometheus + Grafana + Loki (Built-in)                                 │
-│  ├── Automated Backups (S3/MinIO)                                           │
-│  ├── Resource Monitoring & Alerting                                         │
-│  └── Zero-downtime Deployments                                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  Services (Auto-deployed via Coolify)                                       │
-│  ├── ag-ai-backend (FastAPI)                                                │
-│  ├── ai-dashboard (Next.js)                                                 │
-│  ├── ag-platform (Vite + Express)                                           │
-│  ├── intake-api (Fastify)                                                   │
-│  ├── telegram-bot (Worker)                                                  │
-│  ├── email-intake (Worker)                                                  │
-│  ├── coordinator (Worker)                                                   │
-│  ├── n8n (Optional)                                                         │
-│  └── Caddy (Static sites via Coolify)                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Coolify Service Configurations
-
-All service definitions are in the `coolify/` directory:
-
-| Service | Config File | Type | Port | Domain |
-|---------|-------------|------|------|--------|
-| `ag-ai-backend` | `coolify-ag-ai-backend.json` | Docker Compose | 8000 | api.${DOMAIN} |
-| `ag-platform` | `coolify-ag-platform.json` | Docker Compose | 3001 | app.${DOMAIN} |
-| `ai-dashboard` | `coolify-ai-dashboard.json` | Docker Compose | 3000 | dashboard.${DOMAIN} |
-| `intake-api` | `coolify-intake-api.json` | Docker Compose | 3002 | intake.${DOMAIN} |
-| `telegram-bot` | `coolify-telegram-bot.json` | Worker | — | — |
-| `email-intake` | `coolify-email-intake.json` | Worker | — | — |
-| `coordinator` | `coolify-coordinator.json` | Worker | 3005 | coordinator.${DOMAIN} |
-| `n8n` | `coolify-n8n.json` | Docker Compose | 5678 | n8n.${DOMAIN} |
-
-### Quick Deploy to Coolify
-
-```bash
-# 1. Provision Hetzner VPS (CPX31, Ubuntu 24.04)
-# 2. Install Coolify
-curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
-
-# 3. Access Coolify UI at https://<VPS_IP>:8000
-# 4. Connect GitHub repo: rajkhemani/AGASSOCIATES
-# 5. Add resources in Coolify UI:
-#    - PostgreSQL (enable pgvector extension)
-#    - Redis
-#    - MinIO (S3-compatible storage)
-# 6. Add services using coolify/*.json configs
-# 7. Configure domains → Auto-HTTPS via Let's Encrypt
-# 7. Push to main → Auto-deploy
-```
-
----
-
-## 🔧 Automation Plan & Scripts
-
-### Complete Automation Roadmap
-
-The full automation roadmap is documented in [`AUTOMATION_PLAN.md`](./AUTOMATION_PLAN.md) with 7 phases:
-
-| Phase | Focus | Status |
-|-------|-------|--------|
-| **1** | Critical Fixes & Migration | ✅ Complete |
-| **2** | Coolify Deployment | 🔄 In Progress |
-| **3** | GitOps CI/CD | ✅ Workflow Ready |
-| **4** | Monitoring & Alerting | ✅ Configs Ready |
-| **5** | Backup & DR | ✅ Scripts Ready |
-| **6** | NOI Workflow Automation | ✅ Implemented |
-| **7** | Security Hardening | ✅ Configs Ready |
-
-### Key Automation Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `scripts/migrate.py` | Unified migration runner with tracking |
-| `scripts/rotate_secrets.py` | 90-day secret rotation via Coolify API |
-| `scripts/backup.sh` | Restic backup (PostgreSQL, Redis, volumes) |
-| `scripts/bootstrap-vps.sh` | Idempotent VPS provisioning |
-| `scripts/deploy-all.sh` | Master deployment automation |
-| `scripts/provision.sh` | Infrastructure provisioning |
-
-### GitOps CI/CD Pipeline
-
-The pipeline is defined in `.github/workflows/`:
-
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| `main.yml` | Push/PR to main | CI: lint, type-check, test, build |
-| `deploy.yml` | Push to main | Build → GHCR → SSH deploy to VPS |
-| `coolify-deploy.yml` | Push/Dispatch | Trigger Coolify deploy via API |
-| `security-scan.yml` | Push/PR | Trivy vulnerability scan |
-
----
-
-## 🔒 Security Hardening
-
-### mTLS Configuration
-
-Complete mTLS configuration in [`security/mtls-config.yaml`](./security/mtls-config.yaml):
-
-- **Root CA + Intermediate CA** for service mesh
-- **90-day certificate rotation** with auto-renewal
-- **STRICT mode** — all service-to-service communication encrypted
-- **Coolify integration** for certificate management
-
-### WAF Configuration
-
-ModSecurity WAF with OWASP CRS in [`Caddyfile.waf`](./Caddyfile.waf):
-
-- OWASP CRS 4.x rules
-- Custom rules for SQL injection, XSS, path traversal, command injection
-- Rate limiting (100 req/5min per IP)
-- Geo-blocking support
-- Bot detection
-- Audit logging in JSON format
-
-### Secret Management
-
-Automated 90-day rotation via [`scripts/rotate_secrets.py`](./scripts/rotate_secrets.py):
-
-- Coolify API integration for secret updates
-- Automatic service redeployment
-- Slack/Email/Teams notifications
-- Dry-run mode for testing
-- Rotation status dashboard
-
----
-
-## 📊 Monitoring & Observability
-
-### Prometheus Alerting Rules
-
-Complete alerting in [`monitoring/alerts.yml`](./monitoring/alerts.yml):
-
-| Alert Group | Key Alerts |
-|-----------|------------|
-| **Service Health** | ServiceDown, HighErrorRate, HighLatency |
-| **Database** | ConnectionsHigh, ReplicationLag, LongRunningQueries |
-| **Redis** | MemoryHigh, ConnectionsHigh, Down |
-| **Infrastructure** | DiskSpace, CPU, Memory, NetworkErrors |
-| **NOI Workflow** | Stuck, Failed, QueueBacklog, Latency, ValidationFailures |
-| **Business** | CaseVolumeDrop, ChallanVolumeDrop, RevenueDrop, PaymentFailures |
-| **SLA** | AvailabilityBreach, LatencyBreach, ErrorBudgetBurnRate |
-
-### Grafana Dashboards
-
-Pre-built dashboards in `monitoring/dashboards/`:
-- Service health overview
-- NOI workflow pipeline
-- Business metrics (cases, challans, revenue)
-- Infrastructure resources
-
----
-
-## 💾 Backup & Disaster Recovery
-
-### Automated Backups
-
-[`scripts/backup.sh`](./scripts/backup.sh) with Restic:
-
-- **PostgreSQL**: `pg_dump` → MinIO (encrypted)
-- **Redis**: RDB snapshot → MinIO
-- **Application volumes**: `/srv/ag/ag_output`, `/srv/ag/ag_documents`
-- **Encryption**: AES-256
-- **Retention**: 30 daily, 12 weekly, 12 monthly
-
-### Disaster Recovery
-
-- **RTO**: 30 minutes, **RPO**: 1 hour
-- Automated restore scripts: [`scripts/restore.sh`](./scripts/restore.sh)
-- DR test script: [`scripts/dr_test.sh`](./scripts/dr_test.sh)
-- Backup verification: [`scripts/verify_backups.sh`](./scripts/verify_backups.sh)
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) & Docker Compose
-- Python 3.10+ (AI pipeline)
-- Node.js 20+ (platform)
-- Supabase account (PostgreSQL + auth)
-- Redis (for agent bus, OTP cache, job queue)
-
----
-
-## 📖 Detailed Setup Guide
-
-### Phase 1: Infrastructure Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/rajkhemani/AGASSOCIATES.git
-cd AGASSOCIATES
-
-# Copy environment template
-cp .env.example .env
-# Edit .env with your credentials (see Environment Variables section below)
-```
-
-### Phase 2: AI Pipeline (LangGraph + Multi-Agent)
-
-```bash
-cd AGASSOCIATES/ag-associates-ai
-
-# Start infrastructure (PostgreSQL + n8n)
-docker-compose up -d
-
-# Set up backend
-cd backend
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-
-# Install Playwright for RPA (required for IGR/GRAS automation)
-playwright install chromium
-playwright install-deps chromium
-
-# One-time pgvector seeding
-python generate_embeddings.py
-
-# Run database migrations
-psql -U agadmin -d agdb -f database/agent_migrations.sql
-psql -U agadmin -d agdb -f database/init.sql
-
-# Start AI backend (FastAPI at http://localhost:8001)
-python main.py
-```
-
-#### vLLM Setup (for 7 conversational agents)
-
-```bash
-# Required for 7-agent conversational system
-python -m vllm.entrypoints.openai.api_server \
-  --model Qwen/Qwen2.5-7B-Instruct \
-  --host 0.0.0.0 --port 8000
-```
-
-#### Multi-Agent System (Redis Streams)
-
-```bash
-# Start Redis (required for agent bus, OTP cache, job queue)
-docker run -d --name redis -p 6379:6379 redis:8-alpine
-
-# Start AI backend (agents initialize automatically)
-cd AGASSOCIATES/ag-associates-ai/backend
-python main.py
-```
-
-### Phase 3: Operations Platform (`ag-platform/`)
-
-```bash
-cd AGASSOCIATES/ag-platform
-
-# Install dependencies (uses Turborepo workspaces)
-npm install
-
-# Set up environment
-cp .env.example .env
-# Edit .env with your Supabase credentials
-
-# Run database migrations (creates all tables, RLS policies, triggers)
-npm run dev  # This runs migrations automatically on startup
-
-# Start development server (Vite + Express at http://localhost:3001)
-npm run dev
-
-# Run tests
-npm test
-
-# Type-check
-npm run type-check
-
-# Lint
-npm run lint
-```
-
-### Platform Services
-
-```bash
-# Intake API (Fastify gateway for bank intake + OTP)
-cd AGASSOCIATES/ag-platform/services/intake-api
-npm install
-npm run dev  # Fastify at http://localhost:3002
-
-# Coordinator Telegram bot
-cd AGASSOCIATES/ag-platform/services/coordinator
-npm install
-npm run dev  # Telegraf bot (separate process)
-
-# Email Intake (IMAP-based)
-cd AGASSOCIATES/ag-platform/services/email-intake
-npm install
-npm run dev
-```
-
-### Phase 4: AI Frontend Dashboard
-
-```bash
-cd AGASSOCIATES/ag-associates-ai/frontend
-npm install
-npm run dev  # Next.js at http://localhost:3000
-```
-
-### Pre-commit Hooks
-
-```bash
-cd AGASSOCIATES
-pre-commit install  # ruff lint+fix + eslint on commit
-pre-commit run --all-files  # run all hooks manually
+│   └── index.html                 # 🎨 Editorial-theme GSAP scroll landing page
+├── docker-compose.prod.yml        # 🐳 Production stack
+├── Caddyfile                      # 🌐 Caddy reverse proxy + auto-TLS
+├── Caddyfile.waf                  # 🛡️ ModSecurity WAF with OWASP CRS
+├── Makefile                       # 🔧 Automation targets (ci, dev, lint, etc.)
+├── scripts/                       # 📜 Provision, deploy, bootstrap helpers
+├── coolify/                       # 🌐 Coolify service configurations
+├── monitoring/                    # 📊 Prometheus alerts + Grafana dashboards
+├── docs/                          # 📚 ADRs, NOI pipeline, strategic plan
+├── .github/workflows/             # ⚙️ CI + Deploy + Tagging + Security workflows
+├── tasks/                         # 📋 Task tracking (todo.md) + lessons (lessons.md)
+├── AGENTS.md                      # 📖 OpenCode session guide
+├── CLAUDE.md                      # 📖 AI agent playbook (architecture, gotchas)
+├── AUTOMATION_PLAN.md             # 📋 Full automation roadmap
+└── *_GUIDELINES.md                # 📐 Domain-specific engineering policies
 ```
 
 ---
@@ -652,8 +323,7 @@ pre-commit run --all-files  # run all hooks manually
 ### One-Command Deploy
 
 ```bash
-# On VPS (as deploy user)
-cd /srv/ag/repo
+# On VPS (as deploy user), from repo root checked out to main
 docker compose -f docker-compose.prod.yml up -d
 ```
 
@@ -671,12 +341,13 @@ docker compose -f docker-compose.prod.yml up -d
 
 ### CI/CD Pipeline
 
-```yaml
-# .github/workflows/coolify-deploy.yml triggers on push to main
-# Triggers Coolify deploy via API
-# Waits for deployment completion
-# Runs smoke tests against deployed endpoints
-```
+GitHub Actions builds on push to `main`:
+- `ag-associates-ai/backend` — ruff lint/format check
+- `ag-associates-ai/frontend` — lint + build
+- `ag-platform` — lint + type-check + test + build
+- Security scan — Trivy
+
+Images are published to GHCR; production deploys via SSH + Docker Compose on VPS.
 
 ---
 
@@ -686,19 +357,130 @@ docker compose -f docker-compose.prod.yml up -d
 
 | Category | Variables | Description |
 |----------|-----------|-------------|
+| **Domain/Infra** | `DOMAIN`, `ACME_EMAIL` | Caddy/Let's Encrypt |
 | **Supabase** | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` | Database, auth, RLS |
-| **LLM** | `LLM_BASE_URL`, `LLM_MODEL_NAME`, `LLM_MOCK_MODE`, `LLM_VISION_API_KEY` | vLLM, Gemini, OCR |
-| **Database** | `DATABASE_URL`, `DATABASE_PASSWORD` | PostgreSQL connection |
-| **Redis** | `REDIS_URL`, `REDIS_PASSWORD` | Agent bus, OTP, job queue |
+| **Database** | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL` | PostgreSQL |
+| **Redis** | `REDIS_PASSWORD`, `REDIS_URL` | Agent bus, OTP, job queue |
+| **LLM / AI** | `LLM_BASE_URL`, `LLM_MODEL_NAME`, `LLM_API_KEY`, `LLM_MOCK_MODE` | Production LLM (Groq) |
+| **AI Backend** | `OPENAI_API_KEY`, `JWT_SECRET`, `AG_SESSION_SECRET` | Auth, fallback key |
 | **Telegram** | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET` | Bot, OTP, notifications |
-| **NeSL/IGR** | `NESL_API_KEY`, `NESL_API_BASE_URL`, `IGR_PORTAL_USERNAME`, `IGR_PORTAL_PASSWORD` | Government filing |
-| **Email** | `ZOHO_EMAIL_USER`, `ZOHO_EMAIL_PASS` | Email intake |
-| **Webhooks** | `N8N_WEBHOOK_KEY`, `WHATSAPP_WEBHOOK_SECRET` | n8n, WhatsApp integration |
-| **Payments** | `STRIPE_SECRET_KEY`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Billing |
-| **Monitoring** | `SENTRY_DSN` | Error tracking |
-| **CI/CD** | `GITHUB_TOKEN`, `VPS_SSH_KEY`, `VPS_HOST` | Deployment |
+| **WhatsApp** | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_VERIFY_TOKEN` | Meta WhatsApp Business API |
+| **n8n** | `N8N_WEBHOOK_KEY` | Webhook auth |
+| **Email** | `EMAIL_IMAP_HOST`, `EMAIL_IMAP_PORT`, `EMAIL_IMAP_USER`, `EMAIL_IMAP_PASS` | Email intake |
+| **Governments** | `NESL_API_KEY`, `NESL_CLIENT_ID`, `NESL_CLIENT_SECRET`, `IGR_PORTAL_USERNAME`, `IGR_PORTAL_PASSWORD` | Portals |
+| **Payments** | `STRIPE_SECRET_KEY`, `RESEND_API_KEY` | Billing + email delivery |
+| **Observability** | `SENTRY_DSN`, `ENVIRONMENT` | Error tracking |
 
-> **Note:** `.env.example` at repo root is the single authoritative source with 89+ variables. Copy it to `.env` and customize before running. Backend defaults in `config.py` include `secure_password_123` (dev-only — **must change for production**).
+> **Note:** `.env.example` at repo root is the single authoritative source. Backend defaults in `ag-associates-ai/backend/config.py` are dev-only and overridden in production.
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Docker & Docker Compose
+- Python 3.10+ (AI pipeline)
+- Node.js 20+ (platform)
+- Supabase account (PostgreSQL + auth)
+- Redis (for agent bus, OTP cache, job queue)
+
+### Full Stack (recommended order)
+
+```bash
+# 1. Clone and configure
+git clone https://github.com/rajkhemani/AGASSOCIATES.git
+cd AGASSOCIATES
+cp .env.example .env
+# Edit .env for your environment
+
+# 2. AI Pipeline
+cd ag-associates-ai
+docker-compose up -d
+cd backend
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+playwright install chromium && playwright install-deps chromium
+python generate_embeddings.py
+uvicorn main:app --reload --host 0.0.0.0 --port 8001
+
+# 3. AI Frontend (optional)
+cd ../frontend
+npm install && npm run dev   # Next.js at http://localhost:3000
+
+# 4. Operations Platform
+cd ../../ag-platform
+npm install
+npm run dev   # Vite + Express at http://localhost:3001
+
+# 5. Services
+cd services/intake-api && npm install && npm run dev   # Fastify at http://localhost:3002
+cd ../coordinator && npm install && npm run dev        # Telegram bot orchestrator
+cd ../../ag-associates-ai/backend/email_intake && npm install && npm run dev  # IMAP poller
+```
+
+### Pre-commit Hooks
+
+```bash
+cd E:\DSH\AGASSOCIATES
+pre-commit install
+pre-commit run --all-files
+```
+
+---
+
+## 📖 Detailed Setup Guide
+
+### Phase 1: Infrastructure Setup
+
+```bash
+git clone https://github.com/rajkhemani/AGASSOCIATES.git
+cd AGASSOCIATES
+cp .env.example .env
+```
+
+### Phase 2: AI Pipeline (LangGraph + Multi-Agent)
+
+```bash
+cd ag-associates-ai
+
+# Start infrastructure (PostgreSQL + n8n)
+docker-compose up -d
+
+# Set up backend
+cd backend
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+
+# One-time pgvector seeding
+python generate_embeddings.py
+
+# Migrate DB
+psql -U agadmin -d agdb -f database/agent_migrations.sql
+psql -U agadmin -d agdb -f database/init.sql
+
+# Start AI backend (FastAPI at http://localhost:8001)
+uvicorn main:app --reload --host 0.0.0.0 --port 8001
+```
+
+### Phase 3: Operations Platform (`ag-platform/`)
+
+```bash
+cd ag-platform
+npm install
+npm run dev   # turbo: Vite frontend + Express backend
+npm test
+npm run type-check
+npm run build
+```
+
+### Phase 4: AI Frontend Dashboard
+
+```bash
+cd ag-associates-ai/frontend
+npm install
+npm run dev   # Next.js at http://localhost:3000
+```
 
 ---
 
@@ -707,16 +489,9 @@ docker compose -f docker-compose.prod.yml up -d
 ### Health Checks
 
 ```bash
-# Basic
 curl https://api.advadiityagade.com/health
-
-# Deep (checks DB, Redis, vLLM, Supabase, NeSL)
 curl https://api.advadiityagade.com/health/deep
-
-# Metrics
 curl https://api.advadiityagade.com/metrics
-
-# Queue metrics
 curl https://api.advadiityagade.com/api/v1/queue/metrics
 ```
 
@@ -727,16 +502,16 @@ curl https://api.advadiityagade.com/api/v1/queue/metrics
 apt update && apt install -y docker.io docker-compose-v2 fail2ban ufw
 ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
 
-# Create deploy user
 useradd -m -s /bin/bash deploy
 usermod -aG docker deploy
 mkdir -p ~deploy/.ssh && chmod 700 ~deploy/.ssh
 
-# Clone and deploy
-cd /srv && mkdir ag && chown deploy:deploy ag
-su deploy
+# As deploy user
+cd /srv && mkdir -p ag && chown deploy:deploy ag
+su - deploy
 git clone https://github.com/rajkhemani/AGASSOCIATES.git repo
 cd repo
+git checkout main
 cp .env.example .env
 # Edit .env with production values
 docker compose -f docker-compose.prod.yml up -d
@@ -744,42 +519,55 @@ docker compose -f docker-compose.prod.yml up -d
 
 ---
 
-## 🔒 Security
+## 📱 WhatsApp Connect (Direct QR/Barcode)
 
-- **Row-Level Security**: Supabase RLS isolates bank/client data at database level
-- **Agent RBAC**: Per-agent access control (`agent.<name>.access`)
-- **Data Sovereignty**: Deployed in EU (Nuremberg/Falkenstein) for GDPR compliance
-- **Audit Logging**: Every case state transition logged to immutable `audit_trail`
-- **Document Vault**: Private buckets with 60-second signed URLs
-- **Magic Links**: Passwordless client access with time-limited tokens
-- **Webhook Auth**: `x-api-key` verification via `secrets.compare_digest`
-- **Secret Scanning**: Pre-commit hook (`detect-private-key`) prevents credential leaks
-- **Circuit Breaker**: External API resilience with HITL failover
-- **mTLS**: Service-to-service encryption via `security/mtls-config.yaml`
-- **WAF**: ModSecurity + OWASP CRS in `Caddyfile.waf`
+Use the built-in WhatsApp connection endpoint to provision or re-link WhatsApp Business via QR/barcode without relying on unofficial scrapers.
 
----
+### Prerequisites
 
-## 🗺 Roadmap
+- Meta WhatsApp Business Account
+- Verified Business Phone Number
+- `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID` in `.env`
 
-### Phase 6: Multi-Agent Intelligence (In Progress)
+### Direct Connect Flow
 
-- [ ] Agent health monitoring (heartbeat, error rate, latency)
-- [ ] Agent-to-agent tracing (OpenTelemetry across Redis Streams)
-- [ ] RAG evaluation pipeline (precision@k, recall, hallucination rate)
-- [ ] Document classification router (auto-route to Auditor/Vyasa/Bouncer)
-- [ ] Excel Chat Bot (NL→SQL on case/disbursement data)
-- [ ] Semantic case search (pgvector on case_timeline + documents)
+```bash
+# 1. Request a direct-session QR/barcode from the AI backend
+curl -H "x-api-key: $N8N_WEBHOOK_KEY" \
+  https://api.advadiityagade.com/api/whatsapp/directConnect/qr
 
-### Phase 7: luxor9 SaaS Platform
+# 2. Response includes an image or data URL for the current pairing session
+#    Example response:
+#    {
+#      "status": "awaiting_scan",
+#      "qr": "https://cdn.agassociates.in/whatsapp/qr/session-<id>.png",
+#      "session_id": "<uuid>",
+#      "expires_in_seconds": 120
+#    }
 
-- [ ] Multi-tenant architecture (org_id parameterized)
-- [ ] Stripe/Razorpay billing + webhook handling
-- [ ] Self-serve onboarding wizard (org → bank panel → team → go live)
-- [ ] White-label bank portal (custom domain, branding, SSO)
-- [ ] Usage metering + quota enforcement (AI tokens, RPA runs, API calls)
-- [ ] Partner program (referral tracking, revenue share)
-- [ ] Documentation portal + API docs (OpenAPI)
+# 3. Open the QR in the dashboard or display it on the terminal
+#    Scan with WhatsApp → Linked Devices → Link a Device
+
+# 4. Poll for connection status
+curl -H "x-api-key: $N8N_WEBHOOK_KEY" \
+  https://api.advadiityagade.com/api/whatsapp/directConnect/status/<session_id>
+```
+
+### Environment Variables for WhatsApp Direct Connect
+
+| Variable | Purpose |
+|----------|---------|
+| `WHATSAPP_ACCESS_TOKEN` | Meta Graph API token for the WhatsApp Business app |
+| `WHATSAPP_PHONE_NUMBER_ID` | Phone number ID to send/receive messages |
+| `WHATSAPP_BUSINESS_ACCOUNT_ID` | Business account containing the phone number |
+| `WHATSAPP_VERIFY_TOKEN` | Webhook verification token for inbound events |
+| `WHATSAPP_DIRECT_CONNECT_TTL_SECONDS` | Optional: QR session TTL (default `120`) |
+
+### Notes
+
+- Prefer **WhatsApp Business Cloud API** direct flow over unofficial WhatsApp Web scraping.
+- If QR provisioning fails, verify the phone number is registered and the access token has `whatsapp_business_messaging` + `whatsapp_business_management` scopes.
+- For testing, you can use Meta's test phone numbers to avoid sending real user messages.
 
 ---
 
@@ -787,16 +575,9 @@ docker compose -f docker-compose.prod.yml up -d
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines, commit conventions, and code standards.
 
-### AI Agent Playbooks
-
-| Agent | Playbook | Coverage |
-|-------|----------|----------|
-| **Claude Code** | [`CLAUDE.md`](./CLAUDE.md) | Architecture, dev commands, repo gotchas, workflow orchestration |
-| **OpenCode** | [`AGENTS.md`](./AGENTS.md) | Session guidance, corrections, subsystem boundaries |
-
 ### Engineering Guidelines
 
-Domain-specific policies in root-level `*_GUIDELINES.md`:
+Domain-specific policies in root-level `*_GUIDELINES.md` files:
 
 - `GIT_GUIDELINES.md` · `TDD_GUIDELINES.md` · `REFACTORING_GUIDELINES.md`
 - `ERROR_HANDLING_GUIDELINES.md` · `HALLUCINATION_MITIGATION_GUIDELINES.md`
@@ -806,8 +587,8 @@ Domain-specific policies in root-level `*_GUIDELINES.md`:
 ### Pre-commit Enforcement
 
 ```bash
-pre-commit install  # ruff lint+format + eslint on commit
-pre-commit run --all-files  # run all hooks manually
+pre-commit install  # ruff lint+fix + eslint on commit
+pre-commit run ---all-files  # run all hooks manually
 ```
 
 ---
