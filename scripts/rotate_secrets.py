@@ -466,7 +466,7 @@ class SecretManager:
                         logger.info(f"Created {secret_name} for {service_name}")
                         affected_services.append(service_name)
 
-            except Exception as e:
+                logger.error("Error updating secret for service %s", service_name)
                 logger.error(f"Error updating {secret_name} for {service_name}: {e}")
                 return RotationResult(
                     secret_name=secret_name,
