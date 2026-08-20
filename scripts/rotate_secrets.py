@@ -427,7 +427,8 @@ class SecretManager:
                 error=f"Secret configuration not found: {secret_name}",
             )
 
-        logger.info(f"Rotating secret: {secret_name}")
+        secret_ref = hashlib.sha256(str(secret_name).encode("utf-8")).hexdigest()[:12]
+        logger.info(f"Rotating secret [id={secret_ref}]")
 
         # Generate new secret
         new_secret = self.generate_secret(config)
