@@ -188,7 +188,7 @@ class GrasRPAExecutor:
                 logger.warning(f"[EXECUTOR] Redis close failed: {close_err}")
 
 
-async def generate_noi_challan(
+    async def generate_noi_challan(
         self, case_id: str, loan_amount: str, borrower_name: str,
         bank_name: str, property_address: str
     ) -> Dict[str, Any]:
