@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { contact, firm } from "@/content/site";
 import { Reveal } from "./Reveal";
 import { Container, MonoLabel, cn } from "./primitives";
+import { useDictation } from "./useDictation";
 
 /**
  * Empanelment enquiry.
@@ -11,11 +12,18 @@ import { Container, MonoLabel, cn } from "./primitives";
  * The site is a static export with no backend, so this composes a mailto:
  * draft rather than pretending to submit. That is stated in the UI — a form
  * that silently goes nowhere is worse than no form.
+ *
+ * Fields accept dictation through the browser's own speech recogniser. That
+ * choice follows from the same constraint: there is no server here to send
+ * audio to, and the recogniser the browser already ships handles the languages
+ * these enquiries arrive in. Where it is absent the microphone simply does not
+ * render and the form behaves exactly as it did before.
  */
 export function Empanelment() {
   const [caseType, setCaseType] = useState<string>(
     contact.fields.caseTypes[0],
   );
+  const [lang, setLang] = useState<string>(contact.dictation.languages[0].code);
 
   return (
     <section
@@ -84,11 +92,23 @@ export function Empanelment() {
               </div>
             </fieldset>
 
-            <div className="mt-8 grid gap-5">
-              <Field name="institution" label="Institution" required />
-              <Field name="name" label="Contact name" required />
-              <Field name="email" label="Work email" type="email" required />
-              <Field name="volume" label="Approximate monthly volume" />
+            <LanguagePicker value={lang} onChange={setLang} />
+
+            <div className="mt-6 grid gap-5">
+              <Field name="institution" label="Institution" lang={lang} required />
+              <Field name="name" label="Contact name" lang={lang} required />
+              <Field
+                name="email"
+                label="Work email"
+                type="email"
+                lang={lang}
+                required
+              />
+              <Field
+                name="volume"
+                label="Approximate monthly volume"
+                lang={lang}
+              />
             </div>
 
             <button
@@ -113,37 +133,157 @@ export function Empanelment() {
   );
 }
 
+/**
+ * Which language the recogniser should expect.
+ *
+ * A native select rather than a custom listbox: it is four options, it must be
+ * operable by keyboard on first try, and the platform control already is.
+ */
+function LanguagePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (code: string) => void;
+}) {
+  return (
+    <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <label className="type-mono-label flex items-center gap-3 text-mist">
+        <span>{contact.dictation.label}</span>
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(
+            "type-mono-label min-h-11 rounded-sm border border-[var(--hairline-dark)]",
+            "bg-ink px-3 py-2 text-paper",
+            "transition-colors duration-150 focus:border-gold focus:outline-none",
+          )}
+        >
+          {contact.dictation.languages.map((language) => (
+            <option key={language.code} value={language.code}>
+              {language.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
 function Field({
   name,
   label,
   type = "text",
+  lang,
   required,
 }: {
   name: string;
   label: string;
   type?: string;
+  lang: string;
   required?: boolean;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // The input stays uncontrolled so the mailto: serialisation keeps reading it
+  // exactly as before. Dictation appends to whatever has been typed rather
+  // than replacing it, so speaking after typing corrects nothing by accident.
+  const { supported, listening, interim, error, start } = useDictation(
+    lang,
+    (text) => {
+      const input = inputRef.current;
+      if (!input) return;
+      const existing = input.value.trim();
+      input.value = existing ? `${existing} ${text}` : text;
+      input.focus();
+    },
+  );
+
+  const status = `${label} dictation`;
+
   return (
-    <label className="block">
-      <span className="type-mono-label text-mist">
-        {label}
-        {required && (
-          <span aria-hidden className="ml-1 text-gold">
-            *
-          </span>
-        )}
-      </span>
-      <input
-        type={type}
-        name={name}
-        required={required}
+    <div>
+      <label className="block">
+        <span className="type-mono-label text-mist">
+          {label}
+          {required && (
+            <span aria-hidden className="ml-1 text-gold">
+              *
+            </span>
+          )}
+        </span>
+        <span className="mt-3 flex items-stretch gap-2">
+          <input
+            ref={inputRef}
+            type={type}
+            name={name}
+            required={required}
+            className={cn(
+              "w-full rounded-sm border border-[var(--hairline-dark)] bg-transparent px-4 py-3.5",
+              "text-[0.9375rem] text-paper placeholder:text-mist-dim",
+              "transition-colors duration-150 focus:border-gold focus:outline-none",
+            )}
+          />
+          {supported && (
+            <button
+              type="button"
+              onClick={start}
+              aria-label={
+                listening ? `Stop ${status}` : `Dictate ${label.toLowerCase()}`
+              }
+              aria-pressed={listening}
+              className={cn(
+                "grid min-h-11 w-11 shrink-0 place-items-center rounded-sm border",
+                "transition-[transform,border-color,color,background-color] duration-150",
+                "ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.97]",
+                "focus-visible:border-gold focus-visible:outline-none",
+                listening
+                  ? "border-gold bg-gold text-ink"
+                  : "border-[var(--hairline-dark)] text-mist hover:border-gold hover:text-gold",
+              )}
+            >
+              <MicIcon listening={listening} />
+            </button>
+          )}
+        </span>
+      </label>
+
+      {/* Polite, not assertive: dictation feedback must not interrupt a screen
+          reader mid-field. Rendered always so the region is present before it
+          has anything to announce. */}
+      <p
+        aria-live="polite"
         className={cn(
-          "mt-3 w-full rounded-sm border border-[var(--hairline-dark)] bg-transparent px-4 py-3.5",
-          "text-[0.9375rem] text-paper placeholder:text-mist-dim",
-          "transition-colors duration-150 focus:border-gold focus:outline-none",
+          "type-body mt-2 min-h-5 text-xs",
+          error ? "text-gold-bright" : "text-mist-dim",
         )}
-      />
-    </label>
+      >
+        {error ?? (listening ? interim || "Listening…" : "")}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The ring only pulses while listening, and the pulse is dropped entirely under
+ * prefers-reduced-motion — the fill change alone already carries the state.
+ */
+function MicIcon({ listening }: { listening: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      aria-hidden
+      className={listening ? "motion-safe:animate-pulse" : undefined}
+    >
+      <rect x="5.6" y="1.8" width="4.8" height="8" rx="2.4" />
+      <path d="M3.2 7.6a4.8 4.8 0 0 0 9.6 0" />
+      <path d="M8 12.4v1.8" />
+    </svg>
   );
 }
