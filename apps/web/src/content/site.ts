@@ -223,4 +223,20 @@ export const contact = {
       "Other",
     ],
   },
+  /**
+   * Dictation runs on the browser's own recogniser, so this list is the set of
+   * BCP-47 tags a caller may be speaking — not a set of models the firm hosts.
+   * Ordered by what the Thane and Mumbai MMR lending desks actually use.
+   */
+  dictation: {
+    label: "Dictation language",
+    hint: "Dictate into any field. Nothing is recorded or sent \u2014 your browser does the transcription.",
+    readbackLabel: "Read back what I heard",
+    languages: [
+      { code: "en-IN", name: "English" },
+      { code: "hi-IN", name: "\u0939\u093f\u0928\u094d\u0926\u0940" },
+      { code: "mr-IN", name: "\u092e\u0930\u093e\u0920\u0940" },
+      { code: "gu-IN", name: "\u0917\u0941\u091c\u0930\u093e\u0924\u0940" },
+    ],
+  },
 } as const;
