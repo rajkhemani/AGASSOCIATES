@@ -10,7 +10,7 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
-DOMAIN="${DOMAIN:-advaiityagade.com}"
+DOMAIN="${DOMAIN:-advadiityagade.com}"
 LOG_FILE="/var/log/ag-health.log"
 ALERT_WEBHOOK="${HEALTH_ALERT_WEBHOOK:-}"
 
