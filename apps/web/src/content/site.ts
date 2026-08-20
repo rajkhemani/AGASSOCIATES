@@ -231,6 +231,7 @@ export const contact = {
   dictation: {
     label: "Dictation language",
     hint: "Dictate into any field. Nothing is recorded or sent \u2014 your browser does the transcription.",
+    readbackLabel: "Read back what I heard",
     languages: [
       { code: "en-IN", name: "English" },
       { code: "hi-IN", name: "\u0939\u093f\u0928\u094d\u0926\u0940" },

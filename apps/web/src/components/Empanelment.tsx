@@ -5,6 +5,7 @@ import { contact, firm } from "@/content/site";
 import { Reveal } from "./Reveal";
 import { Container, MonoLabel, cn } from "./primitives";
 import { useDictation } from "./useDictation";
+import { spellForSpeech, useSpeech } from "./useSpeech";
 
 /**
  * Empanelment enquiry.
@@ -24,6 +25,9 @@ export function Empanelment() {
     contact.fields.caseTypes[0],
   );
   const [lang, setLang] = useState<string>(contact.dictation.languages[0].code);
+  // Off by default, always. A page that starts talking unasked is a problem
+  // in the open-plan offices this audience reads it from.
+  const [readback, setReadback] = useState(false);
 
   return (
     <section
@@ -92,22 +96,41 @@ export function Empanelment() {
               </div>
             </fieldset>
 
-            <LanguagePicker value={lang} onChange={setLang} />
+            <LanguagePicker
+              value={lang}
+              onChange={setLang}
+              readback={readback}
+              onReadbackChange={setReadback}
+            />
 
             <div className="mt-6 grid gap-5">
-              <Field name="institution" label="Institution" lang={lang} required />
-              <Field name="name" label="Contact name" lang={lang} required />
+              <Field
+                name="institution"
+                label="Institution"
+                lang={lang}
+                readback={readback}
+                required
+              />
+              <Field
+                name="name"
+                label="Contact name"
+                lang={lang}
+                readback={readback}
+                required
+              />
               <Field
                 name="email"
                 label="Work email"
                 type="email"
                 lang={lang}
+                readback={readback}
                 required
               />
               <Field
                 name="volume"
                 label="Approximate monthly volume"
                 lang={lang}
+                readback={readback}
               />
             </div>
 
@@ -142,12 +165,16 @@ export function Empanelment() {
 function LanguagePicker({
   value,
   onChange,
+  readback,
+  onReadbackChange,
 }: {
   value: string;
   onChange: (code: string) => void;
+  readback: boolean;
+  onReadbackChange: (on: boolean) => void;
 }) {
   return (
-    <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
       <label className="type-mono-label flex items-center gap-3 text-mist">
         <span>{contact.dictation.label}</span>
         <select
@@ -166,6 +193,18 @@ function LanguagePicker({
           ))}
         </select>
       </label>
+
+      {/* A real checkbox, sized to the 44px target rather than a styled div, so
+          it is operable by keyboard and reads correctly to assistive tech. */}
+      <label className="type-mono-label flex min-h-11 cursor-pointer items-center gap-3 text-mist">
+        <input
+          type="checkbox"
+          checked={readback}
+          onChange={(event) => onReadbackChange(event.target.checked)}
+          className="size-4 accent-[var(--color-gold)]"
+        />
+        <span>{contact.dictation.readbackLabel}</span>
+      </label>
     </div>
   );
 }
@@ -175,15 +214,18 @@ function Field({
   label,
   type = "text",
   lang,
+  readback,
   required,
 }: {
   name: string;
   label: string;
   type?: string;
   lang: string;
+  readback: boolean;
   required?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const speech = useSpeech(lang);
 
   // The input stays uncontrolled so the mailto: serialisation keeps reading it
   // exactly as before. Dictation appends to whatever has been typed rather
@@ -196,6 +238,12 @@ function Field({
       const existing = input.value.trim();
       input.value = existing ? `${existing} ${text}` : text;
       input.focus();
+
+      // Confirm out loud only when asked. An email is spelled out because it is
+      // the field where a single wrong character loses the enquiry outright.
+      if (readback && speech.supported) {
+        speech.speak(type === "email" ? spellForSpeech(text) : text);
+      }
     },
   );
 
