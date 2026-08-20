@@ -584,6 +584,31 @@ class SecretManager:
 
         return status
 
+    def sanitize_rotation_status(self, status: Dict[str, Any]) -> Dict[str, Any]:
+        """Return a sanitized copy of rotation status safe for console/log output."""
+        sanitized = {
+            'checked_at': status.get('checked_at'),
+            'secrets': {},
+            'due_for_rotation': [],
+            'overdue': [],
+        }
+
+        secret_names = list(status.get('secrets', {}).keys())
+        name_map = {name: f"secret_{idx}" for idx, name in enumerate(secret_names, start=1)}
+
+        for secret_name, secret_status in status.get('secrets', {}).items():
+            redacted_name = name_map.get(secret_name, 'secret')
+            sanitized['secrets'][redacted_name] = secret_status
+
+        sanitized['due_for_rotation'] = [
+            name_map.get(secret_name, 'secret') for secret_name in status.get('due_for_rotation', [])
+        ]
+        sanitized['overdue'] = [
+            name_map.get(secret_name, 'secret') for secret_name in status.get('overdue', [])
+        ]
+
+        return sanitized
+
 
 # Notification handlers
 class NotificationManager:
@@ -729,7 +754,8 @@ def main():
 
     if args.check_only:
         status = secret_manager.check_rotation_status()
-        print(json.dumps(status, indent=2, default=str))
+        safe_status = secret_manager.sanitize_rotation_status(status)
+        print(json.dumps(safe_status, indent=2, default=str))
         return
 
     # Perform rotation
