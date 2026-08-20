@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import caseRoutes from '../../src/server/routes/cases.ts';
+import { pool } from '../../src/server/db.ts';
 
 // Create test app
 function createTestApp() {
@@ -97,5 +98,93 @@ describe('Cases Routes', () => {
       const res = await request(app).get('/api/workforce/agents/status');
       expect(res.status).toBe(401);
     });
+  });
+});
+
+describe('CaseService.updateStatus - Cross-tenant access control', () => {
+  const mockClientQuery = vi.fn();
+  const mockClientRelease = vi.fn();
+  const mockPoolConnect = vi.fn();
+  const originalPoolConnect = pool.connect;
+
+  beforeEach(() => {
+    mockClientQuery.mockReset();
+    mockClientRelease.mockReset();
+    mockPoolConnect.mockReset();
+    pool.connect = mockPoolConnect;
+    mockPoolConnect.mockResolvedValue({
+      query: mockClientQuery,
+      release: mockClientRelease,
+    });
+  });
+
+  afterEach(() => {
+    pool.connect = originalPoolConnect;
+    vi.clearAllMocks();
+  });
+
+  it('rejects status update when org_id does not match case org_id', async () => {
+    // Simulate: Case belongs to org-B, but user from org-A tries to update
+    const caseId = '550e8400-e29b-41d4-a716-446655440000';
+    const userId = 'user-org-a';
+    const userOrgId = 'org-a';
+    const caseOrgId = 'org-b';
+
+    // Mock SELECT to return case with different org_id
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [{ status: 'RECEIVED', org_id: caseOrgId }] }) // SELECT status, org_id
+      .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockResolvedValueOnce({ rows: [] }); // ROLLBACK
+
+    const { CaseService } = await import('../../src/server/services/caseService.ts');
+
+    await expect(
+      CaseService.updateStatus(caseId, 'IN_PROGRESS', userId, 'Test note', userOrgId)
+    ).rejects.toThrow();
+
+    // Verify SELECT included org_id check
+    expect(mockClientQuery).toHaveBeenCalledWith(
+      'SELECT status, org_id FROM cases WHERE id = $1 AND org_id = $2',
+      [caseId, userOrgId]
+    );
+  });
+
+  it('allows status update when org_id matches', async () => {
+    const caseId = '550e8400-e29b-41d4-a716-446655440000';
+    const userId = 'user-org-a';
+    const userOrgId = 'org-a';
+
+    // Mock successful transaction
+    // Call order: BEGIN, SELECT, UPDATE, INSERT, COMMIT
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockResolvedValueOnce({ rows: [{ status: 'RECEIVED', org_id: userOrgId }] }) // SELECT
+      .mockResolvedValueOnce({ rows: [] }) // UPDATE
+      .mockResolvedValueOnce({ rows: [] }) // INSERT timeline
+      .mockResolvedValueOnce({ rows: [] }) // COMMIT
+      .mockResolvedValueOnce({ rows: [] }); // release (not awaited)
+
+    const { CaseService } = await import('../../src/server/services/caseService.ts');
+
+    await expect(
+      CaseService.updateStatus(caseId, 'IN_PROGRESS', userId, 'Test note', userOrgId)
+    ).resolves.toBeUndefined();
+
+    // Verify all queries include org_id
+    expect(mockClientQuery).toHaveBeenCalledWith(
+      'SELECT status, org_id FROM cases WHERE id = $1 AND org_id = $2',
+      [caseId, userOrgId]
+    );
+    expect(mockClientQuery).toHaveBeenCalledWith(
+      'UPDATE cases SET status = $1 WHERE id = $2 AND org_id = $3',
+      ['IN_PROGRESS', caseId, userOrgId]
+    );
+    // Check INSERT was called (format may vary)
+    const insertCalls = mockClientQuery.mock.calls.filter(call => 
+      call[0].includes('INSERT INTO case_timeline')
+    );
+    expect(insertCalls.length).toBe(1);
+    expect(insertCalls[0][1]).toEqual([caseId, 'RECEIVED', 'IN_PROGRESS', 'Test note', userId]);
+    expect(mockClientRelease).toHaveBeenCalled();
   });
 });

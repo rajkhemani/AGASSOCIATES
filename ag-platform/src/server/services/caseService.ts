@@ -40,18 +40,18 @@ export const CaseService = {
     return res.rows;
   },
 
-  async updateStatus(id: string, status: CaseStatus, userId: string, notes?: string): Promise<void> {
+  async updateStatus(id: string, status: CaseStatus, userId: string, notes: string | undefined, orgId: string): Promise<void> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      const currentCase = await client.query('SELECT status FROM cases WHERE id = $1', [id]);
+      const currentCase = await client.query('SELECT status, org_id FROM cases WHERE id = $1 AND org_id = $2', [id, orgId]);
       if (!currentCase.rows[0]) {
         throw new Error('Case not found');
       }
       const oldStatus = currentCase.rows[0].status;
 
-      await client.query('UPDATE cases SET status = $1 WHERE id = $2', [status, id]);
+      await client.query('UPDATE cases SET status = $1 WHERE id = $2 AND org_id = $3', [status, id, orgId]);
 
       await client.query(
         `INSERT INTO case_timeline (case_id, status_from, status_to, notes, changed_by)

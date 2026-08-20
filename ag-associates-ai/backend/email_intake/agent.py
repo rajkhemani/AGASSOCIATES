@@ -44,7 +44,9 @@ IMAP_PASS = os.environ.get("EMAIL_IMAP_PASS", "")
 IMAP_INBOX = os.environ.get("EMAIL_IMAP_INBOX", "INBOX")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+# For email intake, we determine org_id from the sender's bank domain
+# The org_id will be passed as X-Org-ID header for RLS
 
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:8000/v1")
 LLM_MODEL = os.environ.get("LLM_MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
@@ -481,12 +483,56 @@ Use INTIMATION_MORTGAGE as default case_type.
 # ── Supabase Case Creation ───────────────────────────────────────────────
 
 
+async def _get_org_id_for_bank(bank_name: str) -> Optional[str]:
+    """Look up organization ID by bank name."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return None
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{SUPABASE_URL}/rest/v1/organizations",
+                params={"name": f"eq.{bank_name}", "select": "id"},
+                headers={
+                    "apikey": SUPABASE_ANON_KEY,
+                    "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+                },
+            )
+            resp.raise_for_status()
+            orgs = resp.json()
+            return orgs[0]["id"] if orgs else None
+    except Exception as e:
+        logger.warning("Failed to look up org_id for bank %s: %s", bank_name, e)
+        return None
+
+
+def _get_supabase_headers(org_id: Optional[str] = None) -> Dict[str, str]:
+    """Build Supabase REST API headers using anon key + optional org_id."""
+    if not SUPABASE_ANON_KEY:
+        raise RuntimeError("SUPABASE_ANON_KEY not configured")
+    
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "Content-Type": "application/json",
+    }
+    if org_id:
+        headers["X-Org-ID"] = org_id
+    return headers
+
+
 async def create_case(
     extract: LoanSanctionExtract, sender_email: str, attachments: list = None
 ) -> Optional[str]:
     """Create a new case in Supabase with NOI workflow initialization."""
-    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         logger.warning("Supabase not configured — skipping case creation")
+        return None
+
+    # Determine org_id from bank name for RLS
+    org_id = await _get_org_id_for_bank(extract.bank_name)
+    if not org_id:
+        logger.warning("No organization found for bank %s — skipping case creation", extract.bank_name)
         return None
 
     # Determine initial case type and status based on email content
@@ -530,6 +576,7 @@ async def create_case(
 
     try:
         async with httpx.AsyncClient() as client:
+            headers = _get_supabase_headers(org_id)
             resp = await client.post(
                 f"{SUPABASE_URL}/rest/v1/cases",
                 json={
@@ -551,12 +598,7 @@ async def create_case(
                         "attachments_count": len(attachments) if attachments else 0,
                     },
                 },
-                headers={
-                    "apikey": SUPABASE_SERVICE_KEY,
-                    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-                    "Content-Type": "application/json",
-                    "Prefer": "return=representation",
-                },
+                headers=headers,
             )
             resp.raise_for_status()
             result = resp.json()
@@ -566,11 +608,12 @@ async def create_case(
                 else result.get("id")
             )
             logger.info(
-                "Created case %s for %s (%s) with status %s",
+                "Created case %s for %s (%s) with status %s (org_id: %s)",
                 case_id,
                 extract.borrower_name,
                 extract.bank_name,
                 initial_status,
+                org_id,
             )
             return str(case_id)
     except Exception as e:
@@ -613,22 +656,22 @@ async def poll_once() -> int:
                     # Update case with payment info
                     try:
                         async with httpx.AsyncClient() as client:
-                            await client.patch(
-                                f"{SUPABASE_URL}/rest/v1/cases?id=eq.{case_id}",
-                                json={
-                                    "payment_utr": payment_info.get("utr_number"),
-                                    "payment_amount": payment_info.get("amount"),
-                                    "payment_date": payment_info.get("date"),
-                                    "payment_status": "RECEIVED",
-                                    "payment_metadata": payment_info,
-                                },
-                                headers={
-                                    "apikey": SUPABASE_SERVICE_KEY,
-                                    "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
-                                    "Content-Type": "application/json",
-                                    "Prefer": "return=representation",
-                                },
-                            )
+                            org_id = await _get_org_id_for_bank(extract.bank_name)
+                            if org_id:
+                                headers = _get_supabase_headers(org_id)
+                                await client.patch(
+                                    f"{SUPABASE_URL}/rest/v1/cases?id=eq.{case_id}",
+                                    json={
+                                        "payment_utr": payment_info.get("utr_number"),
+                                        "payment_amount": payment_info.get("amount"),
+                                        "payment_date": payment_info.get("date"),
+                                        "payment_status": "RECEIVED",
+                                        "payment_metadata": payment_info,
+                                    },
+                                    headers=headers,
+                                )
+                            else:
+                                logger.warning("Cannot update payment info: no org_id for bank %s", extract.bank_name)
                     except Exception as e:
                         logger.warning(
                             "Failed to update payment info for case %s: %s", case_id, e

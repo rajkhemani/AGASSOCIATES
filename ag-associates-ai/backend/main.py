@@ -323,12 +323,12 @@ async def deep_health_check():
     # Check Supabase
     try:
         supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        if supabase_url and supabase_key:
+        supabase_anon_key = os.environ.get("SUPABASE_ANON_KEY")
+        if supabase_url and supabase_anon_key:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(
                     f"{supabase_url}/rest/v1/",
-                    headers={"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"}
+                    headers={"apikey": supabase_anon_key, "Authorization": f"Bearer {supabase_anon_key}"}
                 )
                 if resp.status_code in (200, 401):  # 401 means auth works but unauthorized
                     checks["supabase"] = "healthy"
@@ -495,18 +495,64 @@ if not IS_PRODUCTION:
 
 
 # ── Unified Aisha Voice/Chat ────────────────────────────────────────────────
-from supabase import create_client, Client as SupabaseClient
+# Removed global service role client (_SB). 
+# Use per-request auth context via SupabaseAuth dependency instead.
+# See auth.py for SupabaseAuth dependency that provides user JWT + org_id.
 
-_SB: SupabaseClient | None = None
+def _get_supabase_headers(user_jwt: str, org_id: Optional[str] = None) -> Dict[str, str]:
+    """Build Supabase REST API headers using user JWT + anon key.
+    
+    For internal service-to-service calls, use anon key + X-Org-ID header.
+    """
+    supabase_anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
+    if not supabase_anon_key:
+        raise RuntimeError("SUPABASE_ANON_KEY not configured")
+    
+    if user_jwt:
+        return {
+            "apikey": supabase_anon_key,
+            "Authorization": f"Bearer {user_jwt}",
+            "Content-Type": "application/json",
+        }
+    elif org_id:
+        return {
+            "apikey": supabase_anon_key,
+            "Authorization": f"Bearer {supabase_anon_key}",
+            "Content-Type": "application/json",
+            "X-Org-ID": org_id,
+        }
+    else:
+        return {
+            "apikey": supabase_anon_key,
+            "Authorization": f"Bearer {supabase_anon_key}",
+            "Content-Type": "application/json",
+        }
 
-
-def _sb() -> SupabaseClient:
-    global _SB
-    if _SB is None:
-        _SB = create_client(
-            os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+async def _supabase_request(
+    method: str,
+    path: str,
+    user_jwt: Optional[str] = None,
+    org_id: Optional[str] = None,
+    json_data: Optional[Dict] = None,
+    params: Optional[Dict] = None,
+) -> httpx.Response:
+    """Make authenticated Supabase REST API request."""
+    supabase_url = os.environ.get("SUPABASE_URL")
+    if not supabase_url:
+        raise RuntimeError("SUPABASE_URL not configured")
+    
+    headers = _get_supabase_headers(user_jwt, org_id)
+    
+    async with httpx.AsyncClient() as client:
+        resp = await client.request(
+            method,
+            f"{supabase_url}/rest/v1{path}",
+            headers=headers,
+            json=json_data,
+            params=params,
         )
-    return _SB
+        resp.raise_for_status()
+        return resp
 
 
 # … (voice endpoints, supervisor, etc. would go here)
