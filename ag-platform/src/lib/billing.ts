@@ -252,21 +252,21 @@ export async function reconcileBankAdvances(orgId: string): Promise<Disbursement
   }));
 }
 
-export async function markInvoiceSent(invoiceId: string): Promise<void> {
+export async function markInvoiceSent(invoiceId: string, orgId: string): Promise<void> {
   await pool.query(
-    `UPDATE invoices SET status = 'SENT' WHERE id = $1 AND status = 'DRAFT'`,
-    [invoiceId]
+    `UPDATE invoices SET status = 'SENT' WHERE id = $1 AND org_id = $2 AND status = 'DRAFT'`,
+    [invoiceId, orgId]
   );
 }
 
-export async function markInvoicePaid(invoiceId: string, paidAt: Date = new Date()): Promise<void> {
+export async function markInvoicePaid(invoiceId: string, paidAt: Date, orgId: string): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     const invoiceResult = await client.query(
-      `SELECT * FROM invoices WHERE id = $1 FOR UPDATE`,
-      [invoiceId]
+      `SELECT * FROM invoices WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+      [invoiceId, orgId]
     );
 
     if (invoiceResult.rows.length === 0) {
@@ -276,8 +276,8 @@ export async function markInvoicePaid(invoiceId: string, paidAt: Date = new Date
     const invoice = invoiceResult.rows[0];
 
     await client.query(
-      `UPDATE invoices SET status = 'PAID', paid_at = $1 WHERE id = $2`,
-      [paidAt, invoiceId]
+      `UPDATE invoices SET status = 'PAID', paid_at = $1 WHERE id = $2 AND org_id = $3`,
+      [paidAt, invoiceId, orgId]
     );
 
     // If there was advance adjusted, it's now fully reconciled
@@ -314,9 +314,10 @@ export async function getOutstandingInvoices(orgId: string): Promise<Invoice[]> 
   }));
 }
 
-export async function autoMarkOverdueInvoices(): Promise<number> {
+export async function autoMarkOverdueInvoices(orgId: string): Promise<number> {
   const result = await pool.query(
-    `UPDATE invoices SET status = 'OVERDUE' WHERE status = 'SENT' AND due_at < NOW()`
+    `UPDATE invoices SET status = 'OVERDUE' WHERE org_id = $1 AND status = 'SENT' AND due_at < NOW()`,
+    [orgId]
   );
   return result.rowCount ?? 0;
 }

@@ -188,7 +188,7 @@ router.post('/invoices/:id/paid', validateParams(invoiceParamsSchema), validate(
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    await markInvoicePaid(invoiceId, paidAt);
+    await markInvoicePaid(invoiceId, paidAt, orgId);
 
     const result = await pool.query(
       `SELECT * FROM invoices WHERE id = $1`,
@@ -229,7 +229,7 @@ router.get('/reconcile', requireRole('PRINCIPAL', 'ADVOCATE'), async (req, res) 
 // POST /api/v1/invoices/auto-overdue - Auto-mark overdue invoices (cron job)
 router.post('/invoices/auto-overdue', requireRole('PRINCIPAL'), async (req, res) => {
   try {
-    const count = await autoMarkOverdueInvoices();
+    const count = await autoMarkOverdueInvoices(orgId);
     res.json({ success: true, marked_overdue: count });
   } catch (error) {
     console.error('Auto overdue error:', error);

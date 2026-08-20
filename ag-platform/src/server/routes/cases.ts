@@ -114,9 +114,10 @@ router.put('/cases/:id/status', validateParams(uuidParam), validate(UpdateCaseSt
   try {
     const { status, notes } = req.body;
     const userId = req.user!.id;
+    const orgId = req.user!.orgId!;
     const caseId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
-    await CaseService.updateStatus(caseId, status, userId, notes);
+    await CaseService.updateStatus(caseId, status, userId, notes, orgId);
 
     // Trigger AI pipeline for IN_PROGRESS status
     if (status === 'IN_PROGRESS') {
@@ -145,8 +146,9 @@ router.patch('/cases/:id', validateParams(uuidParam), validate(UpdateCaseStatusS
   try {
     const { status, notes } = req.body;
     const caseId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const orgId = req.user!.orgId!;
 
-    await CaseService.updateStatus(caseId, status, req.user!.id, notes || 'Status updated via pipeline');
+    await CaseService.updateStatus(caseId, status, req.user!.id, notes || 'Status updated via pipeline', orgId);
     const updatedCase = await CaseService.getCaseById(caseId, req.user!.orgId!);
     res.json(updatedCase);
   } catch (error: any) {

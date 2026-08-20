@@ -31,19 +31,62 @@ NOI_TERMINAL_STATES = list(NOI.terminal_states)
 NOI_REDIS_PREFIX = NOI.redis_prefix
 
 
+def _get_supabase_headers(user_jwt: Optional[str] = None, org_id: Optional[str] = None) -> Dict[str, str]:
+    """Build Supabase REST API headers using user JWT (preferred) or anon key + org context.
+    
+    Args:
+        user_jwt: User's access token from Supabase Auth (preferred for RLS)
+        org_id: Organization ID for tenant isolation (used with anon key)
+    
+    Returns:
+        Headers dict for Supabase REST API calls
+    """
+    supabase_url = os.environ.get("SUPABASE_URL", "")
+    supabase_anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
+    
+    if user_jwt:
+        # Use user's JWT - RLS policies will enforce org_id via get_app_org_id()
+        return {
+            "apikey": supabase_anon_key,
+            "Authorization": f"Bearer {user_jwt}",
+            "Content-Type": "application/json",
+        }
+    elif org_id:
+        # Fallback: anon key + org_id header for internal service calls
+        # Requires PostgREST pre-request function to set app.current_org_id
+        return {
+            "apikey": supabase_anon_key,
+            "Authorization": f"Bearer {supabase_anon_key}",
+            "Content-Type": "application/json",
+            "X-Org-ID": org_id,
+        }
+    else:
+        # No auth context - will fail RLS (safe default)
+        return {
+            "apikey": supabase_anon_key,
+            "Authorization": f"Bearer {supabase_anon_key}",
+            "Content-Type": "application/json",
+        }
+
+
 class NOIAgent:
     """Orchestrates the NOI workflow across RPA executors, OTP bridge,
     case database, and notification dispatch."""
 
-    def __init__(self):
+    def __init__(self, user_jwt: Optional[str] = None, org_id: Optional[str] = None):
         self._redis = None
         self._local_cases: Dict[str, Dict[str, Any]] = {}
+        self._user_jwt = user_jwt
+        self._org_id = org_id
+
+    def set_auth_context(self, user_jwt: Optional[str] = None, org_id: Optional[str] = None):
+        """Update auth context for subsequent Supabase calls."""
+        self._user_jwt = user_jwt
+        self._org_id = org_id
 
     def _use_local_store(self) -> bool:
         """Returns True if Supabase is not configured (fallback to Redis/in-memory)."""
-        return not os.environ.get("SUPABASE_URL") or not os.environ.get(
-            "SUPABASE_SERVICE_ROLE_KEY"
-        )
+        return not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_ANON_KEY")
 
     async def _get_redis(self):
         if self._redis is None:
@@ -60,7 +103,7 @@ class NOIAgent:
         """Read case from Redis hash (shared across workers), fallback to in-memory."""
         try:
             r = await self._get_redis()
-            raw = await r.hgetall(f"{NOI_REDIS_PREFIX}{case_id}")
+            raw = await r.hgetall(f"{NOI_REDIX_PREFIX}{case_id}")
             if raw:
                 return {k: v for k, v in raw.items()}
         except Exception:
@@ -72,7 +115,7 @@ class NOIAgent:
         self._local_cases[case_id] = data
         try:
             r = await self._get_redis()
-            await r.hset(f"{NOI_REDIS_PREFIX}{case_id}", mapping=data)
+            await r.hset(f"{NOI_REDIX_PREFIX}{case_id}", mapping=data)
             return True
         except Exception:
             return True
@@ -83,17 +126,14 @@ class NOIAgent:
             return await self._local_get_case(case_id)
 
         supabase_url = os.environ.get("SUPABASE_URL", "")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
         import httpx
 
         try:
             async with httpx.AsyncClient() as client:
+                headers = _get_supabase_headers(self._user_jwt, self._org_id)
                 resp = await client.get(
                     f"{supabase_url}/rest/v1/cases?id=eq.{case_id}",
-                    headers={
-                        "apikey": supabase_key,
-                        "Authorization": f"Bearer {supabase_key}",
-                    },
+                    headers=headers,
                 )
                 resp.raise_for_status()
                 data = resp.json()
@@ -136,24 +176,18 @@ class NOIAgent:
             return False
 
         supabase_url = os.environ.get("SUPABASE_URL", "")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-
         import httpx
 
         try:
             async with httpx.AsyncClient() as client:
+                headers = _get_supabase_headers(self._user_jwt, self._org_id)
                 resp = await client.patch(
                     f"{supabase_url}/rest/v1/cases?id=eq.{case_id}",
                     json={
                         NOI.status_field: new_status,
                         "updated_at": datetime.utcnow().isoformat(),
                     },
-                    headers={
-                        "apikey": supabase_key,
-                        "Authorization": f"Bearer {supabase_key}",
-                        "Content-Type": "application/json",
-                        "Prefer": "return=minimal",
-                    },
+                    headers=headers,
                 )
                 resp.raise_for_status()
 
@@ -205,14 +239,15 @@ class NOIAgent:
     ):
         """Append to case_timeline table."""
         supabase_url = os.environ.get("SUPABASE_URL", "")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-        if not supabase_url or not supabase_key:
+        supabase_anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
+        if not supabase_url or not supabase_anon_key:
             return
 
         import httpx
 
         try:
             async with httpx.AsyncClient() as client:
+                headers = _get_supabase_headers(self._user_jwt, self._org_id)
                 await client.post(
                     f"{supabase_url}/rest/v1/case_timeline",
                     json={
@@ -222,11 +257,7 @@ class NOIAgent:
                         "notes": notes or "",
                         "changed_by": "noi_agent",
                     },
-                    headers={
-                        "apikey": supabase_key,
-                        "Authorization": f"Bearer {supabase_key}",
-                        "Content-Type": "application/json",
-                    },
+                    headers=headers,
                 )
         except Exception as exc:
             logger.warning("Timeline log failed: %s", exc)
@@ -326,14 +357,15 @@ class NOIAgent:
         """Check if a required document exists for this case.
         Returns PRESENT, MISSING, or UNCLEAR."""
         supabase_url = os.environ.get("SUPABASE_URL", "")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-        if not supabase_url or not supabase_key:
+        supabase_anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
+        if not supabase_url or not supabase_anon_key:
             return "UNCLEAR"
 
         import httpx
 
         try:
             async with httpx.AsyncClient() as client:
+                headers = _get_supabase_headers(self._user_jwt, self._org_id)
                 resp = await client.get(
                     f"{supabase_url}/rest/v1/documents",
                     params={
@@ -341,10 +373,7 @@ class NOIAgent:
                         "document_type": f"eq.{doc_type}",
                         "select": "id,file_path,verification_status",
                     },
-                    headers={
-                        "apikey": supabase_key,
-                        "Authorization": f"Bearer {supabase_key}",
-                    },
+                    headers=headers,
                 )
                 resp.raise_for_status()
                 docs = resp.json()

@@ -223,7 +223,7 @@ export async function checkSLABreaches(orgId: string): Promise<SLABreach[]> {
   return breaches;
 }
 
-export async function sendSLAWarnings(warnings: SLAWarning[]): Promise<number> {
+export async function sendSLAWarnings(warnings: SLAWarning[], orgId: string): Promise<number> {
   let sent = 0;
   
   for (const warning of warnings) {
@@ -233,8 +233,8 @@ export async function sendSLAWarnings(warnings: SLAWarning[]): Promise<number> {
         `SELECT p.id, p.full_name, p.email 
          FROM profiles p 
          JOIN cases c ON c.assigned_executive_id = p.id 
-         WHERE c.id = $1`,
-        [warning.caseId]
+         WHERE c.id = $1 AND c.org_id = $2`,
+        [warning.caseId, orgId]
       );
       
       if (execResult.rows.length > 0) {
@@ -242,7 +242,7 @@ export async function sendSLAWarnings(warnings: SLAWarning[]): Promise<number> {
         
         // Log audit event
         await AuditEvents.sla.warning({
-          orgId: '', // Will be filled by caller
+          orgId,
           caseId: warning.caseId,
           caseNumber: warning.caseNumber,
           hoursRemaining: warning.hoursRemaining,
@@ -254,8 +254,8 @@ export async function sendSLAWarnings(warnings: SLAWarning[]): Promise<number> {
         
         // Mark warning as sent
         await pool.query(
-          `UPDATE cases SET sla_warning_sent = true WHERE id = $1`,
-          [warning.caseId]
+          `UPDATE cases SET sla_warning_sent = true WHERE id = $1 AND org_id = $2`,
+          [warning.caseId, orgId]
         );
         
         sent++;
@@ -268,20 +268,20 @@ export async function sendSLAWarnings(warnings: SLAWarning[]): Promise<number> {
   return sent;
 }
 
-export async function processSLABreaches(breaches: SLABreach[]): Promise<number> {
+export async function processSLABreaches(breaches: SLABreach[], orgId: string): Promise<number> {
   let processed = 0;
   
   for (const breach of breaches) {
     try {
       // Mark as breached
       await pool.query(
-        `UPDATE cases SET sla_breached = true WHERE id = $1`,
-        [breach.caseId]
+        `UPDATE cases SET sla_breached = true WHERE id = $1 AND org_id = $2`,
+        [breach.caseId, orgId]
       );
       
       // Log audit event
       await AuditEvents.sla.breached({
-        orgId: '', // Will be filled
+        orgId,
         caseId: breach.caseId,
         caseNumber: breach.caseNumber,
         hoursOverdue: breach.hoursOverdue,
@@ -289,7 +289,7 @@ export async function processSLABreaches(breaches: SLABreach[]): Promise<number>
       });
       
       // Trigger escalation
-      await triggerEscalation(breach);
+      await triggerEscalation(breach, orgId);
       
       processed++;
     } catch (error) {
@@ -300,7 +300,7 @@ export async function processSLABreaches(breaches: SLABreach[]): Promise<number>
   return processed;
 }
 
-async function triggerEscalation(breach: SLABreach): Promise<void> {
+export async function triggerEscalation(breach: SLABreach, orgId: string): Promise<void> {
   try {
     // Get case details and escalation contacts
     const caseResult = await pool.query(
@@ -309,8 +309,8 @@ async function triggerEscalation(breach: SLABreach): Promise<void> {
        FROM cases c
        LEFT JOIN profiles p ON p.id = c.assigned_executive_id
        LEFT JOIN organizations o ON o.id = c.org_id
-       WHERE c.id = $1`,
-      [breach.caseId]
+       WHERE c.id = $1 AND c.org_id = $2`,
+      [breach.caseId, orgId]
     );
     
     if (caseResult.rows.length === 0) return;
@@ -326,7 +326,7 @@ async function triggerEscalation(breach: SLABreach): Promise<void> {
        AND p.id != $2
        ORDER BY CASE p.role WHEN 'PRINCIPAL' THEN 1 WHEN 'ADVOCATE' THEN 2 ELSE 3 END
        LIMIT 1`,
-      [case_.org_id, case_.assigned_executive_id]
+      [orgId, case_.assigned_executive_id]
     );
     
     let escalatedTo = 'System';
@@ -336,7 +336,7 @@ async function triggerEscalation(breach: SLABreach): Promise<void> {
     
     // Log escalation
     await AuditEvents.escalation.triggered({
-      orgId: case_.org_id,
+      orgId,
       caseId: breach.caseId,
       caseNumber: breach.caseNumber,
       reason: `SLA breached - ${breach.hoursOverdue.toFixed(1)} hours overdue`,
@@ -345,8 +345,8 @@ async function triggerEscalation(breach: SLABreach): Promise<void> {
     
     // Mark as escalated
     await pool.query(
-      `UPDATE cases SET sla_escalated = true WHERE id = $1`,
-      [breach.caseId]
+      `UPDATE cases SET sla_escalated = true WHERE id = $1 AND org_id = $2`,
+      [breach.caseId, orgId]
     );
     
     // Send escalation notification
@@ -361,10 +361,10 @@ export async function runSLACheck(orgId: string): Promise<{ warnings: number; br
   logger.info({ orgId }, 'Running SLA check');
   
   const warnings = await checkSLAWarnings(orgId);
-  const warningsSent = await sendSLAWarnings(warnings);
+  const warningsSent = await sendSLAWarnings(warnings, orgId);
   
   const breaches = await checkSLABreaches(orgId);
-  const breachesProcessed = await processSLABreaches(breaches);
+  const breachesProcessed = await processSLABreaches(breaches, orgId);
   
   logger.info({ orgId, warnings: warnings.length, warningsSent, breaches: breaches.length, breachesProcessed }, 'SLA check completed');
   
