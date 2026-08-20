@@ -193,7 +193,7 @@ In the browser, open `https://app.$DOMAIN`, sign in via magic link, create a cas
 
 `.github/workflows/deploy.yml` runs on every push to `main` that touches code:
 
-1. Builds seven images: `ag-ai-backend`, `ag-ai-dashboard`, `ag-platform`, `telegram-bot`, `intake-api`, `email-intake`, `coordinator`. Pushes to `ghcr.io/luxoranova9/<name>:latest` and `:<sha>`.
+1. Builds seven images: `ag-ai-backend`, `ag-ai-dashboard`, `ag-platform`, `telegram-bot`, `intake-api`, `email-intake`, `coordinator`. Pushes to `ghcr.io/$IMAGE_OWNER/<name>:latest` and `:<sha>`, where `IMAGE_OWNER` is set in `deploy.yml` (currently `rajkhemani`) and exported into the SSH script so `docker-compose.prod.yml` pulls the same namespace it pushed to.
 2. SSHes into the VPS as `deploy`, clones repo to `deploy-<sha>`, pulls new images, `docker compose up -d`, prunes old images and deploy dirs (>3 days).
 3. Runs delayed diagnostics (120s post-deploy) and smoke-tests all endpoints — **fails the workflow** if any return non-200.
 
