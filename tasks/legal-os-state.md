@@ -1,10 +1,10 @@
 # Luxor9 Legal OS Execution State
 
 ## Current Phase
-P0-A: Tenant Mutation Security - IMPLEMENTATION PHASE
+P0-B: Two-Tenant Adversarial Suite / P0-C: RLS Repair / P0-D: Tenant DB Context
 
 ## Current Task
-Dispatch first implementation task: Fix application-layer tenant isolation (CaseService.updateStatus, billing.ts, sla.ts mutations missing org_id)
+Create comprehensive two-tenant automated test suite covering all tenant-owned endpoints (P0-B). Fix remaining permissive RLS policies (P0-C). Create transaction-local tenant DB helper (P0-D).
 
 ## Completed
 - Boot sequence: Read CLAUDE.md, AGENTS.md, tasks/lessons.md, tasks/todo.md
@@ -62,38 +62,38 @@ None
 - Intake webhook unauthenticated, returns case IDs
 - Inconsistent auth middleware (cases.ts missing requireOrgAccess)
 
-## Next 5 Tasks
-1. **P0-A Task 1**: Fix CaseService.updateStatus() - add org_id to all mutating queries ✅ **COMPLETED**
-   - Test: `tests/routes/cases.test.ts` - 2 cross-tenant tests passing (13/13 total)
-   - Files: caseService.ts, routes/cases.ts
-   - Evidence: SELECT/UPDATE/INSERT all include org_id; callers updated
-2. **P0-A Task 2**: Fix billing.ts mutations - add org_id to markInvoiceSent, markInvoicePaid, autoMarkOverdueInvoices ✅ **COMPLETED**
-   - Files: billing.ts (all 3 functions accept orgId, queries include org_id predicate)
-   - Callers: routes/invoices.ts (/paid, /auto-overdue) updated to pass orgId
-   - Note: /send endpoint uses inline query with org_id (consistent)
-   - Tests: 18 tests pass
-3. **P0-A Task 3**: Fix sla.ts mutations - add org_id to sendSLAWarnings, processSLABreaches, triggerEscalation ✅ **COMPLETED**
-   - Files: sla.ts (all 3 functions accept orgId, queries include org_id predicate)
-   - Tests: 22 tests pass (13 cases + 5 invoices + 4 sla)
-4. **P0-A Task 4**: Fix collaboration RLS - replace USING(true) with org-scoped policies for tasks, comments, activities ✅ **COMPLETED**
-   - Migration: `packages/db/migrations/003_fix_collaboration_rls.sql`
-   - Added org_id columns, backfilled from case relationships
-   - Dropped permissive USING(true) policies
-   - Added restrictive org-scoped policies using current_setting('app.current_org_id')
-   - SQL test: `test_collaboration_rls.sql` created
-5. **P0-A Task 5**: Remove SUPABASE_SERVICE_ROLE_KEY from application code paths ✅ **COMPLETED**
-   - Test: `tests/security/service_role_removal.test.ts` - 14 tests passing
-   - Files: noi_agent.py, main.py, email_intake/agent.py, intake-api/supabase.service.ts
-   - Service role key replaced with user JWT / anon key + X-Org-ID header pattern
-   - Grep confirms zero SUPABASE_SERVICE_ROLE_KEY in app code
-   - All tests: 36 tests passing, lint passes
+## Completed Tasks
+- **P0-A Task 1**: Fix CaseService.updateStatus() - add org_id to all mutating queries ✅ **COMPLETED** (commit 0e6674e)
+  - Test: `tests/routes/cases.test.ts` - 2 cross-tenant tests passing (13/13 total)
+  - Files: caseService.ts, routes/cases.ts
+  - Evidence: SELECT/UPDATE/INSERT all include org_id; callers updated
+- **P0-A Task 2**: Fix billing.ts mutations - add org_id to markInvoiceSent, markInvoicePaid, autoMarkOverdueInvoices ✅ **COMPLETED**
+  - Files: billing.ts (all 3 functions accept orgId, queries include org_id predicate)
+  - Callers: routes/invoices.ts (/paid, /auto-overdue) updated to pass orgId
+  - Note: /send endpoint uses inline query with org_id (consistent)
+  - Tests: 18 tests pass
+- **P0-A Task 3**: Fix sla.ts mutations - add org_id to sendSLAWarnings, processSLABreaches, triggerEscalation ✅ **COMPLETED**
+  - Files: sla.ts (all 3 functions accept orgId, queries include org_id predicate)
+  - Tests: 22 tests pass (13 cases + 5 invoices + 4 sla)
+- **P0-A Task 4**: Fix collaboration RLS - replace USING(true) with org-scoped policies for tasks, comments, activities ✅ **COMPLETED**
+  - Migration: `packages/db/migrations/003_fix_collaboration_rls.sql`
+  - Added org_id columns, backfilled from case relationships
+  - Dropped permissive USING(true) policies
+  - Added restrictive org-scoped policies using current_setting('app.current_org_id')
+  - SQL test: `test_collaboration_rls.sql` created
+- **P0-A Task 5**: Remove SUPABASE_SERVICE_ROLE_KEY from application code paths ✅ **COMPLETED**
+  - Test: `tests/security/service_role_removal.test.ts` - 14 tests passing
+  - Files: noi_agent.py, main.py, email_intake/agent.py, intake-api/supabase.service.ts
+  - Service role key replaced with user JWT / anon key + X-Org-ID header pattern
+  - Grep confirms zero SUPABASE_SERVICE_ROLE_KEY in app code
+  - All tests: 36 tests passing, lint passes
 
 ## Next 5 Tasks (P0-B / P0-C / P0-D)
-6. **P0-B Task 1**: Create Two-Tenant Adversarial Test Suite (automated cross-tenant tests for all endpoints)
-7. **P0-C Task 1**: Fix remaining permissive RLS - notifications INSERT WITH CHECK(true), staff_activity NULL org_id, principal profile cross-org
-8. **P0-D Task 1**: Create transaction-local tenant DB helper (withTenantDb pattern with set_config)
-9. **P0-E Task 1**: Establish ag_owner / ag_app DB role separation (migration + runtime user)
-10. **P0-F Task 1**: Create single migration authority at packages/db/migrations/ (consolidate all sources)
+1. **P0-B Task 1**: Create Two-Tenant Adversarial Test Suite (automated cross-tenant tests for all endpoints)
+2. **P0-C Task 1**: Fix remaining permissive RLS - notifications INSERT WITH CHECK(true), staff_activity NULL org_id, principal profile cross-org
+3. **P0-D Task 1**: Create transaction-local tenant DB helper (withTenantDb pattern with set_config)
+4. **P0-E Task 1**: Establish ag_owner / ag_app DB role separation (migration + runtime user)
+5. **P0-F Task 1**: Create single migration authority at packages/db/migrations/ (consolidate all sources)
 
 ## Release Gates
 - [x] Cross-tenant Case read denied ✅ (CaseService.getCaseById, updateStatus with org_id)

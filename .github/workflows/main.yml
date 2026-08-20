@@ -63,7 +63,7 @@ jobs:
       - name: Install Playwright browsers
         run: playwright install chromium
       - name: Lint with Ruff
-        run: ruff check .
+        run: pip install ruff==0.16.1 && ruff check .
       - name: Check formatting with Ruff
         run: ruff format --check .
       - name: Validate requirements.txt installs

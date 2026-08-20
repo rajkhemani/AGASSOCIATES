@@ -8,9 +8,13 @@
       "intake-api": {
         "build": {
           "context": "./ag-platform/services/intake-api",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "args": {
+            "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+            "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+          }
         },
-        "image": "ghcr.io/luxoranova9/intake-api:latest",
+        "image": "ghcr.io/luxoranova9/intake-api:${IMAGE_TAG:-latest}",
         "container_name": "ag_intake_api",
         "restart": "unless-stopped",
         "environment": {
@@ -56,7 +60,9 @@
     { "key": "SUPABASE_URL", "value": "${SUPABASE_URL}", "isSecret": false },
     { "key": "SUPABASE_SERVICE_ROLE_KEY", "value": "${SUPABASE_SERVICE_ROLE_KEY}", "isSecret": true },
     { "key": "NODE_ENV", "value": "production", "isSecret": false },
-    { "key": "PORT", "value": "3002", "isSecret": false }
+    { "key": "PORT", "value": "3002", "isSecret": false },
+    { "key": "IMAGE_TAG", "value": "${IMAGE_TAG:-latest}", "isSecret": false },
+    { "key": "GITHUB_SHA", "value": "${GITHUB_SHA:-latest}", "isSecret": false }
   ],
   "resourceLimits": {
     "cpu": "0.5",
@@ -66,7 +72,11 @@
   "buildSettings": {
     "buildPack": "dockerfile",
     "dockerfilePath": "./ag-platform/services/intake-api/Dockerfile",
-    "contextPath": "./ag-platform/services/intake-api"
+    "contextPath": "./ag-platform/services/intake-api",
+    "buildArgs": {
+      "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+      "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+    }
   },
   "port": 3002,
   "healthCheckPath": "/health",

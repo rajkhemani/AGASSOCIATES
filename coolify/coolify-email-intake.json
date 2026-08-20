@@ -8,9 +8,13 @@
       "email-intake": {
         "build": {
           "context": "./ag-associates-ai/backend/email_intake",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "args": {
+            "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+            "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+          }
         },
-        "image": "ghcr.io/luxoranova9/email-intake:latest",
+        "image": "ghcr.io/luxoranova9/email-intake:${IMAGE_TAG:-latest}",
         "container_name": "ag_email_intake",
         "restart": "unless-stopped",
         "environment": {
@@ -62,7 +66,9 @@
     { "key": "LLM_MODEL_NAME", "value": "${LLM_MODEL_NAME}", "isSecret": false },
     { "key": "LLM_API_KEY", "value": "${LLM_API_KEY}", "isSecret": true },
     { "key": "REDIS_PASSWORD", "value": "${REDIS_PASSWORD}", "isSecret": true },
-    { "key": "EMAIL_POLL_INTERVAL", "value": "${EMAIL_POLL_INTERVAL:-60}", "isSecret": false }
+    { "key": "EMAIL_POLL_INTERVAL", "value": "${EMAIL_POLL_INTERVAL:-60}", "isSecret": false },
+    { "key": "IMAGE_TAG", "value": "${IMAGE_TAG:-latest}", "isSecret": false },
+    { "key": "GITHUB_SHA", "value": "${GITHUB_SHA:-latest}", "isSecret": false }
   ],
   "resourceLimits": {
     "cpu": "0.5",
@@ -72,7 +78,11 @@
   "buildSettings": {
     "buildPack": "dockerfile",
     "dockerfilePath": "./ag-associates-ai/backend/email_intake/Dockerfile",
-    "contextPath": "./ag-associates-ai/backend/email_intake"
+    "contextPath": "./ag-associates-ai/backend/email_intake",
+    "buildArgs": {
+      "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+      "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+    }
   },
   "port": 3004,
   "healthCheckPath": "/health",

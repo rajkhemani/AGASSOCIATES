@@ -6,7 +6,7 @@
     "version": "3.8",
     "services": {
       "n8n": {
-        "image": "n8nio/n8n:latest",
+        "image": "n8nio/n8n:${IMAGE_TAG:-latest}",
         "container_name": "ag_n8n",
         "restart": "unless-stopped",
         "environment": {
@@ -73,7 +73,9 @@
     { "key": "WHATSAPP_ACCESS_TOKEN", "value": "${WHATSAPP_ACCESS_TOKEN}", "isSecret": true },
     { "key": "WHATSAPP_PHONE_NUMBER_ID", "value": "${WHATSAPP_PHONE_NUMBER_ID}", "isSecret": true },
     { "key": "WHATSAPP_BUSINESS_ACCOUNT_ID", "value": "${WHATSAPP_BUSINESS_ACCOUNT_ID}", "isSecret": true },
-    { "key": "WHATSAPP_VERIFY_TOKEN", "value": "${WHATSAPP_VERIFY_TOKEN}", "isSecret": true }
+    { "key": "WHATSAPP_VERIFY_TOKEN", "value": "${WHATSAPP_VERIFY_TOKEN}", "isSecret": true },
+    { "key": "IMAGE_TAG", "value": "${IMAGE_TAG:-latest}", "isSecret": false },
+    { "key": "GITHUB_SHA", "value": "${GITHUB_SHA:-latest}", "isSecret": false }
   ],
   "resourceLimits": {
     "cpu": "1.0",
@@ -82,7 +84,7 @@
   },
   "buildSettings": {
     "buildPack": "image",
-    "image": "n8nio/n8n:latest"
+    "image": "n8nio/n8n:${IMAGE_TAG:-latest}"
   },
   "port": 5678,
   "healthCheckPath": "/healthz",

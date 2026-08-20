@@ -22,10 +22,10 @@ _SELECTOR_CACHE: Dict[str, Dict[str, str]] = {}
 _CACHE_TTL_SECONDS = 300
 
 
-async def _fetch_from_supabase(portal: str) -> Dict[str, str]:
+async def _fetch_from_supabase(portal: str, org_id: str) -> Dict[str, str]:
     supabase_url = os.environ.get("SUPABASE_URL", "")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-    if not supabase_url or not supabase_key:
+    supabase_anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
+    if not supabase_url or not supabase_anon_key:
         return {}
 
     import httpx
@@ -39,9 +39,10 @@ async def _fetch_from_supabase(portal: str) -> Dict[str, str]:
                     "select": "selector_key,selector_value",
                 },
                 headers={
-                    "apikey": supabase_key,
-                    "Authorization": f"Bearer {supabase_key}",
+                    "apikey": supabase_anon_key,
+                    "Authorization": f"Bearer {supabase_anon_key}",
                     "Accept": "application/json",
+                    "X-Org-ID": org_id,
                 },
             )
             resp.raise_for_status()
@@ -68,11 +69,11 @@ def get_selector(portal: str, key: str, default: str) -> str:
 
 
 async def load_portal_selectors(
-    portal: str, defaults: Dict[str, str]
+    portal: str, defaults: Dict[str, str], org_id: str
 ) -> Dict[str, str]:
     """Load selectors for a portal. Merges Supabase overrides atop defaults."""
     selectors = dict(defaults)
-    overrides = await _fetch_from_supabase(portal)
+    overrides = await _fetch_from_supabase(portal, org_id)
     for k, v in overrides.items():
         if v:
             selectors[k] = v

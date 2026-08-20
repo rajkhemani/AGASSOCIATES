@@ -4,17 +4,38 @@ import { randomUUID } from 'crypto';
 // Supabase client for storage operations
 let supabaseClient: SupabaseClient | null = null;
 
-export function getSupabaseStorageClient(): SupabaseClient {
+function _getStorageHeaders(orgId?: string): Record<string, string> {
+  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+  if (!anonKey) {
+    throw new Error('SUPABASE_ANON_KEY not configured for storage operations');
+  }
+  
+  const headers: Record<string, string> = {
+    'apikey': anonKey,
+    'Authorization': `Bearer ${anonKey}`,
+  };
+  
+  if (orgId) {
+    headers['X-Org-ID'] = orgId;
+  }
+  
+  return headers;
+}
+
+export function getSupabaseStorageClient(orgId?: string): SupabaseClient {
   if (!supabaseClient) {
     const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
     
-    if (!url || !key) {
-      throw new Error('Supabase URL and Service Role Key required for storage operations');
+    if (!url || !anonKey) {
+      throw new Error('Supabase URL and Anon Key required for storage operations');
     }
     
-    supabaseClient = createClient(url, key, {
+    supabaseClient = createClient(url, anonKey, {
       auth: { persistSession: false },
+      global: {
+        headers: _getStorageHeaders(orgId),
+      },
     });
   }
   return supabaseClient;
@@ -75,7 +96,7 @@ function generateStoragePath(caseId: string, fileName: string, category?: string
 }
 
 export async function createSignedUploadUrl(options: DocumentUploadOptions): Promise<SignedUploadUrl> {
-  const supabase = getSupabaseStorageClient();
+  const supabase = getSupabaseStorageClient(options.orgId);
   const bucketId = getBucketId(options.category, options.bucketId);
   const path = generateStoragePath(options.caseId, options.fileName, options.category);
   
@@ -102,7 +123,7 @@ export async function uploadFile(
   file: Buffer | ReadableStream | Blob,
   options: DocumentUploadOptions
 ): Promise<UploadResult> {
-  const supabase = getSupabaseStorageClient();
+  const supabase = getSupabaseStorageClient(options.orgId);
   const bucketId = getBucketId(options.category, options.bucketId);
   const path = generateStoragePath(options.caseId, options.fileName, options.category);
   
@@ -126,8 +147,8 @@ export async function uploadFile(
   };
 }
 
-export async function downloadFile(bucketId: string, path: string): Promise<Blob> {
-  const supabase = getSupabaseStorageClient();
+export async function downloadFile(bucketId: string, path: string, orgId?: string): Promise<Blob> {
+  const supabase = getSupabaseStorageClient(orgId);
   
   const { data, error } = await supabase.storage
     .from(bucketId)
@@ -140,8 +161,8 @@ export async function downloadFile(bucketId: string, path: string): Promise<Blob
   return data;
 }
 
-export async function createSignedDownloadUrl(bucketId: string, path: string, expiresIn = 3600): Promise<string> {
-  const supabase = getSupabaseStorageClient();
+export async function createSignedDownloadUrl(bucketId: string, path: string, expiresIn = 3600, orgId?: string): Promise<string> {
+  const supabase = getSupabaseStorageClient(orgId);
   
   const { data, error } = await supabase.storage
     .from(bucketId)
@@ -154,8 +175,8 @@ export async function createSignedDownloadUrl(bucketId: string, path: string, ex
   return data.signedUrl;
 }
 
-export async function deleteFile(bucketId: string, path: string): Promise<void> {
-  const supabase = getSupabaseStorageClient();
+export async function deleteFile(bucketId: string, path: string, orgId?: string): Promise<void> {
+  const supabase = getSupabaseStorageClient(orgId);
   
   const { error } = await supabase.storage
     .from(bucketId)
@@ -166,8 +187,8 @@ export async function deleteFile(bucketId: string, path: string): Promise<void> 
   }
 }
 
-export async function listFiles(bucketId: string, prefix: string): Promise<string[]> {
-  const supabase = getSupabaseStorageClient();
+export async function listFiles(bucketId: string, prefix: string, orgId?: string): Promise<string[]> {
+  const supabase = getSupabaseStorageClient(orgId);
   
   const { data, error } = await supabase.storage
     .from(bucketId)
@@ -180,8 +201,8 @@ export async function listFiles(bucketId: string, prefix: string): Promise<strin
   return data?.map(f => f.name) || [];
 }
 
-export async function getFileMetadata(bucketId: string, path: string) {
-  const supabase = getSupabaseStorageClient();
+export async function getFileMetadata(bucketId: string, path: string, orgId?: string) {
+  const supabase = getSupabaseStorageClient(orgId);
   
   // Supabase Storage doesn't have a getMetadata method
   // We can use list with the exact path to check if file exists
@@ -200,8 +221,8 @@ export async function getFileMetadata(bucketId: string, path: string) {
   return data[0];
 }
 
-export async function moveFile(bucketId: string, fromPath: string, toPath: string): Promise<void> {
-  const supabase = getSupabaseStorageClient();
+export async function moveFile(bucketId: string, fromPath: string, toPath: string, orgId?: string): Promise<void> {
+  const supabase = getSupabaseStorageClient(orgId);
   
   const { error } = await supabase.storage
     .from(bucketId)
@@ -212,8 +233,8 @@ export async function moveFile(bucketId: string, fromPath: string, toPath: strin
   }
 }
 
-export async function copyFile(bucketId: string, fromPath: string, toPath: string): Promise<void> {
-  const supabase = getSupabaseStorageClient();
+export async function copyFile(bucketId: string, fromPath: string, toPath: string, orgId?: string): Promise<void> {
+  const supabase = getSupabaseStorageClient(orgId);
   
   const { error } = await supabase.storage
     .from(bucketId)

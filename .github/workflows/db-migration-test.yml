@@ -1,0 +1,152 @@
+name: DB Migration Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: db-migration-test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  db-migration-test:
+    name: DB Migration Test — Clean Bootstrap & Idempotency
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ag-platform
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ag_owner
+          POSTGRES_PASSWORD: ag_owner_password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U ag_owner -d postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ag-platform/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U ag_owner -d postgres; then
+              echo "PostgreSQL is ready"
+              exit 0
+            fi
+            echo "Waiting for PostgreSQL... ($i/30)"
+            sleep 2
+          done
+          echo "PostgreSQL did not become ready in time"
+          exit 1
+
+      - name: Run migrations on clean database (first run)
+        id: migrate-first
+        env:
+          DATABASE_URL: postgres://ag_owner:ag_owner_password@localhost:5432/postgres
+          DB_MIGRATION_USER: ag_owner
+          DB_MIGRATION_PASSWORD: ag_owner_password
+          DB_MIGRATION_HOST: localhost
+          DB_MIGRATION_DATABASE: postgres
+        run: |
+          npx tsx src/server/migrationRunner.ts run
+
+      - name: Verify all migrations were applied
+        id: verify-first
+        env:
+          DATABASE_URL: postgres://ag_owner:ag_owner_password@localhost:5432/postgres
+          DB_MIGRATION_USER: ag_owner
+          DB_MIGRATION_PASSWORD: ag_owner_password
+          DB_MIGRATION_HOST: localhost
+          DB_MIGRATION_DATABASE: postgres
+        run: |
+          npx tsx src/server/migrationRunner.ts verify
+
+      - name: Run migrations again (second run - should be idempotent)
+        id: migrate-second
+        env:
+          DATABASE_URL: postgres://ag_owner:ag_owner_password@localhost:5432/postgres
+          DB_MIGRATION_USER: ag_owner
+          DB_MIGRATION_PASSWORD: ag_owner_password
+          DB_MIGRATION_HOST: localhost
+          DB_MIGRATION_DATABASE: postgres
+        run: |
+          npx tsx src/server/migrationRunner.ts run
+
+      - name: Verify zero new migrations on second run
+        id: verify-second
+        env:
+          DATABASE_URL: postgres://ag_owner:ag_owner_password@localhost:5432/postgres
+          DB_MIGRATION_USER: ag_owner
+          DB_MIGRATION_PASSWORD: ag_owner_password
+          DB_MIGRATION_HOST: localhost
+          DB_MIGRATION_DATABASE: postgres
+        run: |
+          npx tsx src/server/migrationRunner.ts verify
+
+      - name: Test checksum mismatch detection (regression test)
+        id: checksum-test
+        env:
+          DATABASE_URL: postgres://ag_owner:ag_owner_password@localhost:5432/postgres
+          DB_MIGRATION_USER: ag_owner
+          DB_MIGRATION_PASSWORD: ag_owner_password
+          DB_MIGRATION_HOST: localhost
+          DB_MIGRATION_DATABASE: postgres
+        run: |
+          # Get the first applied migration file
+          FIRST_MIGRATION=$(ls packages/db/migrations/*.sql | grep -v test_ | sort | head -1)
+          echo "Testing checksum mismatch on: $FIRST_MIGRATION"
+          
+          # Backup original content
+          cp "$FIRST_MIGRATION" "$FIRST_MIGRATION.bak"
+          
+          # Modify the migration file (add a comment to change checksum)
+          echo "-- MODIFIED FOR CHECKSUM TEST $(date)" >> "$FIRST_MIGRATION"
+          
+          # Run migrations again - this MUST fail with checksum mismatch
+          if npx tsx src/server/migrationRunner.ts run; then
+            echo "ERROR: Migration runner should have failed on checksum mismatch!"
+            mv "$FIRST_MIGRATION.bak" "$FIRST_MIGRATION"
+            exit 1
+          else
+            echo "SUCCESS: Migration runner correctly failed on checksum mismatch"
+            # Restore original file
+            mv "$FIRST_MIGRATION.bak" "$FIRST_MIGRATION"
+            exit 0
+          fi
+
+      - name: Final verification - all migrations still match after restore
+        id: verify-final
+        env:
+          DATABASE_URL: postgres://ag_owner:ag_owner_password@localhost:5432/postgres
+          DB_MIGRATION_USER: ag_owner
+          DB_MIGRATION_PASSWORD: ag_owner_password
+          DB_MIGRATION_HOST: localhost
+          DB_MIGRATION_DATABASE: postgres
+        run: |
+          npx tsx src/server/migrationRunner.ts verify
+          echo "✅ All migration tests passed!"

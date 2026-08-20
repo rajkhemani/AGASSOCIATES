@@ -17,10 +17,22 @@ on:
         description: 'Specific service to deploy (optional, deploys all if not specified)'
         type: string
         required: false
+      rollback:
+        description: 'Rollback to previous deployment'
+        type: boolean
+        required: false
+        default: false
+      run-golden-flow:
+        description: 'Run extended golden flow business smoke tests after staging deployment'
+        type: boolean
+        required: false
+        default: false
 
 env:
   COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
   COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+  # SHA-based immutable image tag
+  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   deploy-staging:
@@ -28,81 +40,191 @@ jobs:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
     runs-on: ubuntu-latest
     environment: staging
+    outputs:
+      deployment-ids: ${{ steps.deploy-staging.outputs.deployment-ids }}
+      previous-deployment-ids: ${{ steps.get-previous-deployments.outputs.previous-ids }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Deploy Staging Services
-        id: deploy-staging
+      - name: Get previous deployment IDs (for rollback)
+        id: get-previous-deployments
+        if: github.event.inputs.rollback == 'true'
         run: |
-          # Deploy all staging services or specific service
           SERVICES=(
             "COOLIFY_APP_UUID_STAGING_API"
             "COOLIFY_APP_UUID_STAGING_WEB"
-            "COOLIFY_APP_UUID_STAGING_WORKER"
+            "COOLIFY_APP_UUID_STAGING_INTAKE_API"
+            "COOLIFY_APP_UUID_STAGING_AI_DASHBOARD"
+            "COOLIFY_APP_UUID_STAGING_EMAIL_INTAKE"
+            "COOLIFY_APP_UUID_STAGING_COORDINATOR"
+            "COOLIFY_APP_UUID_STAGING_TELEGRAM_BOT"
+            "COOLIFY_APP_UUID_STAGING_N8N"
+          )
+          
+          PREVIOUS_IDS=""
+          for SERVICE_VAR in "${SERVICES[@]}"; do
+            UUID="${!SERVICE_VAR}"
+            if [ -z "$UUID" ]; then
+              continue
+            fi
+            
+            # Get the second-to-last deployment (previous successful one)
+            STATUS_RESPONSE=$(curl -s -X GET \
+              -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+              "$COOLIFY_API_URL/api/v1/applications/$UUID/deployments?page=1&per_page=5")
+            
+            PREV_ID=$(echo "$STATUS_RESPONSE" | jq -r '.data[1].id // empty')
+            if [ -n "$PREV_ID" ] && [ "$PREV_ID" != "null" ]; then
+              PREVIOUS_IDS="${PREVIOUS_IDS}${SERVICE_VAR}=${PREV_ID},"
+              echo "Previous deployment for $SERVICE_VAR: $PREV_ID"
+            fi
+          done
+          
+          # Remove trailing comma
+          PREVIOUS_IDS=${PREVIOUS_IDS%,}
+          echo "previous-ids=$PREVIOUS_IDS" >> $GITHUB_OUTPUT
+
+      - name: Deploy Staging Services
+        id: deploy-staging
+        if: github.event.inputs.rollback != 'true'
+        run: |
+          # All staging services mapped to their UUID secrets
+          declare -A SERVICES=(
+            ["COOLIFY_APP_UUID_STAGING_API"]="ag-ai-backend"
+            ["COOLIFY_APP_UUID_STAGING_WEB"]="ag-platform"
+            ["COOLIFY_APP_UUID_STAGING_INTAKE_API"]="intake-api"
+            ["COOLIFY_APP_UUID_STAGING_AI_DASHBOARD"]="ai-dashboard"
+            ["COOLIFY_APP_UUID_STAGING_EMAIL_INTAKE"]="email-intake"
+            ["COOLIFY_APP_UUID_STAGING_COORDINATOR"]="coordinator"
+            ["COOLIFY_APP_UUID_STAGING_TELEGRAM_BOT"]="telegram-bot"
+            ["COOLIFY_APP_UUID_STAGING_N8N"]="n8n"
           )
           
           if [ -n "${{ github.event.inputs.service }}" ]; then
             SERVICE_VAR="COOLIFY_APP_UUID_STAGING_${{ github.event.inputs.service | upper }}"
             if [ -n "${!SERVICE_VAR}" ]; then
-              SERVICES=("$SERVICE_VAR")
+              # Filter to only the specified service
+              declare -A FILTERED=()
+              FILTERED["$SERVICE_VAR"]="${SERVICES[$SERVICE_VAR]}"
+              SERVICES=("${!FILTERED[@]}")
             else
               echo "Service ${{ github.event.inputs.service }} not found in staging secrets"
               exit 1
             fi
           fi
 
-          for SERVICE_VAR in "${SERVICES[@]}"; do
+          DEPLOYMENT_IDS=""
+          for SERVICE_VAR in "${!SERVICES[@]}"; do
             UUID="${!SERVICE_VAR}"
+            SERVICE_NAME="${SERVICES[$SERVICE_VAR]}"
             if [ -z "$UUID" ]; then
               echo "Warning: $SERVICE_VAR not set, skipping"
               continue
             fi
             
-            echo "Deploying $SERVICE_VAR ($UUID)..."
+            echo "Deploying $SERVICE_NAME ($SERVICE_VAR: $UUID) with image tag $IMAGE_TAG..."
+            
+            # Trigger deployment with SHA-based build args
             DEPLOY_RESPONSE=$(curl -s -X POST \
               -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
               -H "Content-Type: application/json" \
+              -d "{\"build_args\": {\"IMAGE_TAG\": \"$IMAGE_TAG\", \"GITHUB_SHA\": \"$IMAGE_TAG\"}}" \
               "$COOLIFY_API_URL/api/v1/applications/$UUID/deploy")
             
             DEPLOYMENT_ID=$(echo "$DEPLOY_RESPONSE" | jq -r '.deployment_id // .id // empty')
             if [ -z "$DEPLOYMENT_ID" ]; then
-              echo "Failed to trigger deployment for $SERVICE_VAR"
+              echo "Failed to trigger deployment for $SERVICE_NAME"
               echo "$DEPLOY_RESPONSE"
               exit 1
             fi
             
-            echo "Deployment triggered: $DEPLOYMENT_ID"
-            echo "deployment_id_${SERVICE_VAR}=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
+            echo "Deployment triggered for $SERVICE_NAME: $DEPLOYMENT_ID"
+            DEPLOYMENT_IDS="${DEPLOYMENT_IDS}${SERVICE_VAR}=${DEPLOYMENT_ID},"
+          done
+          
+          # Remove trailing comma
+          DEPLOYMENT_IDS=${DEPLOYMENT_IDS%,}
+          echo "deployment-ids=$DEPLOYMENT_IDS" >> $GITHUB_OUTPUT
+
+      - name: Rollback Staging Services
+        id: rollback-staging
+        if: github.event.inputs.rollback == 'true'
+        run: |
+          PREVIOUS_IDS="${{ steps.get-previous-deployments.outputs.previous-ids }}"
+          if [ -z "$PREVIOUS_IDS" ]; then
+            echo "No previous deployments found for rollback"
+            exit 1
+          fi
+          
+          echo "Rolling back to previous deployments..."
+          IFS=',' read -ra PAIRS <<< "$PREVIOUS_IDS"
+          for PAIR in "${PAIRS[@]}"; do
+            SERVICE_VAR="${PAIR%%=*}"
+            PREV_ID="${PAIR#*=}"
+            UUID="${!SERVICE_VAR}"
+            
+            if [ -z "$UUID" ] || [ -z "$PREV_ID" ]; then
+              continue
+            fi
+            
+            echo "Rolling back $SERVICE_VAR to deployment $PREV_ID..."
+            ROLLBACK_RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              "$COOLIFY_API_URL/api/v1/applications/$UUID/deployments/$PREV_ID/rollback")
+            
+            ROLLBACK_STATUS=$(echo "$ROLLBACK_RESPONSE" | jq -r '.status // .success // empty')
+            if [ "$ROLLBACK_STATUS" != "success" ] && [ "$ROLLBACK_STATUS" != "true" ]; then
+              echo "Rollback failed for $SERVICE_VAR"
+              echo "$ROLLBACK_RESPONSE"
+              exit 1
+            fi
+            echo "Rollback triggered for $SERVICE_VAR"
           done
 
       - name: Wait for Staging Deployments
+        if: github.event.inputs.rollback != 'true'
         run: |
-          SERVICES=(
-            "COOLIFY_APP_UUID_STAGING_API"
-            "COOLIFY_APP_UUID_STAGING_WEB"
-            "COOLIFY_APP_UUID_STAGING_WORKER"
+          declare -A SERVICES=(
+            ["COOLIFY_APP_UUID_STAGING_API"]="ag-ai-backend"
+            ["COOLIFY_APP_UUID_STAGING_WEB"]="ag-platform"
+            ["COOLIFY_APP_UUID_STAGING_INTAKE_API"]="intake-api"
+            ["COOLIFY_APP_UUID_STAGING_AI_DASHBOARD"]="ai-dashboard"
+            ["COOLIFY_APP_UUID_STAGING_EMAIL_INTAKE"]="email-intake"
+            ["COOLIFY_APP_UUID_STAGING_COORDINATOR"]="coordinator"
+            ["COOLIFY_APP_UUID_STAGING_TELEGRAM_BOT"]="telegram-bot"
+            ["COOLIFY_APP_UUID_STAGING_N8N"]="n8n"
           )
           
           if [ -n "${{ github.event.inputs.service }}" ]; then
             SERVICE_VAR="COOLIFY_APP_UUID_STAGING_${{ github.event.inputs.service | upper }}"
             if [ -n "${!SERVICE_VAR}" ]; then
-              SERVICES=("$SERVICE_VAR")
+              declare -A FILTERED=()
+              FILTERED["$SERVICE_VAR"]="${SERVICES[$SERVICE_VAR]}"
+              SERVICES=("${!FILTERED[@]}")
             fi
           fi
 
-          for SERVICE_VAR in "${SERVICES[@]}"; do
+          DEPLOYMENT_IDS="${{ steps.deploy-staging.outputs.deployment-ids }}"
+          IFS=',' read -ra PAIRS <<< "$DEPLOYMENT_IDS"
+          declare -A DEPLOYMENT_MAP
+          for PAIR in "${PAIRS[@]}"; do
+            DEPLOYMENT_MAP["${PAIR%%=*}"]="${PAIR#*=}"
+          done
+
+          for SERVICE_VAR in "${!SERVICES[@]}"; do
             UUID="${!SERVICE_VAR}"
+            SERVICE_NAME="${SERVICES[$SERVICE_VAR]}"
             if [ -z "$UUID" ]; then
               continue
             fi
             
-            DEPLOYMENT_ID="deployment_id_${SERVICE_VAR}"
-            DEPLOYMENT_ID="${!DEPLOYMENT_ID}"
+            DEPLOYMENT_ID="${DEPLOYMENT_MAP[$SERVICE_VAR]}"
             
-            echo "Waiting for deployment $DEPLOYMENT_ID of $SERVICE_VAR..."
+            echo "Waiting for deployment $DEPLOYMENT_ID of $SERVICE_NAME ($SERVICE_VAR)..."
             
-            MAX_ATTEMPTS=60
+            MAX_ATTEMPTS=90
             ATTEMPT=0
             while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
               STATUS_RESPONSE=$(curl -s -X GET \
@@ -115,19 +237,19 @@ jobs:
               if [ "$CURRENT_DEPLOYMENT_ID" = "$DEPLOYMENT_ID" ] || [ -z "$DEPLOYMENT_ID" ]; then
                 case "$STATUS" in
                   "success"|"completed")
-                    echo "Deployment $DEPLOYMENT_ID completed successfully"
+                    echo "Deployment $DEPLOYMENT_ID completed successfully for $SERVICE_NAME"
                     break
                     ;;
                   "failed"|"error")
-                    echo "Deployment $DEPLOYMENT_ID failed"
+                    echo "Deployment $DEPLOYMENT_ID failed for $SERVICE_NAME"
                     echo "$STATUS_RESPONSE" | jq .
                     exit 1
                     ;;
                   "building"|"deploying"|"pending"|"running")
-                    echo "Deployment in progress: $STATUS (attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
+                    echo "Deployment in progress for $SERVICE_NAME: $STATUS (attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
                     ;;
                   *)
-                    echo "Unknown status: $STATUS"
+                    echo "Unknown status for $SERVICE_NAME: $STATUS"
                     ;;
                 esac
               fi
@@ -137,132 +259,327 @@ jobs:
             done
             
             if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-              echo "Deployment timed out after $((MAX_ATTEMPTS * 10)) seconds"
+              echo "Deployment timed out after $((MAX_ATTEMPTS * 10)) seconds for $SERVICE_NAME"
               exit 1
             fi
           done
 
-      - name: Run Staging Smoke Tests
+      - name: Wait for Rollback Deployments
+        if: github.event.inputs.rollback == 'true'
         run: |
-          # Wait a bit for services to fully stabilize
+          declare -A SERVICES=(
+            ["COOLIFY_APP_UUID_STAGING_API"]="ag-ai-backend"
+            ["COOLIFY_APP_UUID_STAGING_WEB"]="ag-platform"
+            ["COOLIFY_APP_UUID_STAGING_INTAKE_API"]="intake-api"
+            ["COOLIFY_APP_UUID_STAGING_AI_DASHBOARD"]="ai-dashboard"
+            ["COOLIFY_APP_UUID_STAGING_EMAIL_INTAKE"]="email-intake"
+            ["COOLIFY_APP_UUID_STAGING_COORDINATOR"]="coordinator"
+            ["COOLIFY_APP_UUID_STAGING_TELEGRAM_BOT"]="telegram-bot"
+            ["COOLIFY_APP_UUID_STAGING_N8N"]="n8n"
+          )
+          
+          PREVIOUS_IDS="${{ steps.get-previous-deployments.outputs.previous-ids }}"
+          IFS=',' read -ra PAIRS <<< "$PREVIOUS_IDS"
+          declare -A ROLLBACK_MAP
+          for PAIR in "${PAIRS[@]}"; do
+            ROLLBACK_MAP["${PAIR%%=*}"]="${PAIR#*=}"
+          done
+
+          for SERVICE_VAR in "${!SERVICES[@]}"; do
+            UUID="${!SERVICE_VAR}"
+            SERVICE_NAME="${SERVICES[$SERVICE_VAR]}"
+            if [ -z "$UUID" ]; then
+              continue
+            fi
+            
+            ROLLBACK_ID="${ROLLBACK_MAP[$SERVICE_VAR]}"
+            
+            echo "Waiting for rollback $ROLLBACK_ID of $SERVICE_NAME ($SERVICE_VAR)..."
+            
+            MAX_ATTEMPTS=60
+            ATTEMPT=0
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+              STATUS_RESPONSE=$(curl -s -X GET \
+                -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+                "$COOLIFY_API_URL/api/v1/applications/$UUID/deployments/latest")
+              
+              STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status // empty')
+              CURRENT_DEPLOYMENT_ID=$(echo "$STATUS_RESPONSE" | jq -r '.id // empty')
+              
+              if [ "$CURRENT_DEPLOYMENT_ID" = "$ROLLBACK_ID" ] || [ -z "$ROLLBACK_ID" ]; then
+                case "$STATUS" in
+                  "success"|"completed")
+                    echo "Rollback $ROLLBACK_ID completed successfully for $SERVICE_NAME"
+                    break
+                    ;;
+                  "failed"|"error")
+                    echo "Rollback $ROLLBACK_ID failed for $SERVICE_NAME"
+                    echo "$STATUS_RESPONSE" | jq .
+                    exit 1
+                    ;;
+                  "building"|"deploying"|"pending"|"running")
+                    echo "Rollback in progress for $SERVICE_NAME: $STATUS (attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
+                    ;;
+                  *)
+                    echo "Unknown status for $SERVICE_NAME: $STATUS"
+                    ;;
+                esac
+              fi
+              
+              ATTEMPT=$((ATTEMPT+1))
+              sleep 10
+            done
+            
+            if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+              echo "Rollback timed out after $((MAX_ATTEMPTS * 10)) seconds for $SERVICE_NAME"
+              exit 1
+            fi
+          done
+
+      - name: Run Staging Smoke Tests (All Services)
+        if: github.event.inputs.rollback != 'true'
+        env:
+          STAGING_API_URL: ${{ secrets.STAGING_API_URL }}
+          STAGING_WEB_URL: ${{ secrets.STAGING_WEB_URL }}
+          STAGING_INTAKE_API_URL: ${{ secrets.STAGING_INTAKE_API_URL }}
+          STAGING_AI_DASHBOARD_URL: ${{ secrets.STAGING_AI_DASHBOARD_URL }}
+          STAGING_COORDINATOR_URL: ${{ secrets.STAGING_COORDINATOR_URL }}
+          STAGING_N8N_URL: ${{ secrets.STAGING_N8N_URL }}
+        run: |
+          # Wait for services to fully stabilize
           sleep 30
           
-          # Test API health endpoint
-          API_URL="${{ secrets.STAGING_API_URL }}"
-          if [ -n "$API_URL" ]; then
-            echo "Testing API health at $API_URL/health"
-            for i in {1..10}; do
-              if curl -sf "$API_URL/health" > /dev/null; then
-                echo "API health check passed"
+          # Define health check endpoints for each service
+          declare -A HEALTH_ENDPOINTS=(
+            ["STAGING_API_URL"]="/health"
+            ["STAGING_WEB_URL"]="/"
+            ["STAGING_INTAKE_API_URL"]="/health"
+            ["STAGING_AI_DASHBOARD_URL"]="/"
+            ["STAGING_COORDINATOR_URL"]="/health"
+            ["STAGING_N8N_URL"]="/healthz"
+          )
+          
+          ALL_PASSED=true
+          
+          for VAR in "${!HEALTH_ENDPOINTS[@]}"; do
+            URL="${!VAR}"
+            ENDPOINT="${HEALTH_ENDPOINTS[$VAR]}"
+            SERVICE_NAME=$(echo "$VAR" | sed 's/STAGING_//' | sed 's/_URL//' | tr '[:upper:]' '[:lower:]')
+            
+            if [ -z "$URL" ]; then
+              echo "Skipping $SERVICE_NAME: URL not configured"
+              continue
+            fi
+            
+            echo "Testing $SERVICE_NAME health at $URL$ENDPOINT"
+            PASSED=false
+            for i in {1..15}; do
+              if curl -sf --max-time 10 "$URL$ENDPOINT" > /dev/null; then
+                echo "✅ $SERVICE_NAME health check passed"
+                PASSED=true
                 break
               fi
-              echo "Attempt $i/10: API not ready, waiting..."
+              echo "Attempt $i/15: $SERVICE_NAME not ready, waiting..."
               sleep 10
             done
-            if ! curl -sf "$API_URL/health" > /dev/null; then
-              echo "API health check failed after 10 attempts"
-              exit 1
+            
+            if [ "$PASSED" != "true" ]; then
+              echo "❌ $SERVICE_NAME health check failed after 15 attempts"
+              ALL_PASSED=false
             fi
+          done
+          
+          if [ "$ALL_PASSED" != "true" ]; then
+            echo "One or more staging health checks failed"
+            exit 1
           fi
           
-          # Test Web frontend
-          WEB_URL="${{ secrets.STAGING_WEB_URL }}"
-          if [ -n "$WEB_URL" ]; then
-            echo "Testing Web frontend at $WEB_URL"
-            for i in {1..10}; do
-              if curl -sf "$WEB_URL" > /dev/null; then
-                echo "Web frontend check passed"
-                break
-              fi
-              echo "Attempt $i/10: Web not ready, waiting..."
-              sleep 10
-            done
-            if ! curl -sf "$WEB_URL" > /dev/null; then
-              echo "Web frontend check failed after 10 attempts"
-              exit 1
-            fi
-          fi
+          echo "✅ All staging smoke tests passed!"
 
   deploy-production:
     name: Deploy to Production
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
     runs-on: ubuntu-latest
     environment: production
+    outputs:
+      deployment-ids: ${{ steps.deploy-production.outputs.deployment-ids }}
+      previous-deployment-ids: ${{ steps.get-previous-deployments-prod.outputs.previous-ids }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Deploy Production Services
-        id: deploy-production
+      - name: Get previous deployment IDs (for rollback)
+        id: get-previous-deployments-prod
+        if: github.event.inputs.rollback == 'true'
         run: |
-          # Deploy all production services or specific service
           SERVICES=(
             "COOLIFY_APP_UUID_PRODUCTION_API"
             "COOLIFY_APP_UUID_PRODUCTION_WEB"
-            "COOLIFY_APP_UUID_PRODUCTION_WORKER"
+            "COOLIFY_APP_UUID_PRODUCTION_INTAKE_API"
+            "COOLIFY_APP_UUID_PRODUCTION_AI_DASHBOARD"
+            "COOLIFY_APP_UUID_PRODUCTION_EMAIL_INTAKE"
+            "COOLIFY_APP_UUID_PRODUCTION_COORDINATOR"
+            "COOLIFY_APP_UUID_PRODUCTION_TELEGRAM_BOT"
+            "COOLIFY_APP_UUID_PRODUCTION_N8N"
+          )
+          
+          PREVIOUS_IDS=""
+          for SERVICE_VAR in "${SERVICES[@]}"; do
+            UUID="${!SERVICE_VAR}"
+            if [ -z "$UUID" ]; then
+              continue
+            fi
+            
+            STATUS_RESPONSE=$(curl -s -X GET \
+              -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+              "$COOLIFY_API_URL/api/v1/applications/$UUID/deployments?page=1&per_page=5")
+            
+            PREV_ID=$(echo "$STATUS_RESPONSE" | jq -r '.data[1].id // empty')
+            if [ -n "$PREV_ID" ] && [ "$PREV_ID" != "null" ]; then
+              PREVIOUS_IDS="${PREVIOUS_IDS}${SERVICE_VAR}=${PREV_ID},"
+              echo "Previous deployment for $SERVICE_VAR: $PREV_ID"
+            fi
+          done
+          
+          PREVIOUS_IDS=${PREVIOUS_IDS%,}
+          echo "previous-ids=$PREVIOUS_IDS" >> $GITHUB_OUTPUT
+
+      - name: Deploy Production Services
+        id: deploy-production
+        if: github.event.inputs.rollback != 'true'
+        run: |
+          declare -A SERVICES=(
+            ["COOLIFY_APP_UUID_PRODUCTION_API"]="ag-ai-backend"
+            ["COOLIFY_APP_UUID_PRODUCTION_WEB"]="ag-platform"
+            ["COOLIFY_APP_UUID_PRODUCTION_INTAKE_API"]="intake-api"
+            ["COOLIFY_APP_UUID_PRODUCTION_AI_DASHBOARD"]="ai-dashboard"
+            ["COOLIFY_APP_UUID_PRODUCTION_EMAIL_INTAKE"]="email-intake"
+            ["COOLIFY_APP_UUID_PRODUCTION_COORDINATOR"]="coordinator"
+            ["COOLIFY_APP_UUID_PRODUCTION_TELEGRAM_BOT"]="telegram-bot"
+            ["COOLIFY_APP_UUID_PRODUCTION_N8N"]="n8n"
           )
           
           if [ -n "${{ github.event.inputs.service }}" ]; then
             SERVICE_VAR="COOLIFY_APP_UUID_PRODUCTION_${{ github.event.inputs.service | upper }}"
             if [ -n "${!SERVICE_VAR}" ]; then
-              SERVICES=("$SERVICE_VAR")
+              declare -A FILTERED=()
+              FILTERED["$SERVICE_VAR"]="${SERVICES[$SERVICE_VAR]}"
+              SERVICES=("${!FILTERED[@]}")
             else
               echo "Service ${{ github.event.inputs.service }} not found in production secrets"
               exit 1
             fi
           fi
 
-          for SERVICE_VAR in "${SERVICES[@]}"; do
+          DEPLOYMENT_IDS=""
+          for SERVICE_VAR in "${!SERVICES[@]}"; do
             UUID="${!SERVICE_VAR}"
+            SERVICE_NAME="${SERVICES[$SERVICE_VAR]}"
             if [ -z "$UUID" ]; then
               echo "Warning: $SERVICE_VAR not set, skipping"
               continue
             fi
             
-            echo "Deploying $SERVICE_VAR ($UUID)..."
+            echo "Deploying $SERVICE_NAME ($SERVICE_VAR: $UUID) with image tag $IMAGE_TAG..."
+            
             DEPLOY_RESPONSE=$(curl -s -X POST \
               -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
               -H "Content-Type: application/json" \
+              -d "{\"build_args\": {\"IMAGE_TAG\": \"$IMAGE_TAG\", \"GITHUB_SHA\": \"$IMAGE_TAG\"}}" \
               "$COOLIFY_API_URL/api/v1/applications/$UUID/deploy")
             
             DEPLOYMENT_ID=$(echo "$DEPLOY_RESPONSE" | jq -r '.deployment_id // .id // empty')
             if [ -z "$DEPLOYMENT_ID" ]; then
-              echo "Failed to trigger deployment for $SERVICE_VAR"
+              echo "Failed to trigger deployment for $SERVICE_NAME"
               echo "$DEPLOY_RESPONSE"
               exit 1
             fi
             
-            echo "Deployment triggered: $DEPLOYMENT_ID"
-            echo "deployment_id_${SERVICE_VAR}=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
+            echo "Deployment triggered for $SERVICE_NAME: $DEPLOYMENT_ID"
+            DEPLOYMENT_IDS="${DEPLOYMENT_IDS}${SERVICE_VAR}=${DEPLOYMENT_ID},"
+          done
+          
+          DEPLOYMENT_IDS=${DEPLOYMENT_IDS%,}
+          echo "deployment-ids=$DEPLOYMENT_IDS" >> $GITHUB_OUTPUT
+
+      - name: Rollback Production Services
+        id: rollback-production
+        if: github.event.inputs.rollback == 'true'
+        run: |
+          PREVIOUS_IDS="${{ steps.get-previous-deployments-prod.outputs.previous-ids }}"
+          if [ -z "$PREVIOUS_IDS" ]; then
+            echo "No previous deployments found for rollback"
+            exit 1
+          fi
+          
+          echo "Rolling back to previous deployments..."
+          IFS=',' read -ra PAIRS <<< "$PREVIOUS_IDS"
+          for PAIR in "${PAIRS[@]}"; do
+            SERVICE_VAR="${PAIR%%=*}"
+            PREV_ID="${PAIR#*=}"
+            UUID="${!SERVICE_VAR}"
+            
+            if [ -z "$UUID" ] || [ -z "$PREV_ID" ]; then
+              continue
+            fi
+            
+            echo "Rolling back $SERVICE_VAR to deployment $PREV_ID..."
+            ROLLBACK_RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              "$COOLIFY_API_URL/api/v1/applications/$UUID/deployments/$PREV_ID/rollback")
+            
+            ROLLBACK_STATUS=$(echo "$ROLLBACK_RESPONSE" | jq -r '.status // .success // empty')
+            if [ "$ROLLBACK_STATUS" != "success" ] && [ "$ROLLBACK_STATUS" != "true" ]; then
+              echo "Rollback failed for $SERVICE_VAR"
+              echo "$ROLLBACK_RESPONSE"
+              exit 1
+            fi
+            echo "Rollback triggered for $SERVICE_VAR"
           done
 
       - name: Wait for Production Deployments
+        if: github.event.inputs.rollback != 'true'
         run: |
-          SERVICES=(
-            "COOLIFY_APP_UUID_PRODUCTION_API"
-            "COOLIFY_APP_UUID_PRODUCTION_WEB"
-            "COOLIFY_APP_UUID_PRODUCTION_WORKER"
+          declare -A SERVICES=(
+            ["COOLIFY_APP_UUID_PRODUCTION_API"]="ag-ai-backend"
+            ["COOLIFY_APP_UUID_PRODUCTION_WEB"]="ag-platform"
+            ["COOLIFY_APP_UUID_PRODUCTION_INTAKE_API"]="intake-api"
+            ["COOLIFY_APP_UUID_PRODUCTION_AI_DASHBOARD"]="ai-dashboard"
+            ["COOLIFY_APP_UUID_PRODUCTION_EMAIL_INTAKE"]="email-intake"
+            ["COOLIFY_APP_UUID_PRODUCTION_COORDINATOR"]="coordinator"
+            ["COOLIFY_APP_UUID_PRODUCTION_TELEGRAM_BOT"]="telegram-bot"
+            ["COOLIFY_APP_UUID_PRODUCTION_N8N"]="n8n"
           )
           
           if [ -n "${{ github.event.inputs.service }}" ]; then
             SERVICE_VAR="COOLIFY_APP_UUID_PRODUCTION_${{ github.event.inputs.service | upper }}"
             if [ -n "${!SERVICE_VAR}" ]; then
-              SERVICES=("$SERVICE_VAR")
+              declare -A FILTERED=()
+              FILTERED["$SERVICE_VAR"]="${SERVICES[$SERVICE_VAR]}"
+              SERVICES=("${!FILTERED[@]}")
             fi
           fi
 
-          for SERVICE_VAR in "${SERVICES[@]}"; do
+          DEPLOYMENT_IDS="${{ steps.deploy-production.outputs.deployment-ids }}"
+          IFS=',' read -ra PAIRS <<< "$DEPLOYMENT_IDS"
+          declare -A DEPLOYMENT_MAP
+          for PAIR in "${PAIRS[@]}"; do
+            DEPLOYMENT_MAP["${PAIR%%=*}"]="${PAIR#*=}"
+          done
+
+          for SERVICE_VAR in "${!SERVICES[@]}"; do
             UUID="${!SERVICE_VAR}"
+            SERVICE_NAME="${SERVICES[$SERVICE_VAR]}"
             if [ -z "$UUID" ]; then
               continue
             fi
             
-            DEPLOYMENT_ID="deployment_id_${SERVICE_VAR}"
-            DEPLOYMENT_ID="${!DEPLOYMENT_ID}"
+            DEPLOYMENT_ID="${DEPLOYMENT_MAP[$SERVICE_VAR]}"
             
-            echo "Waiting for deployment $DEPLOYMENT_ID of $SERVICE_VAR..."
+            echo "Waiting for deployment $DEPLOYMENT_ID of $SERVICE_NAME ($SERVICE_VAR)..."
             
-            MAX_ATTEMPTS=60
+            MAX_ATTEMPTS=90
             ATTEMPT=0
             while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
               STATUS_RESPONSE=$(curl -s -X GET \
@@ -275,19 +592,19 @@ jobs:
               if [ "$CURRENT_DEPLOYMENT_ID" = "$DEPLOYMENT_ID" ] || [ -z "$DEPLOYMENT_ID" ]; then
                 case "$STATUS" in
                   "success"|"completed")
-                    echo "Deployment $DEPLOYMENT_ID completed successfully"
+                    echo "Deployment $DEPLOYMENT_ID completed successfully for $SERVICE_NAME"
                     break
                     ;;
                   "failed"|"error")
-                    echo "Deployment $DEPLOYMENT_ID failed"
+                    echo "Deployment $DEPLOYMENT_ID failed for $SERVICE_NAME"
                     echo "$STATUS_RESPONSE" | jq .
                     exit 1
                     ;;
                   "building"|"deploying"|"pending"|"running")
-                    echo "Deployment in progress: $STATUS (attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
+                    echo "Deployment in progress for $SERVICE_NAME: $STATUS (attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
                     ;;
                   *)
-                    echo "Unknown status: $STATUS"
+                    echo "Unknown status for $SERVICE_NAME: $STATUS"
                     ;;
                 esac
               fi
@@ -297,67 +614,186 @@ jobs:
             done
             
             if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-              echo "Deployment timed out after $((MAX_ATTEMPTS * 10)) seconds"
+              echo "Deployment timed out after $((MAX_ATTEMPTS * 10)) seconds for $SERVICE_NAME"
               exit 1
             fi
           done
 
-      - name: Run Production Smoke Tests
+      - name: Wait for Production Rollback
+        if: github.event.inputs.rollback == 'true'
         run: |
-          # Wait a bit for services to fully stabilize
+          declare -A SERVICES=(
+            ["COOLIFY_APP_UUID_PRODUCTION_API"]="ag-ai-backend"
+            ["COOLIFY_APP_UUID_PRODUCTION_WEB"]="ag-platform"
+            ["COOLIFY_APP_UUID_PRODUCTION_INTAKE_API"]="intake-api"
+            ["COOLIFY_APP_UUID_PRODUCTION_AI_DASHBOARD"]="ai-dashboard"
+            ["COOLIFY_APP_UUID_PRODUCTION_EMAIL_INTAKE"]="email-intake"
+            ["COOLIFY_APP_UUID_PRODUCTION_COORDINATOR"]="coordinator"
+            ["COOLIFY_APP_UUID_PRODUCTION_TELEGRAM_BOT"]="telegram-bot"
+            ["COOLIFY_APP_UUID_PRODUCTION_N8N"]="n8n"
+          )
+          
+          PREVIOUS_IDS="${{ steps.get-previous-deployments-prod.outputs.previous-ids }}"
+          IFS=',' read -ra PAIRS <<< "$PREVIOUS_IDS"
+          declare -A ROLLBACK_MAP
+          for PAIR in "${PAIRS[@]}"; do
+            ROLLBACK_MAP["${PAIR%%=*}"]="${PAIR#*=}"
+          done
+
+          for SERVICE_VAR in "${!SERVICES[@]}"; do
+            UUID="${!SERVICE_VAR}"
+            SERVICE_NAME="${SERVICES[$SERVICE_VAR]}"
+            if [ -z "$UUID" ]; then
+              continue
+            fi
+            
+            ROLLBACK_ID="${ROLLBACK_MAP[$SERVICE_VAR]}"
+            
+            echo "Waiting for rollback $ROLLBACK_ID of $SERVICE_NAME ($SERVICE_VAR)..."
+            
+            MAX_ATTEMPTS=60
+            ATTEMPT=0
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+              STATUS_RESPONSE=$(curl -s -X GET \
+                -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+                "$COOLIFY_API_URL/api/v1/applications/$UUID/deployments/latest")
+              
+              STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status // empty')
+              CURRENT_DEPLOYMENT_ID=$(echo "$STATUS_RESPONSE" | jq -r '.id // empty')
+              
+              if [ "$CURRENT_DEPLOYMENT_ID" = "$ROLLBACK_ID" ] || [ -z "$ROLLBACK_ID" ]; then
+                case "$STATUS" in
+                  "success"|"completed")
+                    echo "Rollback $ROLLBACK_ID completed successfully for $SERVICE_NAME"
+                    break
+                    ;;
+                  "failed"|"error")
+                    echo "Rollback $ROLLBACK_ID failed for $SERVICE_NAME"
+                    echo "$STATUS_RESPONSE" | jq .
+                    exit 1
+                    ;;
+                  "building"|"deploying"|"pending"|"running")
+                    echo "Rollback in progress for $SERVICE_NAME: $STATUS (attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
+                    ;;
+                  *)
+                    echo "Unknown status for $SERVICE_NAME: $STATUS"
+                    ;;
+                esac
+              fi
+              
+              ATTEMPT=$((ATTEMPT+1))
+              sleep 10
+            done
+            
+            if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+              echo "Rollback timed out after $((MAX_ATTEMPTS * 10)) seconds for $SERVICE_NAME"
+              exit 1
+            fi
+          done
+
+      - name: Run Production Smoke Tests (All Services)
+        if: github.event.inputs.rollback != 'true'
+        env:
+          PRODUCTION_API_URL: ${{ secrets.PRODUCTION_API_URL }}
+          PRODUCTION_WEB_URL: ${{ secrets.PRODUCTION_WEB_URL }}
+          PRODUCTION_INTAKE_API_URL: ${{ secrets.PRODUCTION_INTAKE_API_URL }}
+          PRODUCTION_AI_DASHBOARD_URL: ${{ secrets.PRODUCTION_AI_DASHBOARD_URL }}
+          PRODUCTION_COORDINATOR_URL: ${{ secrets.PRODUCTION_COORDINATOR_URL }}
+          PRODUCTION_N8N_URL: ${{ secrets.PRODUCTION_N8N_URL }}
+        run: |
+          # Wait for services to fully stabilize
           sleep 30
           
-          # Test API health endpoint
-          API_URL="${{ secrets.PRODUCTION_API_URL }}"
-          if [ -n "$API_URL" ]; then
-            echo "Testing API health at $API_URL/health"
-            for i in {1..10}; do
-              if curl -sf "$API_URL/health" > /dev/null; then
-                echo "API health check passed"
+          declare -A HEALTH_ENDPOINTS=(
+            ["PRODUCTION_API_URL"]="/health"
+            ["PRODUCTION_WEB_URL"]="/"
+            ["PRODUCTION_INTAKE_API_URL"]="/health"
+            ["PRODUCTION_AI_DASHBOARD_URL"]="/"
+            ["PRODUCTION_COORDINATOR_URL"]="/health"
+            ["PRODUCTION_N8N_URL"]="/healthz"
+          )
+          
+          ALL_PASSED=true
+          
+          for VAR in "${!HEALTH_ENDPOINTS[@]}"; do
+            URL="${!VAR}"
+            ENDPOINT="${HEALTH_ENDPOINTS[$VAR]}"
+            SERVICE_NAME=$(echo "$VAR" | sed 's/PRODUCTION_//' | sed 's/_URL//' | tr '[:upper:]' '[:lower:]')
+            
+            if [ -z "$URL" ]; then
+              echo "Skipping $SERVICE_NAME: URL not configured"
+              continue
+            fi
+            
+            echo "Testing $SERVICE_NAME health at $URL$ENDPOINT"
+            PASSED=false
+            for i in {1..15}; do
+              if curl -sf --max-time 10 "$URL$ENDPOINT" > /dev/null; then
+                echo "✅ $SERVICE_NAME health check passed"
+                PASSED=true
                 break
               fi
-              echo "Attempt $i/10: API not ready, waiting..."
+              echo "Attempt $i/15: $SERVICE_NAME not ready, waiting..."
               sleep 10
             done
-            if ! curl -sf "$API_URL/health" > /dev/null; then
-              echo "API health check failed after 10 attempts"
-              exit 1
+            
+            if [ "$PASSED" != "true" ]; then
+              echo "❌ $SERVICE_NAME health check failed after 15 attempts"
+              ALL_PASSED=false
             fi
+          done
+          
+          if [ "$ALL_PASSED" != "true" ]; then
+            echo "One or more production health checks failed"
+            exit 1
           fi
           
-          # Test Web frontend
-          WEB_URL="${{ secrets.PRODUCTION_WEB_URL }}"
-          if [ -n "$WEB_URL" ]; then
-            echo "Testing Web frontend at $WEB_URL"
-            for i in {1..10}; do
-              if curl -sf "$WEB_URL" > /dev/null; then
-                echo "Web frontend check passed"
-                break
-              fi
-              echo "Attempt $i/10: Web not ready, waiting..."
-              sleep 10
-            done
-            if ! curl -sf "$WEB_URL" > /dev/null; then
-              echo "Web frontend check failed after 10 attempts"
-              exit 1
-            fi
-          fi
+          echo "✅ All production smoke tests passed!"
+
+  business-smoke-tests:
+    name: Business Smoke Tests (Staging)
+    needs: [deploy-staging]
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    uses: ./.github/workflows/business-smoke-tests.yml
+    secrets: inherit
+    with:
+      environment: staging
+      run-golden-flow: false
+
+  business-smoke-tests-golden:
+    name: Business Smoke Tests - Golden Flow (Staging)
+    needs: [deploy-staging]
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging' && github.event.inputs.run-golden-flow == 'true'
+    uses: ./.github/workflows/business-smoke-tests.yml
+    secrets: inherit
+    with:
+      environment: staging
+      run-golden-flow: true
 
   notify:
     name: Notification
-    needs: [deploy-staging, deploy-production]
+    needs: [deploy-staging, deploy-production, business-smoke-tests, business-smoke-tests-golden]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Send deployment status
         run: |
-          STATUS="${{ needs.deploy-staging.result }}/${{ needs.deploy-production.result }}"
-          echo "Deployment completed with status: $STATUS"
+          STAGING_RESULT="${{ needs.deploy-staging.result }}"
+          PRODUCTION_RESULT="${{ needs.deploy-production.result }}"
+          SMOKE_RESULT="${{ needs.business-smoke-tests.result }}"
+          GOLDEN_RESULT="${{ needs.business-smoke-tests-golden.result }}"
+          ROLLBACK="${{ github.event.inputs.rollback }}"
+          
+          if [ "$ROLLBACK" = "true" ]; then
+            echo "Rollback completed with status: staging=$STAGING_RESULT, production=$PRODUCTION_RESULT, smoke=$SMOKE_RESULT"
+          else
+            echo "Deployment completed with status: staging=$STAGING_RESULT, production=$PRODUCTION_RESULT, smoke=$SMOKE_RESULT, golden=$GOLDEN_RESULT"
+          fi
           
           # Add your notification logic here (Slack, Discord, Email, etc.)
           # Example for Slack:
           # if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
           #   curl -X POST -H 'Content-type: application/json' \
-          #     --data "{\"text\":\"Deployment ${STATUS}\"}" \
+          #     --data "{\"text\":\"Deployment staging=$STAGING_RESULT production=$PRODUCTION_RESULT smoke=$SMOKE_RESULT golden=$GOLDEN_RESULT rollback=$ROLLBACK\"}" \
           #     ${{ secrets.SLACK_WEBHOOK_URL }}
           # fi

@@ -8,9 +8,13 @@
       "telegram-bot": {
         "build": {
           "context": "./ag-associates-ai/backend/telegram_bot",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "args": {
+            "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+            "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+          }
         },
-        "image": "ghcr.io/luxoranova9/telegram-bot:latest",
+        "image": "ghcr.io/luxoranova9/telegram-bot:${IMAGE_TAG:-latest}",
         "container_name": "ag_telegram_bot",
         "restart": "unless-stopped",
         "environment": {
@@ -28,7 +32,7 @@
           "ai-backend"
         ],
         "healthcheck": {
-          "test": ["CMD", "curl", "-f", "http://localhost:3004/health"],
+          "test": ["CMD", "curl", "-f", "http://localhost:3003/health"],
           "interval": "30s",
           "timeout": "5s",
           "start_period": "10s",
@@ -56,7 +60,8 @@
     { "key": "N8N_WEBHOOK_KEY", "value": "${N8N_WEBHOOK_KEY}", "isSecret": true },
     { "key": "LLM_API_KEY", "value": "${LLM_API_KEY}", "isSecret": true },
     { "key": "LLM_BASE_URL", "value": "https://api.groq.com/openai/v1", "isSecret": false },
-    { "key": "TELEGRAM_BOT_TOKEN", "value": "${TELEGRAM_BOT_TOKEN}", "isSecret": true }
+    { "key": "IMAGE_TAG", "value": "${IMAGE_TAG:-latest}", "isSecret": false },
+    { "key": "GITHUB_SHA", "value": "${GITHUB_SHA:-latest}", "isSecret": false }
   ],
   "resourceLimits": {
     "cpu": "0.5",
@@ -66,7 +71,11 @@
   "buildSettings": {
     "buildPack": "dockerfile",
     "dockerfilePath": "./ag-associates-ai/backend/telegram_bot/Dockerfile",
-    "contextPath": "./ag-associates-ai/backend/telegram_bot"
+    "contextPath": "./ag-associates-ai/backend/telegram_bot",
+    "buildArgs": {
+      "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+      "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+    }
   },
   "port": 3003,
   "healthCheckPath": "/health",

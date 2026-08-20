@@ -1,32 +1,75 @@
-import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { lazy, Suspense, useEffect, useState } from 'react';
+// Luxor9 Legal OS - Main App with GlobalShell, React Router v6, and Route-Level Code Splitting
+
+import { BrowserRouter, Routes, Route, Navigate, lazy, Suspense, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ApplicantDashboard } from './components/applicant/ApplicantDashboard';
-import { AdvisorCockpit } from './components/admin/AdvisorCockpit';
-import { BankPortal } from './components/bank/BankPortal';
-import { LoginPage } from './components/auth/LoginPage';
-import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { WorkforceControl } from './components/admin/WorkforceControl';
-import { PrivacyPolicy } from './components/privacy/PrivacyPolicy';
 import { ErrorBoundary } from './components/ui';
 import { ThemeProvider } from './components/theme/ThemeProvider';
+import { GlobalShell } from './components/shell/GlobalShell';
 import { useAuthStore } from './store/useAuthStore';
-import { Building2, UserCircle2, Briefcase, Landmark, LogOut, Loader2, Menu, X, Activity, FileText } from 'lucide-react';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { TimeTracker } from './components/collaboration/TimeTracker';
+import { Loader2, Building2 } from 'lucide-react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@ag/api';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import config from './lib/config';
 
-// Editorial-theme screens from the claude.ai/design handoff — lazy-loaded so the
-// design system (fonts, large page components) stays out of the main chunk.
-const EditorialLanding = lazy(() => import('./components/home/EditorialLanding'));
-const ConsoleApp = lazy(() => import('./components/console/ConsoleApp'));
-const WorkflowDashboard = lazy(() => import('./components/admin/WorkflowDashboard'));
-const NoiPipeline = lazy(() => import('./components/admin/NoiPipeline'));
+// ============================================================
+// Route-Level Lazy Loading (Code Splitting)
+// ============================================================
 
-// Routes that ship their own full-page chrome (nav, footer, background).
-function useChromeless() {
-  const { pathname } = useLocation();
-  return pathname === '/' || pathname.startsWith('/console') || pathname.startsWith('/admin/console');
-}
+// Public / Marketing
+const EditorialLanding = lazy(() => import('./components/home/EditorialLanding'));
+const PrivacyPolicy = lazy(() => import('./components/privacy/PrivacyPolicy'));
+
+// Auth
+const LoginPage = lazy(() => import('./components/auth/LoginPage'));
+
+// Command Center (Core MVP Screen)
+const CommandCenter = lazy(() => import('./components/command-center/CommandCenter'));
+
+// Matters / Cases
+const MattersList = lazy(() => import('./components/matters/MattersList'));
+const MatterDetail = lazy(() => import('./components/matters/MatterDetail'));
+
+// Tasks
+const TasksList = lazy(() => import('./components/tasks/TasksList'));
+const TaskDetail = lazy(() => import('./components/tasks/TaskDetail'));
+
+// Approvals
+const ApprovalsList = lazy(() => import('./components/approvals/ApprovalsList'));
+const ApprovalDetail = lazy(() => import('./components/approvals/ApprovalDetail'));
+
+// Documents
+const DocumentsList = lazy(() => import('./components/documents/DocumentsList'));
+const DocumentDetail = lazy(() => import('./components/documents/DocumentDetail'));
+
+// Actions
+const ActionsList = lazy(() => import('./components/actions/ActionsList'));
+const ActionDetail = lazy(() => import('./components/actions/ActionDetail'));
+
+// Reports
+const ReportsList = lazy(() => import('./components/reports/ReportsList'));
+const ReportDetail = lazy(() => import('./components/reports/ReportDetail'));
+
+// Admin
+const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
+const AdminUsers = lazy(() => import('./components/admin/AdminUsers'));
+const AdminWorkflows = lazy(() => import('./components/admin/AdminWorkflows'));
+const AdminSettings = lazy(() => import('./components/admin/AdminSettings'));
+
+// Applicant Portal
+const ApplicantDashboard = lazy(() => import('./components/applicant/ApplicantDashboard'));
+
+// Bank Portal
+const BankPortal = lazy(() => import('./components/bank/BankPortal'));
+
+// Legacy Console (Editorial Theme)
+const ConsoleApp = lazy(() => import('./components/console/ConsoleApp'));
+
+// ============================================================
+// Loading & Error States
+// ============================================================
 
 function LoadingScreen() {
   return (
@@ -40,144 +83,24 @@ function LoadingScreen() {
         </div>
         <div className="flex items-center gap-2 text-white/70">
           <Loader2 size={18} className="animate-spin" />
-          <span className="text-sm font-medium">Loading AG Associates...</span>
+          <span className="text-sm font-medium">Loading Luxor9 Legal OS...</span>
         </div>
       </div>
     </div>
   );
 }
 
-function Navigation() {
-  const location = useLocation();
-  const chromeless = useChromeless();
-  const { user, signOut } = useAuthStore();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const getLinkStyle = (path: string) => {
-    const isActive = location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
-    return `flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 ${
-      isActive
-        ? 'glass-nav-link active text-white'
-        : 'glass-nav-link text-white/70 hover:text-white hover:bg-white/10'
-    }`;
-  };
-
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [location.pathname]);
-
-  if (location.pathname === '/login' || chromeless) return null;
-
+function RouteSuspense({ children }: { children: React.ReactNode }) {
   return (
-    <header className="glass-nav px-4 md:px-6 py-3 flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <div className="relative w-10 h-10 flex items-center justify-center">
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-indigo-500/20 rounded-xl blur-lg" />
-          <div className="relative bg-gradient-to-br from-violet-500 to-indigo-500 text-white p-2 rounded-xl shadow-lg">
-            <Building2 size={22} />
-          </div>
-        </div>
-        <div className="flex flex-col">
-          <h1 className="text-lg font-serif font-bold text-white leading-none">{config.app.name}</h1>
-          <span className="text-[10px] uppercase font-mono tracking-wider text-white/50">{config.app.description}</span>
-        </div>
-      </div>
-
-      {/* Desktop nav */}
-      <nav className="hidden md:flex items-center space-x-1 p-1 rounded-xl glass-card">
-        <Link to="/" className={getLinkStyle('/')}> 🌐 Marketing </Link>
-        <Link to="/applicant" className={getLinkStyle('/applicant')}>
-          <UserCircle2 size={16} /> Applicant
-        </Link>
-        <Link to="/admin" className={getLinkStyle('/admin')}>
-          <Briefcase size={16} /> Pipeline
-        </Link>
-        <Link to="/admin/dashboard" className={getLinkStyle('/admin/dashboard')}>
-          <Activity size={16} /> Dashboard
-        </Link>
-        <Link to="/admin/noi-cases" className={getLinkStyle('/admin/noi-cases')}>
-          <FileText size={16} /> NOI
-        </Link>
-        <Link to="/bank" className={getLinkStyle('/bank')}>
-          <Landmark size={16} /> Bank Portal
-        </Link>
-        {user ? (
-          <button
-            onClick={() => signOut()}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-300"
-          >
-            <LogOut size={16} /> Logout
-          </button>
-        ) : (
-          <Link to="/login" className={getLinkStyle('/login')}>
-            Login
-          </Link>
-        )}
-      </nav>
-
-      {/* Hamburger toggle (mobile) */}
-      <button
-        className="md:hidden flex items-center justify-center w-10 h-10 text-white/70 hover:text-white transition-colors"
-        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-        aria-expanded={mobileMenuOpen}
-      >
-        {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
-
-      {/* Mobile slide-in drawer */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <>
-            <motion.div
-              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setMobileMenuOpen(false)}
-            />
-            <motion.nav
-              className="fixed top-0 right-0 z-50 h-full w-64 glass-card rounded-l-2xl flex flex-col gap-1 p-6 pt-20 md:hidden"
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            >
-              <Link to="/" className={getLinkStyle('/')}> 🌐 Marketing </Link>
-              <Link to="/applicant" className={getLinkStyle('/applicant')}>
-                <UserCircle2 size={16} /> Applicant
-              </Link>
-              <Link to="/admin" className={getLinkStyle('/admin')}>
-                <Briefcase size={16} /> Pipeline
-              </Link>
-              <Link to="/admin/dashboard" className={getLinkStyle('/admin/dashboard')}>
-                <Activity size={16} /> Dashboard
-              </Link>
-              <Link to="/admin/noi-cases" className={getLinkStyle('/admin/noi-cases')}>
-                <FileText size={16} /> NOI Cases
-              </Link>
-              <Link to="/bank" className={getLinkStyle('/bank')}>
-                <Landmark size={16} /> Bank Portal
-              </Link>
-              {user ? (
-                <button
-                  onClick={() => signOut()}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-300 mt-4"
-                >
-                  <LogOut size={16} /> Logout
-                </button>
-              ) : (
-                <Link to="/login" className={getLinkStyle('/login')}>
-                  Login
-                </Link>
-              )}
-            </motion.nav>
-          </>
-        )}
-      </AnimatePresence>
-    </header>
+    <Suspense fallback={<LoadingScreen />}>
+      {children}
+    </Suspense>
   );
 }
+
+// ============================================================
+// App Component
+// ============================================================
 
 function App() {
   const initializeAuth = useAuthStore((state) => state.initialize);
@@ -202,84 +125,155 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <BrowserRouter>
-          <AppShell />
-        </BrowserRouter>
-      </ThemeProvider>
-    </ErrorBoundary>
-  );
-}
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <BrowserRouter>
+            <GlobalShell>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/" element={<RouteSuspense><EditorialLanding /></RouteSuspense>} />
+                <Route path="/privacy" element={<RouteSuspense><PrivacyPolicy /></RouteSuspense>} />
+                <Route path="/login" element={<RouteSuspense><LoginPage /></RouteSuspense>} />
 
-function AppShell() {
-  const chromeless = useChromeless();
+                {/* Protected Routes - Main App */}
+                <Route element={
+                  <ProtectedRoute allowedRoles={['admin', 'staff', 'applicant']}>
+                    <RouteSuspense>
+                      <CommandCenter />
+                    </RouteSuspense>
+                  </ProtectedRoute>
+                }>
+                  <Route path="command-center" index />
+                </Route>
 
-  return (
-    <div className={`min-h-screen flex flex-col font-sans relative overflow-x-hidden ${chromeless ? '' : 'text-white'}`}>
-      {/* Background Mesh Gradient — hidden on editorial-theme routes */}
-      {!chromeless && (
-        <div className="fixed inset-0 pointer-events-none z-0">
-          <div className="absolute inset-0 bg-gradient-mesh" />
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
-        </div>
-      )}
+                {/* Matters */}
+                <Route element={
+                  <ProtectedRoute allowedRoles={['admin', 'staff', 'applicant']}>
+                    <RouteSuspense>
+                      <MattersList />
+                    </RouteSuspense>
+                  </ProtectedRoute>
+                }>
+                  <Route path="matters" index />
+                  <Route path="matters/:id" element={<RouteSuspense><MatterDetail /></RouteSuspense>} />
+                </Route>
 
-      <Navigation />
-      <main className="flex-1 flex flex-col w-full relative z-10">
-        <Suspense fallback={null}>
-          <Routes>
-            <Route path="/" element={<EditorialLanding />} />
-            <Route path="/console" element={<ConsoleApp publicView />} />
-            <Route path="/admin/console" element={
-              <ProtectedRoute allowedRoles={['admin', 'staff']}>
-                <ConsoleApp />
-              </ProtectedRoute>
-            } />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/privacy" element={<PrivacyPolicy />} />
+                {/* Tasks */}
+                <Route element={
+                  <ProtectedRoute allowedRoles={['admin', 'staff', 'applicant']}>
+                    <RouteSuspense>
+                      <TasksList />
+                    </RouteSuspense>
+                  </ProtectedRoute>
+                }>
+                  <Route path="tasks" index />
+                  <Route path="tasks/:id" element={<RouteSuspense><TaskDetail /></RouteSuspense>} />
+                </Route>
 
-            <Route path="/applicant/*" element={
-              <ProtectedRoute allowedRoles={['applicant', 'admin']}>
-                <ApplicantDashboard />
-              </ProtectedRoute>
-            } />
+                {/* Approvals */}
+                <Route element={
+                  <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                    <RouteSuspense>
+                      <ApprovalsList />
+                    </RouteSuspense>
+                  </ProtectedRoute>
+                }>
+                  <Route path="approvals" index />
+                  <Route path="approvals/:id" element={<RouteSuspense><ApprovalDetail /></RouteSuspense>} />
+                </Route>
 
-            <Route path="/admin/*" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <Routes>
-                  <Route index element={<AdvisorCockpit />} />
-                  <Route path="workforce" element={<WorkforceControl />} />
-                  <Route path="dashboard" element={<WorkflowDashboard />} />
-                  <Route path="noi-cases" element={<NoiPipeline />} />
-                </Routes>
-              </ProtectedRoute>
-            } />
+                {/* Documents */}
+                <Route element={
+                  <ProtectedRoute allowedRoles={['admin', 'staff', 'applicant']}>
+                    <RouteSuspense>
+                      <DocumentsList />
+                    </RouteSuspense>
+                  </ProtectedRoute>
+                }>
+                  <Route path="documents" index />
+                  <Route path="documents/:id" element={<RouteSuspense><DocumentDetail /></RouteSuspense>} />
+                </Route>
 
-            <Route path="/bank/*" element={
-              <ProtectedRoute allowedRoles={['staff', 'admin']}>
-                <BankPortal />
-              </ProtectedRoute>
-            } />
+                {/* Actions */}
+                <Route element={
+                  <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                    <RouteSuspense>
+                      <ActionsList />
+                    </RouteSuspense>
+                  </ProtectedRoute>
+                }>
+                  <Route path="actions" index />
+                  <Route path="actions/:id" element={<RouteSuspense><ActionDetail /></RouteSuspense>} />
+                </Route>
 
-            {/* Catch-all redirect */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-      </main>
+                {/* Reports */}
+                <Route element={
+                  <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                    <RouteSuspense>
+                      <ReportsList />
+                    </RouteSuspense>
+                  </ProtectedRoute>
+                }>
+                  <Route path="reports" index />
+                  <Route path="reports/:id" element={<RouteSuspense><ReportDetail /></RouteSuspense>} />
+                </Route>
 
-      {!chromeless && (
-        <footer className="glass-card mx-6 mb-4 py-4 px-6 text-center text-xs text-white/50">
-          <p>© 2024 {config.app.name}. All rights reserved.</p>
-          <Link to="/privacy" className="hover:text-violet-300 hover:underline transition-all duration-300 mt-1 inline-block">
-            Privacy Policy
-          </Link>
-        </footer>
-      )}
+                {/* Admin */}
+                <Route element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <RouteSuspense>
+                      <AdminDashboard />
+                    </RouteSuspense>
+                  </ProtectedRoute>
+                }>
+                  <Route path="admin" index />
+                  <Route path="admin/users" element={<RouteSuspense><AdminUsers /></RouteSuspense>} />
+                  <Route path="admin/workflows" element={<RouteSuspense><AdminWorkflows /></RouteSuspense>} />
+                  <Route path="admin/settings" element={<RouteSuspense><AdminSettings /></RouteSuspense>} />
+                </Route>
 
-      {/* Global Floating Time Tracker for Advocates */}
+                {/* Applicant Portal */}
+                <Route element={
+                  <ProtectedRoute allowedRoles={['applicant', 'admin']}>
+                    <RouteSuspense>
+                      <ApplicantDashboard />
+                    </RouteSuspense>
+                  </ProtectedRoute>
+                }>
+                  <Route path="applicant/*" index />
+                </Route>
+
+                {/* Bank Portal */}
+                <Route element={
+                  <ProtectedRoute allowedRoles={['staff', 'admin']}>
+                    <RouteSuspense>
+                      <BankPortal />
+                    </RouteSuspense>
+                  </ProtectedRoute>
+                }>
+                  <Route path="bank/*" index />
+                </Route>
+
+                {/* Legacy Console (Editorial Theme) */}
+                <Route path="console" element={
+                  <RouteSuspense><ConsoleApp publicView /></RouteSuspense>
+                } />
+                <Route path="admin/console" element={
+                  <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                    <RouteSuspense><ConsoleApp /></RouteSuspense>
+                  </ProtectedRoute>
+                } />
+
+                {/* Catch-all redirect */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </GlobalShell>
+          </BrowserRouter>
+          {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+        </ThemeProvider>
+      </QueryClientProvider>
       <TimeTracker />
-    </div>
+    </ErrorBoundary>
   );
 }
 

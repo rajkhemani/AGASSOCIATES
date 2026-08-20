@@ -8,9 +8,13 @@
       "ag-platform": {
         "build": {
           "context": "./ag-platform",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "args": {
+            "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+            "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+          }
         },
-        "image": "ghcr.io/luxoranova9/ag-platform:latest",
+        "image": "ghcr.io/luxoranova9/ag-platform:${IMAGE_TAG:-latest}",
         "container_name": "ag_platform",
         "restart": "unless-stopped",
         "environment": {
@@ -70,7 +74,9 @@
     { "key": "GOOGLE_GENERATIVE_AI_API_KEY", "value": "${GOOGLE_GENERATIVE_AI_API_KEY}", "isSecret": true },
     { "key": "RESEND_API_KEY", "value": "${RESEND_API_KEY}", "isSecret": true },
     { "key": "AI_BACKEND_URL", "value": "http://ag-ai-backend:8000", "isSecret": false },
-    { "key": "VITE_API_BASE_URL", "value": "/api", "isSecret": false }
+    { "key": "VITE_API_BASE_URL", "value": "/api", "isSecret": false },
+    { "key": "IMAGE_TAG", "value": "${IMAGE_TAG:-latest}", "isSecret": false },
+    { "key": "GITHUB_SHA", "value": "${GITHUB_SHA:-latest}", "isSecret": false }
   ],
   "resourceLimits": {
     "cpu": "1.0",
@@ -80,7 +86,11 @@
   "buildSettings": {
     "buildPack": "dockerfile",
     "dockerfilePath": "./ag-platform/Dockerfile",
-    "contextPath": "./ag-platform"
+    "contextPath": "./ag-platform",
+    "buildArgs": {
+      "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+      "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+    }
   },
   "port": 3001,
   "healthCheckPath": "/api/health",

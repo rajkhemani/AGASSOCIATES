@@ -3,7 +3,7 @@ import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { intakePayloadSchema } from '../schemas/intake.schema';
 import { invalidateNOICache, redisClient } from '../services/redis.service';
-import { createCase, getOrganizationByBank } from '../services/supabase.service';
+import { createCase, createCaseWithOrgContext, getOrganizationByBank } from '../services/supabase.service';
 
 export default async function webhookRoutes(fastify: FastifyInstance) {
   const typedFastify = fastify.withTypeProvider<ZodTypeProvider>();
@@ -29,13 +29,13 @@ export default async function webhookRoutes(fastify: FastifyInstance) {
       }
 
       // Create Case in Supabase — starts at RECEIVED lifecycle, DOCUMENTS_RECEIVED NOI sub-process
-      const newCase = await createCase({
+      const newCase = await createCaseWithOrgContext({
         org_id: orgId,
         bank_name: validatedData.bank_name,
         case_type: 'NOI',
         case_status: 'RECEIVED',
         noi_status: 'DOCUMENTS_RECEIVED',
-      });
+      }, orgId);
 
       // Invalidate cache for this org
       await invalidateNOICache(orgId);

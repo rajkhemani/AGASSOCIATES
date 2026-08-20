@@ -10,10 +10,12 @@
           "context": "./ag-associates-ai/frontend",
           "dockerfile": "Dockerfile",
           "args": {
-            "NEXT_PUBLIC_API_URL": "https://api.${DOMAIN}"
+            "NEXT_PUBLIC_API_URL": "https://api.${DOMAIN}",
+            "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+            "GITHUB_SHA": "${GITHUB_SHA:-latest}"
           }
         },
-        "image": "ghcr.io/luxoranova9/ag-ai-dashboard:latest",
+        "image": "ghcr.io/luxoranova9/ag-ai-dashboard:${IMAGE_TAG:-latest}",
         "container_name": "ag_ai_dashboard",
         "restart": "unless-stopped",
         "environment": {
@@ -51,7 +53,9 @@
     }
   ],
   "environmentVariables": [
-    { "key": "NEXT_PUBLIC_API_URL", "value": "https://api.${DOMAIN}", "isSecret": false }
+    { "key": "NEXT_PUBLIC_API_URL", "value": "https://api.${DOMAIN}", "isSecret": false },
+    { "key": "IMAGE_TAG", "value": "${IMAGE_TAG:-latest}", "isSecret": false },
+    { "key": "GITHUB_SHA", "value": "${GITHUB_SHA:-latest}", "isSecret": false }
   ],
   "resourceLimits": {
     "cpu": "1.0",
@@ -61,7 +65,12 @@
   "buildSettings": {
     "buildPack": "dockerfile",
     "dockerfilePath": "./ag-associates-ai/frontend/Dockerfile",
-    "contextPath": "./ag-associates-ai/frontend"
+    "contextPath": "./ag-associates-ai/frontend",
+    "buildArgs": {
+      "NEXT_PUBLIC_API_URL": "https://api.${DOMAIN}",
+      "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+      "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+    }
   },
   "port": 3000,
   "healthCheckPath": "/",

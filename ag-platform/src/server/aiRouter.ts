@@ -25,7 +25,7 @@ function getResendClient(): Resend {
 }
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://placeholder.supabase.co";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "placeholder";
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || "placeholder";
 const supabase = createClient(supabaseUrl, supabaseKey, {
   realtime: { transport: WebSocket as any },
 });

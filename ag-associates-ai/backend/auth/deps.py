@@ -14,14 +14,14 @@ from .google_oauth import require_user
 from .rbac import AuthContext, Role
 
 
-async def _fetch_role(email: str) -> Role:
-    """Lookup user's role from Supabase profiles table.
+async def _fetch_role(user_jwt: str, email: str) -> Role:
+    """Lookup user's role from Supabase profiles table using user's JWT.
 
     Falls back to BANK_VIEWER when Supabase is unavailable (dev mode).
     """
     supabase_url = os.environ.get("SUPABASE_URL", "")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-    if not supabase_url or not supabase_key:
+    supabase_anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
+    if not supabase_url or not supabase_anon_key:
         return Role.BANK_VIEWER
 
     try:
@@ -30,8 +30,8 @@ async def _fetch_role(email: str) -> Role:
                 f"{supabase_url}/rest/v1/profiles",
                 params={"select": "role", "email": f"eq.{email}"},
                 headers={
-                    "apikey": supabase_key,
-                    "Authorization": f"Bearer {supabase_key}",
+                    "apikey": supabase_anon_key,
+                    "Authorization": f"Bearer {user_jwt}",
                 },
             )
             if resp.status_code == 200 and resp.json():
@@ -50,7 +50,8 @@ async def require_auth(user: dict = Depends(require_user)) -> AuthContext:
             auth.require("case.view_all")
     """
     email = user.get("sub", "")
-    role = await _fetch_role(email)
+    user_jwt = user.get("access_token", "")  # Google OAuth provides access_token
+    role = await _fetch_role(user_jwt, email)
     return AuthContext(
         user_id=email,
         role=role,

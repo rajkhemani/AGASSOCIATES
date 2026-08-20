@@ -26,6 +26,7 @@ from conversation_store import (
     resolve_user,
 )
 from workforce.ledger import record_activity
+from orchestration import orchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,12 @@ categorize the user's message into exactly ONE of these intents:
 - delegate_bouncer: Math check — stamp duty calculation, numeric verification.
 - delegate_accountant: Financial reporting — billing, receivables, reports.
 - delegate_drafter: Document drafting — agreements, notices, letters.
+- orchestrate_noi: User wants to start a complete Notice of Intimation workflow
+                   that involves multiple agents working together to process
+                   the NOI filing from start to finish.
+- orchestrate_mortgage: User wants to start a complete mortgage registration
+                        workflow that involves multiple agents working together
+                        from document drafting to registration completion.
 - general:      General conversation, questions, greetings, or anything
                 that doesn't fit the above.
 
@@ -73,6 +80,10 @@ def classify_intent(message: str) -> str:
             return "admin_cmd"
         if any(kw in message.lower() for kw in ["otp"]):
             return "otp_request"
+        if any(kw in message.lower() for kw in ["noi", "notice", "intimation"]):
+            return "orchestrate_noi"
+        if any(kw in message.lower() for kw in ["mortgage", "registration", "property"]):
+            return "orchestrate_mortgage"
         return "general"
 
     try:
@@ -169,6 +180,112 @@ def _general_chat(
             "success": True,
             "response": "Aisha is warming up. Could you ask again in a moment?",
         }
+ 
+ 
+async def _handle_orchestrate_noi(message: str, user_id: str, conversation_id: str) -> Dict[str, Any]:
+    """Handle NOI workflow orchestration request."""
+    try:
+        # Prepare initial data for the workflow
+        initial_data = {
+            "message": message,
+            "user_id": user_id,
+            "conversation_id": conversation_id,
+            "user_role": "CLERK"  # In a real implementation, this would come from user context
+        }
+        
+        # Execute the NOI workflow
+        result = await orchestrator.execute_workflow(
+            workflow_id="noi_process",
+            initial_data=initial_data
+        )
+        
+        if result.get("success"):
+            # Format the response for the user
+            response_parts = ["🔄 NOI Workflow Started\n"]
+            
+            # Summarize what was accomplished
+            step_results = result.get("step_results", {})
+            if step_results:
+                response_parts.append("Steps completed:")
+                for step_id, step_result in step_results.items():
+                    if step_result.get("success"):
+                        response_parts.append(f"  ✅ {step_id}: {step_result.get('response', 'Completed')[:100]}...")
+                    else:
+                        response_parts.append(f"  ❌ {step_id}: {step_result.get('error', 'Failed')}")
+            
+            response_parts.append("\nThe NOI workflow is now processing. You'll receive updates as each step completes.")
+            
+            return {
+                "success": True,
+                "response": "\n".join(response_parts),
+                "data": result
+            }
+        else:
+            return {
+                "success": False,
+                "response": f"Failed to start NOI workflow: {result.get('error', 'Unknown error')}",
+                "data": result
+            }
+            
+    except Exception as exc:
+        logger.error(f"NOI workflow orchestration failed: {exc}")
+        return {
+            "success": False,
+            "response": f"NOI workflow orchestration encountered an error: {exc}",
+        }
+
+
+async def _handle_orchestrate_mortgage(message: str, user_id: str, conversation_id: str) -> Dict[str, Any]:
+    """Handle mortgage registration workflow orchestration request."""
+    try:
+        # Prepare initial data for the workflow
+        initial_data = {
+            "message": message,
+            "user_id": user_id,
+            "conversation_id": conversation_id,
+            "user_role": "CLERK"  # In a real implementation, this would come from user context
+        }
+        
+        # Execute the mortgage registration workflow
+        result = await orchestrator.execute_workflow(
+            workflow_id="mortgage_registration_process",
+            initial_data=initial_data
+        )
+        
+        if result.get("success"):
+            # Format the response for the user
+            response_parts = ["🏠 Mortgage Registration Workflow Started\n"]
+            
+            # Summarize what was accomplished
+            step_results = result.get("step_results", {})
+            if step_results:
+                response_parts.append("Steps completed:")
+                for step_id, step_result in step_results.items():
+                    if step_result.get("success"):
+                        response_parts.append(f"  ✅ {step_id}: {step_result.get('response', 'Completed')[:100]}...")
+                    else:
+                        response_parts.append(f"  ❌ {step_id}: {step_result.get('error', 'Failed')}")
+            
+            response_parts.append("\nThe mortgage registration workflow is now processing. You'll receive updates as each step completes.")
+            
+            return {
+                "success": True,
+                "response": "\n".join(response_parts),
+                "data": result
+            }
+        else:
+            return {
+                "success": False,
+                "response": f"Failed to start mortgage registration workflow: {result.get('error', 'Unknown error')}",
+                "data": result
+            }
+            
+    except Exception as exc:
+        logger.error(f"Mortgage workflow orchestration failed: {exc}")
+        return {
+            "success": False,
+            "response": f"Mortgage workflow orchestration encountered an error: {exc}",
+        }
 
 
 # ── Legal drafting mode ──────────────────────────────────────────────────
@@ -181,8 +298,10 @@ def _legal_draft(message: str) -> Dict[str, Any]:
 
     try:
         loop = asyncio.new_event_loop()
+        # Try to get org_id from context or user info
+        org_id = None  # In a real implementation, this would come from user context
         result = loop.run_until_complete(
-            asyncio.to_thread(process_rental_request, message, "aisha_core", None)
+            asyncio.to_thread(process_rental_request, message, "aisha_core", org_id)
         )
         loop.close()
 
@@ -230,7 +349,7 @@ def _legal_draft(message: str) -> Dict[str, Any]:
 # ── Agent delegation ─────────────────────────────────────────────────────
 
 
-def _delegate_to_agent(agent_name: str, message: str, user_id: str) -> Dict[str, Any]:
+def _delegate_to_agent(agent_name: str, message: str, user_id: str, user_role: str = "CLERK") -> Dict[str, Any]:
     """Route to a specialized agent via the agent bus."""
     try:
         from agents.agent_registry import get_agent
@@ -249,7 +368,7 @@ def _delegate_to_agent(agent_name: str, message: str, user_id: str) -> Dict[str,
             agent.process_request(
                 user_message=message,
                 user_id=user_id,
-                user_role="CLERK",
+                user_role=user_role,
             )
         )
         loop.close()
@@ -332,7 +451,11 @@ def handle_message(
         result = _admin_command(message, context)
     elif intent.startswith("delegate_"):
         agent_name = intent.replace("delegate_", "")
-        result = _delegate_to_agent(agent_name, message, platform_identity)
+        result = _delegate_to_agent(agent_name, message, platform_identity, user_role="CLERK")
+    elif intent == "orchestrate_noi":
+        result = await _handle_orchestrate_noi(message, platform_identity, conv_id)
+    elif intent == "orchestrate_mortgage":
+        result = await _handle_orchestrate_mortgage(message, platform_identity, conv_id)
     else:
         result = _general_chat(message, context)
 

@@ -5,7 +5,6 @@ import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import fs from "fs";
 import crypto from "crypto";
 import caseRoutes from "./src/server/routes/cases.ts";
 import timesheetRoutes from "./src/server/routes/timesheets.ts";
@@ -64,22 +63,13 @@ const corsOptions = {
   maxAge: 86400, // 24 hours
 };
 
-async function runMigrations() {
-  try {
-    const migrationPath = path.join(process.cwd(), "src/server/migrations.sql");
-    const sql = fs.readFileSync(migrationPath, "utf8");
-    await pool.query(sql);
-    logger.info("Database migrations completed successfully");
-  } catch (error) {
-    logger.error({ err: error }, "Migration failed");
-  }
-}
-
 async function startServer() {
   const app = express();
   const PORT = parseInt(process.env.PORT || "3001", 10);
 
-  await runMigrations();
+  // Migrations are now run separately via migrationRunner.ts (ag_owner role)
+  // Do NOT run migrations on server startup - this violates deployment order
+  // CI -> Migration Job (ag_owner) -> App Deploy (ag_app)
 
   // Add trust proxy for rate limiting behind a reverse proxy
   app.set("trust proxy", 1);
@@ -176,7 +166,7 @@ async function startServer() {
 
     try {
       const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
       if (supabaseUrl && supabaseKey) {
         const response = await fetch(`${supabaseUrl}/rest/v1/`, {
           headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }

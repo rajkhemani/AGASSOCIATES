@@ -8,9 +8,13 @@
       "coordinator": {
         "build": {
           "context": "./ag-platform/services/coordinator",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "args": {
+            "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+            "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+          }
         },
-        "image": "ghcr.io/luxoranova9/coordinator:latest",
+        "image": "ghcr.io/luxoranova9/coordinator:${IMAGE_TAG:-latest}",
         "container_name": "ag_coordinator",
         "restart": "unless-stopped",
         "environment": {
@@ -58,7 +62,9 @@
     { "key": "GEMINI_API_KEY", "value": "${GOOGLE_GENERATIVE_AI_API_KEY:-}", "isSecret": true },
     { "key": "REDIS_PASSWORD", "value": "${REDIS_PASSWORD}", "isSecret": true },
     { "key": "NODE_ENV", "value": "production", "isSecret": false },
-    { "key": "PORT", "value": "3005", "isSecret": false }
+    { "key": "PORT", "value": "3005", "isSecret": false },
+    { "key": "IMAGE_TAG", "value": "${IMAGE_TAG:-latest}", "isSecret": false },
+    { "key": "GITHUB_SHA", "value": "${GITHUB_SHA:-latest}", "isSecret": false }
   ],
   "resourceLimits": {
     "cpu": "0.5",
@@ -68,7 +74,11 @@
   "buildSettings": {
     "buildPack": "dockerfile",
     "dockerfilePath": "./ag-platform/services/coordinator/Dockerfile",
-    "contextPath": "./ag-platform/services/coordinator"
+    "contextPath": "./ag-platform/services/coordinator",
+    "buildArgs": {
+      "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+      "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+    }
   },
   "port": 3005,
   "healthCheckPath": "/health",

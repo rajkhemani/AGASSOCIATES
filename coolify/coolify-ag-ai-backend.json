@@ -8,9 +8,13 @@
       "ag-ai-backend": {
         "build": {
           "context": "./ag-associates-ai/backend",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "args": {
+            "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+            "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+          }
         },
-        "image": "ghcr.io/luxoranova9/ag-ai-backend:latest",
+        "image": "ghcr.io/luxoranova9/ag-ai-backend:${IMAGE_TAG:-latest}",
         "container_name": "ag_ai_backend",
         "restart": "unless-stopped",
         "environment": {
@@ -116,7 +120,9 @@
     { "key": "IGR_PORTAL_URL", "value": "${IGR_PORTAL_URL:-}", "isSecret": false },
     { "key": "IGR_PORTAL_USERNAME", "value": "${IGR_PORTAL_USERNAME:-}", "isSecret": true },
     { "key": "IGR_PORTAL_PASSWORD", "value": "${IGR_PORTAL_PASSWORD:-}", "isSecret": true },
-    { "key": "GRAS_PORTAL_URL", "value": "${GRAS_PORTAL_URL:-}", "isSecret": false }
+    { "key": "GRAS_PORTAL_URL", "value": "${GRAS_PORTAL_URL:-}", "isSecret": false },
+    { "key": "IMAGE_TAG", "value": "${IMAGE_TAG:-latest}", "isSecret": false },
+    { "key": "GITHUB_SHA", "value": "${GITHUB_SHA:-latest}", "isSecret": false }
   ],
   "resourceLimits": {
     "cpu": "2.0",
@@ -126,7 +132,11 @@
   "buildSettings": {
     "buildPack": "dockerfile",
     "dockerfilePath": "./ag-associates-ai/backend/Dockerfile",
-    "contextPath": "./ag-associates-ai/backend"
+    "contextPath": "./ag-associates-ai/backend",
+    "buildArgs": {
+      "IMAGE_TAG": "${IMAGE_TAG:-latest}",
+      "GITHUB_SHA": "${GITHUB_SHA:-latest}"
+    }
   },
   "port": 8000,
   "healthCheckPath": "/health",

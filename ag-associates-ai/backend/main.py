@@ -374,6 +374,7 @@ async def whatsapp_webhook(
     """
     Entry point for n8n WhatsApp triggers — routes through unified Aisha.
     Expects payload with 'message', 'sender', and optional 'org_id' and 'conversation_id'.
+    Also handles media attachments: images, documents, audio.
     Requires authentication via x-api-key.
     """
     _verify_n8n_key(x_api_key)
@@ -381,8 +382,79 @@ async def whatsapp_webhook(
     raw_input = payload.get("message", "").strip()
     sender = payload.get("sender", "whatsapp_user")
     conversation_id = payload.get("conversation_id")
+    
+    # Handle media attachments
+    media_attachments = []
+    if payload.get("media"):
+        # Handle Twilio-style media format
+        media_attachments = payload["media"]
+    elif payload.get("attachments"):
+        # Handle generic attachments format
+        media_attachments = payload["attachments"]
+    elif payload.get("files"):
+        # Handle files array format
+        media_attachments = payload["files"]
 
-    if not raw_input:
+    # Process media attachments if present
+    media_context = ""
+    if media_attachments:
+        try:
+            from media.router import process_file
+            import base64
+            import httpx
+            
+            media_descriptions = []
+            for attachment in media_attachments:
+                try:
+                    # Handle different attachment formats
+                    if isinstance(attachment, dict):
+                        # Format: {"url": "..."} or {"id": "...", "mime_type": "...", "filename": "..."}
+                        if "url" in attachment:
+                            # Download file from URL
+                            async with httpx.AsyncClient() as client:
+                                response = await client.get(attachment["url"])
+                                response.raise_for_status()
+                                file_bytes = response.content
+                                filename = attachment.get("filename", "attachment")
+                                mime_type = attachment.get("mime_type", "")
+                        elif "id" in attachment:
+                            # Handle media ID (would need to fetch from storage)
+                            # For now, skip if we can't process
+                            continue
+                        else:
+                            continue
+                    elif isinstance(attachment, str):
+                        # Direct URL
+                        async with httpx.AsyncClient() as client:
+                            response = await client.get(attachment)
+                            response.raise_for_status()
+                            file_bytes = response.content
+                            filename = attachment.split("/")[-1] or "attachment"
+                            mime_type = ""
+                    else:
+                        continue
+                    
+                    # Process the file
+                    extracted_text = await process_file(file_bytes, filename, mime_type)
+                    if extracted_text and not extracted_text.startswith("Unsupported file type"):
+                        media_descriptions.append(f"📎 {filename}: {extracted_text[:200]}...")
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to process media attachment: {e}")
+                    continue
+            
+            if media_descriptions:
+                media_context = "\n\nMedia attachments processed:\n" + "\n".join(media_descriptions)
+                
+        except Exception as e:
+            logger.warning(f"Error processing media attachments: {e}")
+
+    # Combine text input with media context
+    full_input = raw_input
+    if media_context:
+        full_input = raw_input + media_context
+
+    if not full_input.strip():
         raise HTTPException(status_code=400, detail="Missing 'message' in payload")
 
     import asyncio
@@ -395,7 +467,7 @@ async def whatsapp_webhook(
 
         result = await asyncio.to_thread(
             aisha_handle_message,
-            raw_input,
+            full_input,
             platform="whatsapp",
             platform_identity=sender,
             display_name=payload.get("display_name"),

@@ -193,45 +193,56 @@ class NotificationDispatcher:
         """Fetch recipient emails for a case from Supabase or config."""
         # Try to get bank contact email from Supabase
         supabase_url = os.environ.get("SUPABASE_URL", "")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+        supabase_anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
         
-        if supabase_url and supabase_key:
+        # First, get the case to find its org_id and bank_id
+        org_id = None
+        bank_id = None
+        
+        if supabase_url and supabase_anon_key:
             try:
                 async with httpx.AsyncClient(timeout=10) as client:
-                    # Get case with bank info
                     resp = await client.get(
                         f"{supabase_url}/rest/v1/cases",
                         params={
                             "id": f"eq.{case_id}",
-                            "select": "bank_id,borrower_name",
+                            "select": "org_id,bank_id,borrower_name",
                         },
                         headers={
-                            "apikey": supabase_key,
-                            "Authorization": f"Bearer {supabase_key}",
+                            "apikey": supabase_anon_key,
+                            "Authorization": f"Bearer {supabase_anon_key}",
                         },
                     )
                     resp.raise_for_status()
                     cases = resp.json()
                     
                     if cases:
+                        org_id = cases[0].get("org_id")
                         bank_id = cases[0].get("bank_id")
-                        if bank_id:
-                            # Get bank contact email
-                            bank_resp = await client.get(
-                                f"{supabase_url}/rest/v1/banks",
-                                params={
-                                    "id": f"eq.{bank_id}",
-                                    "select": "billing_contact",
-                                },
-                                headers={
-                                    "apikey": supabase_key,
-                                    "Authorization": f"Bearer {supabase_key}",
-                                },
-                            )
-                            bank_resp.raise_for_status()
-                            banks = bank_resp.json()
-                            if banks and banks[0].get("billing_contact"):
-                                return [banks[0]["billing_contact"]]
+            except Exception as exc:
+                logger.warning("Failed to fetch case org_id from Supabase: %s", exc)
+        
+        # Now fetch bank contact email using org_id context
+        if org_id and bank_id and supabase_url and supabase_anon_key:
+            try:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    headers = {
+                        "apikey": supabase_anon_key,
+                        "Authorization": f"Bearer {supabase_anon_key}",
+                        "X-Org-ID": org_id,
+                    }
+                    bank_resp = await client.get(
+                        f"{supabase_url}/rest/v1/banks",
+                        params={
+                            "id": f"eq.{bank_id}",
+                            "select": "billing_contact",
+                        },
+                        headers=headers,
+                    )
+                    bank_resp.raise_for_status()
+                    banks = bank_resp.json()
+                    if banks and banks[0].get("billing_contact"):
+                        return [banks[0]["billing_contact"]
             except Exception as exc:
                 logger.warning("Failed to fetch recipient from Supabase: %s", exc)
 
