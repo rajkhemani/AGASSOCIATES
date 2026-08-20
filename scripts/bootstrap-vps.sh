@@ -83,6 +83,7 @@ sudo -u "$DEPLOY_USER" docker pull n8nio/n8n:latest || true
 
 log "8/8 Installing nightly backup cron"
 install -m 0755 "$SRV_DIR/repo/scripts/backup.sh" /usr/local/sbin/ag-backup
+install -m 0755 "$SRV_DIR/repo/scripts/restore.sh" /usr/local/sbin/ag-restore
 cat >/etc/cron.d/ag-backup <<EOF
 # AG Associates nightly backup
 SHELL=/bin/bash

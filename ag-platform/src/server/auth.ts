@@ -1,5 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import type { Express, Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
@@ -14,6 +14,7 @@ export interface AuthUser {
   role: string;
   email?: string;
   orgId?: string;
+  permissions?: string[];
 }
 
 declare global {
@@ -59,10 +60,39 @@ export function createSupabaseMiddleware() {
     req.user = {
       id: user.id,
       email: user.email,
-      role: profile?.role || 'applicant',
+      role: String(profile?.role || 'APPLICANT').toUpperCase(),
       orgId: profile?.org_id,
+      permissions: permissionsForRole(String(profile?.role || 'APPLICANT').toUpperCase()),
     };
 
+    next();
+  };
+}
+
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  PRINCIPAL: ['matter:read', 'matter:update', 'document:delete', 'rpa:execute', 'payment:release'],
+  ADVOCATE: ['matter:read', 'matter:update', 'document:delete'],
+  EXECUTIVE: ['matter:read', 'matter:update'],
+  CLERK: ['matter:read'],
+  BANK_VIEWER: ['matter:read'],
+  APPLICANT: ['matter:read'],
+};
+
+export function permissionsForRole(role: string): string[] {
+  return [...(ROLE_PERMISSIONS[role] || [])];
+}
+
+export function requirePermission(...permissions: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
+      return;
+    }
+    const user = req.user;
+    if (!permissions.every(permission => user.permissions?.includes(permission))) {
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } });
+      return;
+    }
     next();
   };
 }
@@ -117,8 +147,9 @@ export function optionalAuth() {
       req.user = {
         id: user.id,
         email: user.email,
-        role: profile?.role || 'applicant',
+        role: String(profile?.role || 'APPLICANT').toUpperCase(),
         orgId: profile?.org_id,
+        permissions: permissionsForRole(String(profile?.role || 'APPLICANT').toUpperCase()),
       };
     }
 

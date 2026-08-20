@@ -1,7 +1,7 @@
 import express from 'express';
 import { CaseService } from '../services/caseService.ts';
 import { pool } from '../db.ts';
-import { createSupabaseMiddleware, requireRole, requireOrgAccess } from '../auth.ts';
+import { createSupabaseMiddleware, requireRole, requireOrgAccess, requirePermission } from '../auth.ts';
 import { validate, validateParams, CreateCaseSchema, UpdateCaseStatusSchema } from '../validation.ts';
 import { z } from 'zod';
 
@@ -11,7 +11,7 @@ const auth = createSupabaseMiddleware();
 const authOrg = [createSupabaseMiddleware(), requireOrgAccess()];
 
 // All routes require authentication
-router.use(auth);
+router.use(auth, requireOrgAccess());
 
 // UUID param validation
 const uuidParam = z.object({ id: z.string().uuid() });
@@ -92,12 +92,12 @@ router.get('/cases/:id/timeline', validateParams(uuidParam), async (req, res) =>
 });
 
 // POST /api/cases - Create case (requires org access)
-router.post('/cases', validate(CreateCaseSchema), async (req, res) => {
+router.post('/cases', requirePermission('matter:update'), validate(CreateCaseSchema), async (req, res) => {
   try {
     const { org_id } = req.body;
 
     // Verify user has access to this org
-    if (req.user!.orgId !== org_id && req.user!.role !== 'PRINCIPAL') {
+    if (req.user!.orgId !== org_id) {
       res.status(403).json({ error: 'Cannot create case for another organization' });
       return;
     }
@@ -110,7 +110,7 @@ router.post('/cases', validate(CreateCaseSchema), async (req, res) => {
 });
 
 // PUT /api/cases/:id/status - Update case status
-router.put('/cases/:id/status', validateParams(uuidParam), validate(UpdateCaseStatusSchema), async (req, res) => {
+router.put('/cases/:id/status', requirePermission('matter:update'), validateParams(uuidParam), validate(UpdateCaseStatusSchema), async (req, res) => {
   try {
     const { status, notes } = req.body;
     const userId = req.user!.id;

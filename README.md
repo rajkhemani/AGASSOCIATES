@@ -64,6 +64,21 @@ AG Associates is the result of a radical thesis: **what if a law firm had zero s
 
 This repository contains the firm's **AI-orchestrated "Zero-Staff" platform** — a full-stack SaaS system designed to eliminate manual bottlenecks in high-volume legal operations: Title Search, Legal Vetting, Property Registration, NOI processing, Balance Transfer cases, and more.
 
+### AG BOX security and operations foundation
+
+AG Associates runs as an isolated business/data plane. Administrative clients must use the authenticated AG API and Action Gateway rather than accessing database files or runtime storage directly.
+
+The current foundation includes:
+
+- Tenant-scoped RBAC and explicit AG permissions
+- L0-L3 Action Gateway classification, authorization, and approval enforcement
+- Append-oriented audit events for human and AI actions
+- Durable action requests and approvals protected by database row-level security
+- A validated matter state machine for controlled workflow transitions
+- Backup, restore, health-check, and operations runbook scripts
+
+This foundation is intentionally incremental: external credentials and provider configuration for WhatsApp, email, portals, storage, and LLM services remain deployment-specific. See [`docs/ag-box-architecture-inventory.md`](docs/ag-box-architecture-inventory.md) and [`docs/AG_OPERATIONS_RUNBOOK.md`](docs/AG_OPERATIONS_RUNBOOK.md) for the current architecture and operational procedures.
+
 ### Core Practice Areas
 
 | Service | Description |

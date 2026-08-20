@@ -10,6 +10,13 @@ x-logging: &logging
       max-size: "10m"
       max-file: "5"
 
+x-app-hardening: &app-hardening
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
 services:
   caddy:
     image: caddy:2-alpine
@@ -42,7 +49,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-    networks: [ag_net]
+    networks: [ag_net, ag_edge]
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -83,7 +90,7 @@ services:
       context: ./ag-associates-ai/backend
     image: ghcr.io/luxoranova9/ag-ai-backend:${IMAGE_TAG:-latest}
     container_name: ag_ai_backend
-    <<: [*restart, *logging]
+    <<: [*restart, *logging, *app-hardening]
     environment:
       DATABASE_HOST: postgres
       DATABASE_PORT: 5432
@@ -144,7 +151,7 @@ services:
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
     image: ghcr.io/luxoranova9/ag-ai-dashboard:${IMAGE_TAG:-latest}
     container_name: ag_ai_dashboard
-    <<: [*restart, *logging]
+    <<: [*restart, *logging, *app-hardening]
     environment:
       NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
     depends_on: [ai-backend]
@@ -165,7 +172,7 @@ services:
         VITE_API_BASE_URL: /api
     image: ghcr.io/luxoranova9/ag-platform:${IMAGE_TAG:-latest}
     container_name: ag_platform
-    <<: [*restart, *logging]
+    <<: [*restart, *logging, *app-hardening]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       AI_BACKEND_URL: http://ai-backend:8000
@@ -187,7 +194,7 @@ services:
   n8n:
     image: n8nio/n8n:latest
     container_name: ag_n8n
-    <<: [*restart, *logging]
+    <<: [*restart, *logging, *app-hardening]
     environment:
       N8N_HOST: n8n.${DOMAIN}
       N8N_PORT: 5678
@@ -219,10 +226,10 @@ services:
     build:
       context: ./ag-platform/services/intake-api
     image: ghcr.io/luxoranova9/intake-api:${IMAGE_TAG:-latest}
-    ports:
-      - "3002:3002"
     container_name: ag_intake_api
-    <<: [*restart, *logging]
+    <<: [*restart, *logging, *app-hardening]
+    expose:
+      - "3002"
     environment:
       NODE_ENV: production
       PORT: 3002
@@ -244,7 +251,7 @@ services:
       context: ./ag-associates-ai/backend/telegram_bot
     image: ghcr.io/luxoranova9/telegram-bot:${IMAGE_TAG:-latest}
     container_name: ag_telegram_bot
-    <<: [*restart, *logging]
+    <<: [*restart, *logging, *app-hardening]
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
@@ -270,7 +277,7 @@ services:
       context: ./ag-associates-ai/backend/email_intake
     image: ghcr.io/luxoranova9/email-intake:${IMAGE_TAG:-latest}
     container_name: ag_email_intake
-    <<: [*restart, *logging]
+    <<: [*restart, *logging, *app-hardening]
     environment:
       EMAIL_IMAP_HOST: ${EMAIL_IMAP_HOST}
       EMAIL_IMAP_PORT: ${EMAIL_IMAP_PORT:-993}
@@ -301,7 +308,7 @@ services:
       context: ./ag-platform/services/coordinator
     image: ghcr.io/luxoranova9/coordinator:${IMAGE_TAG:-latest}
     container_name: ag_coordinator
-    <<: [*restart, *logging]
+    <<: [*restart, *logging, *app-hardening]
     environment:
       NODE_ENV: production
       PORT: 3005
@@ -330,4 +337,7 @@ volumes:
 
 networks:
   ag_net:
+    driver: bridge
+    internal: true
+  ag_edge:
     driver: bridge

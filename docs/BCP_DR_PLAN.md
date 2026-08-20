@@ -5,6 +5,11 @@
 **Last Updated:** 2026-06-13
 **Classification:** Internal — Operations
 
+> **Current VPS procedure:** use [`AG_OPERATIONS_RUNBOOK.md`](AG_OPERATIONS_RUNBOOK.md)
+> for the maintained health, Restic backup, and non-destructive restore
+> commands. This plan retains broader scenario planning and provider
+> dependencies.
+
 ---
 
 ## 1. Scope & Platform Overview

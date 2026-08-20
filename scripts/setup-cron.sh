@@ -80,6 +80,7 @@ log "Logrotate config installed at $LOGROTATE_FILE"
 # Copy scripts to system paths
 install -m 0755 /srv/ag/repo/scripts/backup.sh /usr/local/sbin/ag-backup
 install -m 0755 /srv/ag/repo/scripts/health-check.sh /usr/local/sbin/ag-health-check
+install -m 0755 /srv/ag/repo/scripts/restore.sh /usr/local/sbin/ag-restore
 
 log "Scripts installed to /usr/local/sbin/"
 log "Done. Verify with: crontab -l (as deploy) or cat /etc/cron.d/ag-associates"

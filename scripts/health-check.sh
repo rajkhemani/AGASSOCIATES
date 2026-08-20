@@ -53,19 +53,27 @@ check_http() {
 check_docker() {
   local failed=0
   log "Checking Docker containers..."
-  docker ps --filter name=ag_ --format '{{.Names}} {{.Status}}' | while read -r name status; do
+  while read -r name status; do
+    [[ -n "$name" ]] || continue
     if [[ ! "$status" =~ ^Up ]]; then
       log "FAIL  Container $name — $status"
       echo "[$(date)] FAIL container $name — $status" >> "$LOG_FILE"
-      alert "🔴 Container $name DOWN: $status"
-      # Auto-restart unhealthy containers
+      alert "Container $name DOWN: $status"
       log "Attempting restart of $name..."
       docker restart "$name" >/dev/null 2>&1 && log "Restarted $name" || log "Failed to restart $name"
       failed=1
-    else
-      log "OK    Container $name — $status"
+      continue
     fi
-  done
+    health=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$name" 2>/dev/null || echo "missing")
+    if [[ "$health" == "unhealthy" ]]; then
+      log "FAIL  Container $name — Docker health is unhealthy"
+      echo "[$(date)] FAIL container $name — Docker health is unhealthy" >> "$LOG_FILE"
+      alert "Container $name health check is unhealthy"
+      failed=1
+    else
+      log "OK    Container $name — $status (health: $health)"
+    fi
+  done < <(docker ps -a --filter name=ag_ --format '{{.Names}} {{.Status}}')
   return $failed
 }
 
