@@ -26,5 +26,22 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
+  /*
+   * src/app/ is a Next.js-style app directory that was added to this Vite app
+   * but never wired into it. Nothing imports these files: the router in App.tsx
+   * resolves every route through src/components/ — including its own LoginPage
+   * (components/auth/LoginPage) and ThemeProvider (components/theme/ThemeProvider),
+   * which are the ones actually in use.
+   *
+   * They are excluded rather than fixed because they are written against APIs
+   * this workspace does not have — `next/navigation`, `@storybook/react`, and
+   * @ag/ui exports (ThemeProvider, useTheme, Select) that package does not
+   * define. Type-checking dead code was failing `tsc && vite build`, which
+   * failed the ag-platform image build, which blocked the whole deploy.
+   *
+   * Wiring this scaffold up is real work; when someone does it, drop this
+   * exclude and make the files compile against what @ag/ui actually exports.
+   */
+  "exclude": ["src/app"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
