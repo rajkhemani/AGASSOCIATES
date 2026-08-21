@@ -1,4 +1,5 @@
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +17,9 @@ except ImportError:
 
 
 class WhisperService:
-    def __init__(self, model_size: str = "base"):
+    def __init__(self, model_size: str | None = None):
         self.model = None
+        model_size = model_size or os.environ.get("WHISPER_MODEL_SIZE", "base")
         if HAS_WHISPER:
             # Run on CPU by default for portability, change to 'cuda' for GPU
             self.model = WhisperModel(model_size, device="cpu", compute_type="int8")

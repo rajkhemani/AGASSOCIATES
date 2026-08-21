@@ -6,7 +6,7 @@ const API = process.env.NEXT_PUBLIC_AG_API || "http://localhost:8000";
 
 type Win = {
   id: string;
-  kind: "browser" | "workforce" | "voice" | "cases" | "notes";
+  kind: "browser" | "workforce" | "voice" | "cases" | "notes" | "whatsapp";
   title: string;
   x: number; y: number; w: number; h: number;
   z: number;
@@ -43,13 +43,15 @@ export default function Office() {
   const open = (kind: Win["kind"], title: string) => {
     const id = `w${++WIN_SEQ}`;
     const offset = WIN_SEQ * 26;
+    const isBrowser = kind === "browser";
+    const isWhatsApp = kind === "whatsapp";
     setWindows((w) => [
       ...w,
       {
         id, kind, title,
         x: 80 + offset, y: 80 + offset,
-        w: kind === "browser" ? 900 : 520,
-        h: kind === "browser" ? 620 : 480,
+        w: isBrowser ? 900 : isWhatsApp ? 420 : 520,
+        h: isBrowser ? 620 : isWhatsApp ? 580 : 480,
         z: ++Z_SEQ,
       },
     ]);
@@ -116,6 +118,7 @@ export default function Office() {
         <DockBtn label="Voice"     icon="🎙" onClick={() => open("voice",    "Vyasa Voice")} />
         <DockBtn label="Cases"     icon="📁" onClick={() => open("cases",    "Cases")} />
         <DockBtn label="Notes"     icon="📝" onClick={() => open("notes",    "Notes")} />
+        <DockBtn label="WhatsApp" icon="📱" onClick={() => open("whatsapp","WhatsApp Connect")} />
       </div>
     </div>
   );
@@ -180,6 +183,7 @@ function Window({ win, onFocus, onClose, onUpdate }:
         {win.kind === "voice"     && <iframe src="/admin/voice"      style={{ width: "100%", height: "100%", border: 0 }} />}
         {win.kind === "cases"     && <iframe src="/my-cases"         style={{ width: "100%", height: "100%", border: 0 }} />}
         {win.kind === "notes"     && <NotesApp winId={win.id} />}
+        {win.kind === "whatsapp"  && <WhatsAppConnectApp win={win} onUpdate={onUpdate} />}
       </div>
     </div>
   );
@@ -311,5 +315,193 @@ function NotesApp({ winId }: { winId: string }) {
               placeholder="Sticky note — saved locally"
               style={{ width: "100%", height: "100%", background: "transparent", color: "#facc15",
                        border: 0, padding: 16, fontSize: 14, fontFamily: "ui-monospace, Menlo, monospace", resize: "none" }} />
+  );
+}
+
+function WhatsAppConnectApp({ win, onUpdate }: { win: Win; onUpdate: (id: string, p: Partial<Win>) => void }) {
+  const [qrData, setQrData] = useState<{ qr: string; session_id: string; expires_in_seconds: number } | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "awaiting_scan" | "connected" | "expired" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+
+  const fetchQr = async () => {
+    setStatus("loading");
+    setError(null);
+    try {
+      const r = await fetch(`${API}/api/whatsapp/directConnect/qr`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!r.ok) throw new Error(`Failed to get QR: ${r.status}`);
+      const data = await r.json();
+      if (data.qr && data.session_id) {
+        setQrData(data);
+        sessionIdRef.current = data.session_id;
+        setStatus(data.status || "awaiting_scan");
+        startPolling(data.session_id, data.expires_in_seconds || 120);
+      } else {
+        throw new Error(data.message || "Invalid QR response");
+      }
+    } catch (e: any) {
+      setError(e?.message || "Failed to generate QR code");
+      setStatus("error");
+    }
+  };
+
+  const pollStatus = async (sessionId: string) => {
+    try {
+      const r = await fetch(`${API}/api/whatsapp/directConnect/status/${sessionId}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!r.ok) throw new Error(`Status check failed: ${r.status}`);
+      const data = await r.json();
+      setStatus(data.status);
+      if (data.status === "connected") {
+        stopPolling();
+        setQrData(prev => prev ? { ...prev, ...data } : null);
+      } else if (data.status === "expired" || data.status === "error") {
+        stopPolling();
+      }
+    } catch (e: any) {
+      console.warn("WhatsApp status poll failed:", e?.message);
+    }
+  };
+
+  const startPolling = (sessionId: string, ttl: number) => {
+    stopPolling();
+    pollRef.current = setInterval(() => pollStatus(sessionId), 3000);
+    setTimeout(() => stopPolling(), ttl * 1000);
+  };
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const refreshQr = () => {
+    stopPolling();
+    setQrData(null);
+    sessionIdRef.current = null;
+    fetchQr();
+  };
+
+  useEffect(() => {
+    fetchQr();
+    return () => stopPolling();
+  }, []);
+
+  const statusColors: Record<string, string> = {
+    idle: "#737373",
+    loading: "#facc15",
+    awaiting_scan: "#3b82f6",
+    connected: "#22c55e",
+    expired: "#ef4444",
+    error: "#ef4444",
+  };
+
+  const statusLabels: Record<string, string> = {
+    idle: "Ready",
+    loading: "Generating QR…",
+    awaiting_scan: "Awaiting Scan",
+    connected: "Connected",
+    expired: "Expired",
+    error: "Error",
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#0a0a0a", color: "#fff" }}>
+      <div style={{ padding: 16, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>WhatsApp Business Connect</h3>
+          <button onClick={refreshQr} disabled={status === "loading"}
+                  style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)",
+                           background: "rgba(255,255,255,0.05)", color: "#fff", cursor: "pointer", fontSize: 12 }}>
+            Refresh QR
+          </button>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#a3a3a3" }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: statusColors[status] }} />
+          <span>{statusLabels[status]}</span>
+          {qrData && status === "awaiting_scan" && (
+            <span style={{ color: "#facc15" }}>⏱ {qrData.expires_in_seconds}s</span>
+          )}
+        </div>
+        {error && (
+          <div style={{ marginTop: 8, padding: 8, background: "rgba(220,38,38,0.15)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: 6, fontSize: 12, color: "#fca5a5" }}>
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        {status === "loading" && (
+          <div style={{ textAlign: "center", color: "#737373" }}>
+            <div style={{ width: 32, height: 32, border: "3px solid rgba(250,204,21,0.3)", borderTopColor: "#facc15", borderRadius: "50%", margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
+            Generating WhatsApp QR code…
+          </div>
+        )}
+
+        {status === "awaiting_scan" && qrData && (
+          <div style={{ textAlign: "center", maxWidth: 360 }}>
+            <div style={{ marginBottom: 16 }}>
+              <img src={qrData.qr} alt="WhatsApp QR Code"
+                   style={{ width: 280, height: 280, borderRadius: 12, background: "#fff", padding: 8, boxShadow: "0 10px 40px rgba(0,0,0,0.4)" }} />
+            </div>
+            <p style={{ fontSize: 14, color: "#a3a3a3", marginBottom: 8 }}>
+              Open WhatsApp → <strong>Linked Devices</strong> → <strong>Link a Device</strong>
+            </p>
+            <p style={{ fontSize: 12, color: "#737373" }}>
+              Scan the QR code above to connect WhatsApp Business
+            </p>
+            <div style={{ marginTop: 16, padding: 12, background: "rgba(255,255,255,0.03)", borderRadius: 8, fontSize: 11, color: "#737373", textAlign: "left" }}>
+              <strong>Session:</strong> {qrData.session_id.slice(0, 8)}…<br/>
+              <strong>Expires in:</strong> {qrData.expires_in_seconds} seconds
+            </div>
+          </div>
+        )}
+
+        {status === "connected" && (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(34,197,94,0.2)",
+                         display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <span style={{ fontSize: 28 }}>✓</span>
+            </div>
+            <h4 style={{ margin: "0 0 8px", fontSize: 18, color: "#22c55e" }}>WhatsApp Connected</h4>
+            <p style={{ color: "#a3a3a3", fontSize: 14 }}>Your WhatsApp Business account is now linked.</p>
+            {sessionIdRef.current && (
+              <div style={{ marginTop: 12, padding: 8, background: "rgba(255,255,255,0.03)", borderRadius: 8, fontSize: 11, color: "#737373" }}>
+                Session: {sessionIdRef.current.slice(0, 8)}…
+              </div>
+            )}
+          </div>
+        )}
+
+        {status === "expired" && (
+          <div style={{ textAlign: "center", color: "#737373" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
+            <h4 style={{ margin: "0 0 8px" }}>QR Code Expired</h4>
+            <p style={{ marginBottom: 16 }}>The QR code has expired. Click <strong>Refresh QR</strong> to generate a new one.</p>
+            <button onClick={refreshQr} style={{ ...btn, background: "#facc15", color: "#000", fontWeight: 700 }}>
+              Generate New QR
+            </button>
+          </div>
+        )}
+
+        {status === "error" && (
+          <div style={{ textAlign: "center", color: "#ef4444" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠</div>
+            <h4 style={{ margin: "0 0 8px" }}>Connection Error</h4>
+            <p style={{ marginBottom: 16, color: "#a3a3a3" }}>{error || "Unknown error occurred"}</p>
+            <button onClick={refreshQr} style={{ ...btn, background: "#ef4444", color: "#fff", fontWeight: 700 }}>
+              Retry
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

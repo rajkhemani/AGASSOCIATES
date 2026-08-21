@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { pool } from '../db.ts';
 import { Case, CaseStatus } from '../../types/domain.ts';
+import { assertMatterTransition } from '../matterStateMachine.ts';
 
 export const CaseService = {
   async getActiveCases(orgId: string): Promise<Case[]> {
@@ -50,6 +51,7 @@ export const CaseService = {
         throw new Error('Case not found');
       }
       const oldStatus = currentCase.rows[0].status;
+      assertMatterTransition(oldStatus as CaseStatus, status);
 
       await client.query('UPDATE cases SET status = $1 WHERE id = $2 AND org_id = $3', [status, id, orgId]);
 

@@ -19,6 +19,7 @@ from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 
 from voice.voice_api import router as voice_router
+from public_voice import router as public_voice_router
 from workforce import workforce_router
 from auth import oauth_router, require_auth, require_permission, AuthContext
 from playground import playground_router, session_manager as _playground_sm
@@ -138,6 +139,7 @@ from metrics import MetricsMiddleware
 app.add_middleware(MetricsMiddleware)
 
 app.include_router(voice_router)
+app.include_router(public_voice_router)
 app.include_router(workforce_router)
 app.include_router(oauth_router)
 app.include_router(playground_router)

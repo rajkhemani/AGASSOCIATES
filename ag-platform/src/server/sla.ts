@@ -1,6 +1,7 @@
 import { pool } from './db.ts';
 import { logger } from './logger.ts';
 import { AuditEvents } from './audit.ts';
+import { calculateDeadlineRisk } from './deadlineRisk.ts';
 
 export interface SLAConfig {
   caseType: string;
@@ -394,8 +395,12 @@ export async function getSLADashboard(orgId: string) {
     
     if (!case_.slaDeadline) continue;
     
-    const timeToDeadline = case_.slaDeadline.getTime() - Date.now();
-    const hoursRemaining = timeToDeadline / (1000 * 60 * 60);
+    const risk = calculateDeadlineRisk({
+      deadline: case_.slaDeadline,
+      warningHours: config.warningHours,
+      now,
+    });
+    const hoursRemaining = risk.hoursUntilDeadline ?? 0;
     
     const typeStats = dashboard.byType[case_.caseType] || { total: 0, warning: 0, breached: 0 };
     typeStats.total++;
@@ -404,7 +409,7 @@ export async function getSLADashboard(orgId: string) {
       dashboard.breached++;
       typeStats.breached++;
       if (case_.slaEscalated) dashboard.escalated++;
-    } else if (hoursRemaining <= config.warningHours && hoursRemaining > 0) {
+    } else if (risk.level === 'at_risk') {
       dashboard.warning++;
       typeStats.warning++;
     } else {

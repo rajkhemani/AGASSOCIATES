@@ -23,6 +23,10 @@ SERVICES=(
   "n8n|https://n8n.$DOMAIN/healthz|200"
   "Clerk Docs|https://docs.$DOMAIN/|200"
 )
+EXPECTED_CONTAINERS=(
+  ag_caddy ag_postgres ag_redis ag_ai_backend ag_ai_dashboard ag_platform
+  ag_n8n ag_intake_api ag_telegram_bot ag_email_intake ag_coordinator
+)
 
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 alert() {
@@ -53,17 +57,26 @@ check_http() {
 check_docker() {
   local failed=0
   log "Checking Docker containers..."
-  docker ps --filter name=ag_ --format '{{.Names}} {{.Status}}' | while read -r name status; do
-    if [[ ! "$status" =~ ^Up ]]; then
+  for name in "${EXPECTED_CONTAINERS[@]}"; do
+    local status
+    status=$(docker inspect --format='{{.State.Status}}' "$name" 2>/dev/null || echo "missing")
+    if [[ "$status" != "running" ]]; then
       log "FAIL  Container $name — $status"
       echo "[$(date)] FAIL container $name — $status" >> "$LOG_FILE"
-      alert "🔴 Container $name DOWN: $status"
-      # Auto-restart unhealthy containers
+      alert "Container $name DOWN: $status"
       log "Attempting restart of $name..."
       docker restart "$name" >/dev/null 2>&1 && log "Restarted $name" || log "Failed to restart $name"
       failed=1
+      continue
+    fi
+    health=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$name" 2>/dev/null || echo "missing")
+    if [[ "$health" == "unhealthy" ]]; then
+      log "FAIL  Container $name — Docker health is unhealthy"
+      echo "[$(date)] FAIL container $name — Docker health is unhealthy" >> "$LOG_FILE"
+      alert "Container $name health check is unhealthy"
+      failed=1
     else
-      log "OK    Container $name — $status"
+      log "OK    Container $name — running (health: $health)"
     fi
   done
   return $failed

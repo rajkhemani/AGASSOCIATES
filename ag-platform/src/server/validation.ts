@@ -42,6 +42,16 @@ export const UpdateCaseStatusSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
+export const CreateQAFindingSchema = z.object({
+  case_id: z.string().uuid('Invalid case ID'),
+  code: z.string().trim().min(1).max(100),
+  title: z.string().trim().min(1).max(255),
+  description: z.string().trim().max(2000).optional(),
+  severity: z.enum(['low', 'medium', 'high', 'critical']),
+  source: z.string().trim().min(1).max(100).default('rule'),
+  evidence: z.record(z.unknown()).default({}),
+});
+
 // Document creation validation
 export const CreateDocumentSchema = z.object({
   name: z.string().min(1, 'Document name is required').max(255),

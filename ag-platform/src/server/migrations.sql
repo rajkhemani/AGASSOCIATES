@@ -187,6 +187,37 @@ CREATE TABLE IF NOT EXISTS files (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- QA findings are deterministic, auditable outputs attached to a matter.
+CREATE TABLE IF NOT EXISTS qa_findings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    org_id UUID REFERENCES organizations(id) NOT NULL,
+    case_id UUID REFERENCES cases(id) ON DELETE CASCADE NOT NULL,
+    finding_code TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    severity TEXT NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'acknowledged', 'resolved', 'dismissed')),
+    source TEXT NOT NULL DEFAULT 'rule',
+    evidence JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by UUID REFERENCES profiles(id),
+    resolved_by UUID REFERENCES profiles(id),
+    resolved_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_qa_findings_case_id ON qa_findings(case_id);
+CREATE INDEX IF NOT EXISTS idx_qa_findings_org_status ON qa_findings(org_id, status);
+
+ALTER TABLE qa_findings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS qa_findings_org_isolation ON qa_findings;
+CREATE POLICY qa_findings_org_isolation ON qa_findings
+  FOR ALL USING (org_id = current_setting('app.current_org_id', true)::uuid);
+
+DROP TRIGGER IF EXISTS update_qa_findings_updated_at ON qa_findings;
+CREATE TRIGGER update_qa_findings_updated_at
+  BEFORE UPDATE ON qa_findings FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
 -- TRIGGERS for updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -396,10 +427,72 @@ DO $$ BEGIN
         'NOTIFICATION_SENT',
         'SLA_WARNING',
         'SLA_BREACHED',
-        'ESCALATION_TRIGGERED'
+        'ESCALATION_TRIGGERED',
+        'ACTION_REQUESTED',
+        'ACTION_APPROVED',
+        'ACTION_BLOCKED',
+        'ACTION_EXECUTED',
+        'MATTER_STATE_CHANGED'
     );
 EXCEPTION
     WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TYPE audit_event_type ADD VALUE IF NOT EXISTS 'ACTION_REQUESTED';
+    ALTER TYPE audit_event_type ADD VALUE IF NOT EXISTS 'ACTION_APPROVED';
+    ALTER TYPE audit_event_type ADD VALUE IF NOT EXISTS 'ACTION_BLOCKED';
+    ALTER TYPE audit_event_type ADD VALUE IF NOT EXISTS 'ACTION_EXECUTED';
+    ALTER TYPE audit_event_type ADD VALUE IF NOT EXISTS 'MATTER_STATE_CHANGED';
+EXCEPTION WHEN others THEN null;
+END $$;
+
+-- ACTION GATEWAY: durable approval records for consequential operations
+CREATE TABLE IF NOT EXISTS action_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    org_id UUID REFERENCES organizations(id) ON DELETE CASCADE NOT NULL,
+    action TEXT NOT NULL,
+    level TEXT NOT NULL CHECK (level IN ('L0', 'L1', 'L2', 'L3')),
+    requested_by UUID NOT NULL,
+    subject_type TEXT,
+    subject_id UUID,
+    payload JSONB NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'EXECUTED', 'EXPIRED')),
+    required_approvals INTEGER NOT NULL DEFAULT 0 CHECK (required_approvals >= 0),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    expires_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE TABLE IF NOT EXISTS action_approvals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    action_request_id UUID REFERENCES action_requests(id) ON DELETE CASCADE NOT NULL,
+    approver_id UUID NOT NULL,
+    approver_role TEXT NOT NULL,
+    decision TEXT NOT NULL CHECK (decision IN ('APPROVED', 'REJECTED')),
+    comment TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (action_request_id, approver_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_action_requests_org_id ON action_requests(org_id);
+CREATE INDEX IF NOT EXISTS idx_action_requests_status ON action_requests(status);
+CREATE INDEX IF NOT EXISTS idx_action_approvals_request ON action_approvals(action_request_id);
+
+ALTER TABLE action_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE action_approvals ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  CREATE POLICY action_requests_org_isolation ON action_requests
+    FOR ALL USING (org_id = current_setting('app.current_org_id', true)::uuid);
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+DO $$ BEGIN
+  CREATE POLICY action_approvals_org_isolation ON action_approvals
+    FOR ALL USING (EXISTS (
+      SELECT 1 FROM action_requests r
+      WHERE r.id = action_request_id
+        AND r.org_id = current_setting('app.current_org_id', true)::uuid
+    ));
+EXCEPTION WHEN duplicate_object THEN null;
 END $$;
 
 -- AUDIT TRAIL TABLE

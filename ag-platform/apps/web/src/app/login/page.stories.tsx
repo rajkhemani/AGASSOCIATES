@@ -185,9 +185,9 @@ export const LoadingState: Story = {
             Restricted to AG Associates & LUXORANOVA members.
           </p>
         </div>
+      </div>
       </ThemeProvider>
     ),
-  ],
 };
 
 export const Mobile: Story = {
