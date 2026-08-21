@@ -88,7 +88,7 @@ services:
   ai-backend:
     build:
       context: ./ag-associates-ai/backend
-    image: ghcr.io/luxoranova9/ag-ai-backend:${IMAGE_TAG:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-rajkhemani}/ag-ai-backend:${IMAGE_TAG:-latest}
     container_name: ag_ai_backend
     <<: [*restart, *logging, *app-hardening]
     environment:
@@ -155,7 +155,7 @@ services:
       context: ./ag-associates-ai/frontend
       args:
         NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
-    image: ghcr.io/luxoranova9/ag-ai-dashboard:${IMAGE_TAG:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-rajkhemani}/ag-ai-dashboard:${IMAGE_TAG:-latest}
     container_name: ag_ai_dashboard
     <<: [*restart, *logging, *app-hardening]
     environment:
@@ -176,7 +176,7 @@ services:
         VITE_SUPABASE_URL: ${SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
         VITE_API_BASE_URL: /api
-    image: ghcr.io/luxoranova9/ag-platform:${IMAGE_TAG:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-rajkhemani}/ag-platform:${IMAGE_TAG:-latest}
     container_name: ag_platform
     <<: [*restart, *logging, *app-hardening]
     environment:
@@ -231,7 +231,7 @@ services:
   intake-api:
     build:
       context: ./ag-platform/services/intake-api
-    image: ghcr.io/luxoranova9/intake-api:${IMAGE_TAG:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-rajkhemani}/intake-api:${IMAGE_TAG:-latest}
     container_name: ag_intake_api
     <<: [*restart, *logging, *app-hardening]
     expose:
@@ -255,7 +255,7 @@ services:
   telegram-bot:
     build:
       context: ./ag-associates-ai/backend/telegram_bot
-    image: ghcr.io/luxoranova9/telegram-bot:${IMAGE_TAG:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-rajkhemani}/telegram-bot:${IMAGE_TAG:-latest}
     container_name: ag_telegram_bot
     <<: [*restart, *logging, *app-hardening]
     environment:
@@ -281,7 +281,7 @@ services:
   email-intake:
     build:
       context: ./ag-associates-ai/backend/email_intake
-    image: ghcr.io/luxoranova9/email-intake:${IMAGE_TAG:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-rajkhemani}/email-intake:${IMAGE_TAG:-latest}
     container_name: ag_email_intake
     <<: [*restart, *logging, *app-hardening]
     environment:
@@ -312,7 +312,7 @@ services:
   coordinator:
     build:
       context: ./ag-platform/services/coordinator
-    image: ghcr.io/luxoranova9/coordinator:${IMAGE_TAG:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-rajkhemani}/coordinator:${IMAGE_TAG:-latest}
     container_name: ag_coordinator
     <<: [*restart, *logging, *app-hardening]
     environment:
