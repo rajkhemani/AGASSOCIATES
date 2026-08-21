@@ -106,7 +106,177 @@
 
     // Initialize form handling
     initFormHandling();
+
+    // Initialize the public voice assistant with a browser-first mock adapter.
+    initPublicVoice();
   });
+
+  function initPublicVoice() {
+    const card = document.querySelector('[data-voice-card]');
+    if (!card) return;
+
+    const toggle = card.querySelector('[data-voice-toggle]');
+    const handsfree = card.querySelector('[data-voice-handsfree]');
+    const label = card.querySelector('[data-voice-label]');
+    const status = card.querySelector('[data-voice-status]');
+    const transcriptEl = card.querySelector('[data-voice-transcript]');
+    const errorEl = card.querySelector('[data-voice-error]');
+    const textInput = card.querySelector('#voice-text-input');
+    const sendButton = card.querySelector('[data-voice-send]');
+    const orb = card.querySelector('[data-voice-orb]');
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let sessionId = null;
+    let listening = false;
+    let handsFree = false;
+    let manualStop = false;
+    const apiBase = (window.AG_PUBLIC_API_URL || 'https://api.advadiityagade.com').replace(/\/$/, '');
+
+    function setError(message) {
+      errorEl.textContent = message;
+      errorEl.hidden = !message;
+    }
+
+    function setState(next, message) {
+      card.dataset.voiceState = next;
+      status.textContent = message;
+      if (orb) orb.dataset.state = next;
+      if (label) label.textContent = next === 'listening' ? 'Listening…' : 'Talk to AG Assistant';
+    }
+
+    async function createSession() {
+      if (sessionId) return sessionId;
+      const response = await fetch(apiBase + '/public/voice/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consent: true, locale: 'en-IN' })
+      });
+      if (!response.ok) throw new Error('Voice session could not be started.');
+      const data = await response.json();
+      sessionId = data.session_id;
+      return sessionId;
+    }
+
+    async function respond(text) {
+      if (!text || !text.trim()) return;
+      setState('thinking', 'Checking the approved AG Associates assistant…');
+      transcriptEl.textContent = '“' + text.trim() + '”';
+      let data;
+      try {
+        const response = await fetch(apiBase + '/public/voice/respond', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: await createSession(), transcript: text.trim() })
+        });
+        if (!response.ok) throw new Error('public voice API unavailable');
+        data = await response.json();
+      } catch {
+        const lower = text.toLowerCase();
+        const isLocation = /where|location|thane|office/.test(lower);
+        data = {
+          reply: isLocation
+            ? 'AG Associates is based in Thane, Maharashtra, and serves the Mumbai MMR region. I am an AI assistant for general information only.'
+            : 'AG Associates supports Notice of Intimation filings, title search reports, document vetting, mortgage registration, and related property documentation. I am an AI assistant for general information only.'
+        };
+      }
+      setState('speaking', data.reply);
+      try {
+        const audioResponse = await fetch(apiBase + '/public/voice/speak?text=' + encodeURIComponent(data.reply), { method: 'POST' });
+        if (!audioResponse.ok) throw new Error('open-source TTS unavailable');
+        const audio = new Audio(URL.createObjectURL(await audioResponse.blob()));
+        audio.onended = function() { setState('idle', 'Ready when you are.'); };
+        await audio.play();
+      } catch {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(data.reply);
+          utterance.lang = 'en-IN';
+          utterance.rate = 0.95;
+          utterance.onend = function() { setState('idle', 'Ready when you are.'); };
+          window.speechSynthesis.speak(utterance);
+        } else {
+          setState('idle', data.reply);
+        }
+      }
+    }
+
+    async function startListening() {
+      setError('');
+      manualStop = false;
+      if (!Recognition) {
+        setError('Voice input is not supported here. Please type your question below.');
+        textInput.focus();
+        return;
+      }
+      try {
+        await createSession();
+        recognition = new Recognition();
+        recognition.lang = 'en-IN';
+        recognition.continuous = handsFree;
+        recognition.interimResults = true;
+        recognition.onstart = function() {
+          listening = true;
+          setState('listening', handsFree ? 'Hands-free mode is listening. Say “stop” to finish.' : 'Listening…');
+          toggle.setAttribute('aria-pressed', 'true');
+        };
+        recognition.onresult = function(event) {
+          let interim = '';
+          let finalText = '';
+          for (let i = event.resultIndex; i < event.results.length; i += 1) {
+            const value = event.results[i][0].transcript;
+            if (event.results[i].isFinal) finalText += value;
+            else interim += value;
+          }
+          transcriptEl.textContent = '“' + (finalText || interim) + '”';
+          if (finalText && !handsFree) respond(finalText).catch(function(error) { setError(error.message); setState('idle', 'Ready when you are.'); });
+        };
+        recognition.onerror = function() {
+          setError('Microphone input stopped. You can type instead.');
+          setState('idle', 'Ready when you are.');
+        };
+        recognition.onend = function() {
+          listening = false;
+          toggle.setAttribute('aria-pressed', 'false');
+          if (handsFree && !manualStop) {
+            setState('idle', 'Hands-free mode is ready for your next question.');
+            window.setTimeout(startListening, 350);
+          } else {
+            setState('idle', 'Ready when you are.');
+          }
+        };
+        recognition.start();
+      } catch (error) {
+        setError(error.message || 'Microphone permission is required.');
+        setState('idle', 'Ready when you are.');
+      }
+    }
+
+    function stopListening() {
+      manualStop = true;
+      if (recognition) recognition.stop();
+      listening = false;
+      toggle.setAttribute('aria-pressed', 'false');
+      setState('idle', 'Ready when you are.');
+    }
+
+    toggle.addEventListener('click', function() {
+      if (listening) stopListening();
+      else startListening();
+    });
+    handsfree.addEventListener('click', function() {
+      handsFree = !handsFree;
+      handsfree.setAttribute('aria-pressed', String(handsFree));
+      handsfree.textContent = handsFree ? 'Disable hands-free mode' : 'Enable hands-free mode';
+      if (!handsFree && listening) stopListening();
+    });
+    sendButton.addEventListener('click', function() {
+      respond(textInput.value).catch(function(error) { setError(error.message); });
+    });
+    textInput.addEventListener('keydown', function(event) {
+      if (event.key === 'Enter') respond(textInput.value).catch(function(error) { setError(error.message); });
+    });
+    if (!Recognition) setError('Voice input is unavailable in this browser. Typing is fully supported.');
+  }
 
   function handleTrackClick() {
     const query = trackInput.value.trim().toUpperCase();

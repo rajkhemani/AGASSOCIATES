@@ -105,6 +105,44 @@
     </div>
   </section>
 
+  <!-- Public voice assistant -->
+  <section class="section voice-section" id="voice-assistant" aria-labelledby="voice-title">
+    <div class="voice-shell glass-panel">
+      <div class="voice-copy">
+        <span class="eyebrow">PUBLIC ASSISTANT / 01</span>
+        <h2 id="voice-title">Ask AG Associates<br><em>in your own voice.</em></h2>
+        <p>
+          Ask about our banking legal services, prepare an enquiry, or request a callback.
+          This assistant provides general information only and does not access case files.
+        </p>
+        <p class="voice-disclosure">Microphone access is requested only when you press the control.</p>
+      </div>
+      <div class="voice-card" data-voice-card>
+        <div class="voice-particles" aria-hidden="true"></div>
+        <div class="voice-orb" data-voice-orb aria-hidden="true"><span></span></div>
+        <button class="voice-button" type="button" data-voice-toggle aria-pressed="false">
+          <span class="voice-button-icon" aria-hidden="true">◉</span>
+          <span data-voice-label>Talk to AG Assistant</span>
+        </button>
+        <button class="voice-handsfree" type="button" data-voice-handsfree aria-pressed="false">
+          Enable hands-free mode
+        </button>
+        <p class="voice-status" role="status" aria-live="polite" data-voice-status>
+          Ready when you are.
+        </p>
+        <p class="voice-transcript" data-voice-transcript></p>
+        <div class="voice-fallback">
+          <label for="voice-text-input">Prefer typing?</label>
+          <div class="voice-text-row">
+            <input id="voice-text-input" type="text" maxlength="1000" placeholder="Ask about NOI, title search, or a callback">
+            <button class="btn btn-secondary" type="button" data-voice-send>Send</button>
+          </div>
+        </div>
+        <p class="voice-error" data-voice-error hidden></p>
+      </div>
+    </div>
+  </section>
+
   <!-- Core Practice Areas -->
   <section class="section" id="practices">
     <div class="container">
