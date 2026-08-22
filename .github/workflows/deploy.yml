@@ -130,6 +130,11 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: Delayed container diagnostics (120s)
+        # Runs even when the deploy fails — that is the only time the container
+        # logs below actually explain anything. Without this the step is skipped
+        # by the default if: success(), so every failed deploy lands blind. Not
+        # always(): on a cancelled run this would SSH in and sleep 120s for nothing.
+        if: ${{ !cancelled() }}
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
