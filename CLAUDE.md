@@ -10,19 +10,20 @@ files — **no code-level coupling**. Don't assume a change in one carries over.
 
 ```text
 AGASSOCIATES/
-├── apps/web/            # Marketing site — Next.js 15 static export → GitHub Pages
-│                        #   THE LIVE SITE at advadiityagade.com. src/content/site.ts
-│                        #   is the single source for every firm fact on the page.
+├── apps/web/            # Next.js 15 marketing site. NOT deployed — no workflow builds
+│                        #   it any more (Pages publishes landing/ instead). Kept in the
+│                        #   tree; src/content/site.ts is its single source of firm facts.
 ├── ag-associates-ai/    # AI Document Pipeline (FastAPI + Groq + pgvector)
 │   ├── backend/         #   main.py, noi_agent.py, workflows/, email_intake/,
 │   │                    #   telegram_bot/, igr_executor.py, executor_agent.py
 │   └── frontend/        #   Next.js ops dashboard — a SECOND, separate Next.js app.
 │                        #   Ships as the `ag-ai-dashboard` container via deploy.yml,
-│                        #   NOT to Pages. nextjs.yml builds apps/web only.
+│                        #   NOT to Pages.
 ├── ag-platform/         # LegalTech Collaboration Platform (Turborepo + Supabase)
 │   ├── src/             #   Vite + React frontend + Express backend (src/server/)
 │   └── services/        #   intake-api — Fastify gateway (built, NOT deployed)
-├── landing/             # Older static marketing page, served from the VPS
+├── landing/             # THE LIVE SITE at advadiityagade.com — static HTML, published
+│                        #   to GitHub Pages by nextjs.yml (which builds nothing)
 ├── supabase/migrations/ # Root-level, SEPARATE from ag-platform/supabase/migrations/
 └── tasks/               # todo.md + lessons.md (real, tracked — append to lessons.md)
 ```
@@ -255,19 +256,25 @@ the code in places — trust the code.
 
 ## Deploy Configuration (configured by /setup-deploy)
 
-**Three deploy paths, two of which build `apps/web`.** Route by what the merge actually
-touched, and never verify one path by checking another.
+**Three deploy paths.** Route by what the merge actually touched, and never verify one
+path by checking another.
 
-### Path A — marketing site (`apps/web` → GitHub Pages) — the live site
+### Path A — marketing site (`landing/` → GitHub Pages) — the live site
 
-- Workflow: `.github/workflows/nextjs.yml`. **No path filter** — it runs on *every* push to
-  `main`, not only on `apps/web/**`. Also accepts `workflow_dispatch`.
-- `apps/web` is `output: "export"`, so `out/` is the artifact and `public/CNAME` ships inside it.
+- Workflow: `.github/workflows/nextjs.yml`, whose *filename is a misnomer*: it is named
+  `Deploy landing site to Pages` and publishes **`landing/`**, not `apps/web`. It runs no
+  build at all — checkout, configure-pages, `upload-pages-artifact` with `path: landing`,
+  deploy. Repointed deliberately in `d0c8aaa` / `0750c79`.
+- **No path filter** — it runs on *every* push to `main`. Also accepts `workflow_dispatch`.
 - Production URL: <https://advadiityagade.com>
 - Health check: HTTP 200 **and** `<title>` equal to
-  `AG Associates — Banking Panel Advocates, Thane`. A 200 alone proves nothing — see the
-  GitHub Pages hazard above; a Jekyll-rendered README also returns 200.
-- Deploy status: `nextjs.yml` run conclusion for the merge SHA. This path is healthy.
+  `AG Associates — AI-Native Banking Advocate & Legal Operations Firm` — the title in
+  `landing/index.html`. A 200 alone proves nothing; see the GitHub Pages hazard above.
+- Deploy status: `nextjs.yml` run conclusion for the merge SHA.
+- **`apps/web` is built by no workflow.** It is a complete Next.js static-export site that
+  nothing deploys, and its title (`… — Banking Panel Advocates, Thane`) differs from what is
+  live. Editing `apps/web/src/content/site.ts` changes nothing anyone can see. Decide
+  whether it is being revived or retired before treating it as the marketing site.
 
 ### Path B — container stack (VPS behind Caddy)
 
