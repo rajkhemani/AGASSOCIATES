@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { SmoothScroll } from "@/components/SmoothScroll";
 import { MotionProvider } from "@/components/MotionProvider";
 import { ScrollRail } from "@/components/ScrollRail";
@@ -105,6 +106,7 @@ export default function RootLayout({
           <ScrollRail />
           {children}
         </MotionProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
