@@ -65,7 +65,7 @@ REPO_URL="https://github.com/LUXORANOVA9/AGASSOCIATES.git"
 REPO_SLUG="LUXORANOVA9/AGASSOCIATES"
 
 # Default config (overridable via env)
-DOMAIN="${DOMAIN:-advaiityagade.com}"
+DOMAIN="${DOMAIN:-advadiityagade.com}"
 SERVER_TYPE="${SERVER_TYPE:-ccx23}"
 LOCATION="${LOCATION:-nbg1}"
 ZONE_ID="${CLOUDFLARE_ZONE_ID:-ad78f4619af17346172199dc76082cab}"

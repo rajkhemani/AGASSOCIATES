@@ -202,7 +202,7 @@ make smoke       # Run health checks
 ### SSL Certificates
 
 - **Automatic**: Caddy handles Let's Encrypt via ACME
-- **Email**: `admin@advaiityagade.com` (from `ACME_EMAIL`)
+- **Email**: `admin@advadiityagade.com` (from `ACME_EMAIL`)
 
 ## 🔄 Updating Production
 

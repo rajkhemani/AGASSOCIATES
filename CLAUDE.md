@@ -252,3 +252,64 @@ The status markers in `ag-associates-ai/README.md` ("Day 1/2/3 ✅/❌"),
 `DAY3_COMPLETE.md`, `LANGGRAPH_AGENTS.md` and `docs/noi-automation-plan.md`
 describe an original build roadmap. They are historical narrative and contradict
 the code in places — trust the code.
+
+## Deploy Configuration (configured by /setup-deploy)
+
+**Three deploy paths, two of which build `apps/web`.** Route by what the merge actually
+touched, and never verify one path by checking another.
+
+### Path A — marketing site (`apps/web` → GitHub Pages) — the live site
+
+- Workflow: `.github/workflows/nextjs.yml`. **No path filter** — it runs on *every* push to
+  `main`, not only on `apps/web/**`. Also accepts `workflow_dispatch`.
+- `apps/web` is `output: "export"`, so `out/` is the artifact and `public/CNAME` ships inside it.
+- Production URL: <https://advadiityagade.com>
+- Health check: HTTP 200 **and** `<title>` equal to
+  `AG Associates — Banking Panel Advocates, Thane`. A 200 alone proves nothing — see the
+  GitHub Pages hazard above; a Jekyll-rendered README also returns 200.
+- Deploy status: `nextjs.yml` run conclusion for the merge SHA. This path is healthy.
+
+### Path B — container stack (VPS behind Caddy)
+
+- Workflow: `.github/workflows/deploy.yml`, path-filtered to `ag-associates-ai/**`,
+  `ag-platform/**`, `landing/**`, `docker-compose.prod.yml`, `Caddyfile`, and its own file.
+- Builds **seven** images → `ghcr.io/$IMAGE_OWNER/<name>` → SSH → `docker compose -p ag`
+  in `/srv/ag/deploy-<sha>`.
+- **`IMAGE_OWNER` is the single source of truth for the registry namespace.** It is set in
+  `deploy.yml`'s `env:` and exported into the SSH script; `docker-compose.prod.yml` reads
+  `ghcr.io/${IMAGE_OWNER:-rajkhemani}/`. Do not hardcode an owner in the compose file — the
+  two drifted once after the repo moved off the `luxoranova9` org, which silently pinned
+  production to stale images.
+- Health check — all four must return 200:
+  - <https://api.advadiityagade.com/health>
+  - <https://intake.advadiityagade.com/health>
+  - <https://app.advadiityagade.com/>
+  - <https://dashboard.advadiityagade.com/>
+- The smoke-test step **does** fail the workflow (`exit 1`) on any non-200. An older
+  warns-only version is described in some docs; that is stale.
+- **This pipeline has never had a green run.** Every one of the 30 most recent runs the
+  Actions API returns is `failure`, back to 2026-06-11. Live `api`/`app`/`dashboard`/`intake`
+  answer 200 only because containers are still serving images from before it broke, so
+  treat those 200s as evidence about the running containers, never about the last merge.
+
+### Path C — Vercel project `agassociates` (also builds `apps/web`)
+
+- **Not configured in this repo** — there is no `vercel.json` and no `.vercel/`. Root
+  directory, framework preset and env vars live in the Vercel dashboard.
+- Appears on pull requests as the required check
+  `Vercel Deployments – rajkhemani's projects`.
+- Currently failing. Its root directory was `mnt/e/DSH/` (a local WSL path that had leaked
+  into project settings), later corrected to `apps/web`, and it fails either way — while the
+  same directory builds cleanly in `nextjs.yml` on every run. That points at Vercel project
+  configuration rather than repo content.
+- Only Path A serves production for `apps/web`. Path C overlaps it and currently blocks PRs
+  without deploying anything anyone reads.
+
+### Shared
+
+- Merge method: squash
+- commitlint is enforced: lower-case subject, scope from `scope-enum` in
+  `commitlint.config.js`. Validate with `npx commitlint --from origin/main --to HEAD`.
+- `vars.PROD_DOMAIN` feeds both the smoke test and the dashboard's build-time
+  `NEXT_PUBLIC_API_URL`. It must be `advadiityagade.com` — the misspelling
+  `advaiityagade.com` does not resolve and was seeded repo-wide from `Makefile`.

@@ -137,7 +137,7 @@ gh-secrets:
 	@gh secret set IGR_PORTAL_USERNAME --body "$$IGR_PORTAL_USERNAME"
 	@gh secret set IGR_PORTAL_PASSWORD --body "$$IGR_PORTAL_PASSWORD"
 	@gh secret set GOOGLE_GENERATIVE_AI_API_KEY --body "$$GOOGLE_GENERATIVE_AI_API_KEY"
-	@gh variable set PROD_DOMAIN --body "advaiityagade.com"
+	@gh variable set PROD_DOMAIN --body "advadiityagade.com"
 	@gh variable set SUPABASE_URL --body "$$SUPABASE_URL"
 	@gh variable set SUPABASE_ANON_KEY --body "$$SUPABASE_ANON_KEY"
 
